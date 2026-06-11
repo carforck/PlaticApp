@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
 import { KIND_EMOJI } from "@/lib/labels";
+import { MonthCalendar, dayKey } from "./MonthCalendar";
 
 const FREQ_LABEL: Record<string, string> = {
   weekly: "Semanal",
@@ -15,8 +16,36 @@ const FREQ_LABEL: Record<string, string> = {
 export function RecurrentesClient() {
   const { data, refresh } = useDashboard();
   const [creating, setCreating] = useState(false);
+  const [view, setView] = useState<"list" | "calendar">("list");
+  const [month, setMonth] = useState(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1);
+  });
 
   const recs = data.recurrences;
+
+  // Pagos por día del mes visible.
+  const byDay = useMemo(() => {
+    const m = new Map<string, typeof recs>();
+    const year = month.getFullYear();
+    const mo = month.getMonth();
+    const daysInMonth = new Date(year, mo + 1, 0).getDate();
+    for (const r of recs) {
+      if (!r.active) continue;
+      let key: string | null = null;
+      if (r.frequency === "monthly" && r.day_of_month) {
+        key = dayKey(new Date(year, mo, Math.min(r.day_of_month, daysInMonth)));
+      } else {
+        const due = new Date(`${r.next_due}T12:00:00`);
+        if (due.getFullYear() === year && due.getMonth() === mo) key = dayKey(due);
+      }
+      if (!key) continue;
+      const arr = m.get(key) ?? [];
+      arr.push(r);
+      m.set(key, arr);
+    }
+    return m;
+  }, [recs, month]);
   const monthlyOut = recs
     .filter((r) => r.active && r.kind !== "income")
     .reduce((s, r) => s + monthlyEquivalent(r.amount_minor, r.frequency), 0);
@@ -43,11 +72,46 @@ export function RecurrentesClient() {
             ~{fmtMoney(monthlyOut)} al mes en pagos recurrentes
           </p>
         </div>
-        <button onClick={() => setCreating(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
-          + Nuevo pago fijo
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 rounded-[10px] bg-black/[0.05] p-1">
+            {(["list", "calendar"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`rounded-[7px] px-2.5 py-1.5 text-[13px] font-medium transition ${view === v ? "bg-white shadow-sm" : "text-[var(--color-ink-soft)]"}`}
+              >
+                {v === "list" ? "☰" : "📅"}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setCreating(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
+            + Nuevo
+          </button>
+        </div>
       </header>
 
+      {view === "calendar" && (
+        <MonthCalendar
+          month={month}
+          onMonthChange={setMonth}
+          renderDay={(date) => {
+            const items = byDay.get(dayKey(date));
+            if (!items?.length) return null;
+            return (
+              <div className="space-y-0.5">
+                {items.slice(0, 2).map((r) => (
+                  <div key={r.id} className="truncate rounded-[5px] bg-[var(--color-accent)]/12 px-1 text-[10px] font-medium text-[var(--color-accent)]">
+                    🔁 {r.name}
+                  </div>
+                ))}
+                {items.length > 2 && <div className="text-[10px] text-[var(--color-ink-soft)]">+{items.length - 2}</div>}
+              </div>
+            );
+          }}
+        />
+      )}
+
+      {view === "list" && (
       <div className="glass overflow-hidden rounded-[var(--radius-card)]">
         {recs.length === 0 ? (
           <p className="p-8 text-center text-[14px] text-[var(--color-ink-soft)]">
@@ -90,6 +154,7 @@ export function RecurrentesClient() {
           </ul>
         )}
       </div>
+      )}
 
       {creating && <NewRecurrenceModal onClose={() => setCreating(false)} onSaved={refresh} />}
     </main>
