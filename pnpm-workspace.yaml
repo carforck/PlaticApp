@@ -1,0 +1,12 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  esbuild: set this to true or false
+  sharp: set this to true or false
+
+# Permite que estas dependencias nativas ejecuten sus build scripts.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
