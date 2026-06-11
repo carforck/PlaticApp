@@ -3,7 +3,6 @@
 import Lottie from "lottie-react";
 import Link from "next/link";
 import anim from "@/app/login-anim.json";
-import { LoginCard } from "@/components/LoginCard";
 import { RotatingWord } from "@/components/RotatingWord";
 import { DevCredit } from "@/components/DevCredit";
 
@@ -32,7 +31,7 @@ export default function Landing() {
             <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-gradient-to-br from-[#0a84ff] to-[#bf5af2] text-[16px] text-white">💸</span>
             <span className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-[18px] font-bold tracking-tight text-transparent">PlaticApp!</span>
           </span>
-          <a href="#entrar" className="btn-mac px-4 py-2 text-[13px] font-medium">Entrar</a>
+          <Link href="/login" className="btn-mac px-4 py-2 text-[13px] font-medium">Entrar</Link>
         </div>
       </header>
 
@@ -51,7 +50,7 @@ export default function Landing() {
             dashboard se actualiza <b>en tiempo real</b>.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3 lg:justify-start">
-            <a href="#entrar" className="btn-mac px-5 py-2.5 text-[15px] font-medium">Empieza gratis</a>
+            <Link href="/login" className="btn-mac px-5 py-2.5 text-[15px] font-medium">Empieza gratis</Link>
             <a href="#features" className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-5 py-2.5 text-[15px] font-medium transition hover:bg-white/90">
               Ver funciones
             </a>
@@ -94,16 +93,17 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Formulario */}
-      <section id="entrar" className="mx-auto max-w-md scroll-mt-20 px-5 py-12">
-        <LoginCard />
-        <p className="mt-4 px-2 text-center text-[11px] leading-relaxed text-[var(--color-ink-soft)]">
-          Al crear tu cuenta autorizas el tratamiento de tus datos personales conforme a la{" "}
-          <Link href="/privacidad" className="text-[var(--color-accent)] hover:underline">
-            Política de Privacidad y Tratamiento de Datos
-          </Link>{" "}
-          (Ley 1581 de 2012 · Habeas Data, Colombia).
-        </p>
+      {/* CTA final */}
+      <section className="mx-auto max-w-3xl px-5 py-12">
+        <div className="glass rounded-[var(--radius-card)] bg-gradient-to-br from-[#0a84ff]/10 to-[#bf5af2]/10 p-8 text-center">
+          <h2 className="text-[24px] font-semibold tracking-tight">¿Listo para ordenar tu plata?</h2>
+          <p className="mx-auto mt-2 max-w-md text-[14px] text-[var(--color-ink-soft)]">
+            Crea tu cuenta gratis y empieza a registrar hablando hoy mismo.
+          </p>
+          <Link href="/login" className="btn-mac mt-5 inline-block px-6 py-2.5 text-[15px] font-medium">
+            Empieza gratis
+          </Link>
+        </div>
       </section>
 
       {/* Footer */}
@@ -111,6 +111,8 @@ export default function Landing() {
         <DevCredit />
         <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[12px] text-[var(--color-ink-soft)]">
           <Link href="/privacidad" className="hover:text-[var(--color-ink)]">Política de Privacidad</Link>
+          <span>·</span>
+          <Link href="/login" className="hover:text-[var(--color-ink)]">Iniciar sesión</Link>
           <span>·</span>
           <span>© {new Date().getFullYear()} PlaticApp</span>
         </div>

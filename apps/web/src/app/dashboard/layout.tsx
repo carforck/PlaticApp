@@ -11,7 +11,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
 
   const [initialData, { data: profile }, { data: link }] = await Promise.all([
     fetchDashboard(supabase),

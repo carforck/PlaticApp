@@ -35,7 +35,7 @@ export async function updateSession(request: NextRequest) {
   const isPrivate = request.nextUrl.pathname.startsWith("/dashboard");
   if (isPrivate && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
