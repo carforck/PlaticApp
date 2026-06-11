@@ -181,6 +181,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
       const { bytes, mimeHint } = await telegram.downloadFile(largest.file_id);
       result = await geminiImage.interpret(bytes, mimeHint, ctx);
       if (msg.caption && result.transactions[0]) result.transactions[0].description ??= msg.caption;
+      await saveReceipt(userId, bytes, mimeHint, result, msg.caption); // guarda la foto en la galería
     } else if (text) {
       result = await geminiText.interpret(text, ctx);
     } else {
@@ -420,6 +421,32 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 const titleCase = (s: string) =>
   s.trim().replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Sube la foto recibida al Storage y registra el recibo (galería). No rompe el flujo si falla. */
+async function saveReceipt(
+  userId: string,
+  bytes: Uint8Array,
+  mimeHint: string,
+  result: ExtractResult,
+  caption?: string,
+): Promise<void> {
+  try {
+    const db = createAdminClient();
+    const ext = mimeHint.includes("png") ? "png" : "jpg";
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await db.storage
+      .from("receipts")
+      .upload(path, Buffer.from(bytes), { contentType: mimeHint, upsert: false });
+    if (error) return;
+    const summary =
+      caption ||
+      result.transactions.map((t) => `${fmt(t.amount)}${t.categoryHint ? ` · ${t.categoryHint}` : ""}`).join(", ") ||
+      "Recibo";
+    await db.from("receipts").insert({ user_id: userId, path, caption: summary.slice(0, 200) });
+  } catch {
+    /* la galería es secundaria; no interrumpe el registro */
+  }
+}
 
 /** Crea una recurrencia (plantilla de pago fijo), resolviendo cuenta y categoría. */
 async function createRecurrence(db: ReturnType<typeof createAdminClient>, userId: string, r: RecurrenceItem) {
