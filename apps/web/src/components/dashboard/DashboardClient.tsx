@@ -55,6 +55,33 @@ export function DashboardClient() {
         </Link>
       )}
 
+      {data.recurrences.filter((r) => r.active).length > 0 && (
+        <section className="glass rounded-[var(--radius-card)] p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold">🔁 Próximos pagos fijos</h2>
+            <Link href="/dashboard/recurrentes" className="text-[12px] text-[var(--color-accent)] hover:underline">
+              Ver todos →
+            </Link>
+          </div>
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {data.recurrences
+              .filter((r) => r.active)
+              .slice(0, 6)
+              .map((r) => (
+                <li key={r.id} className="flex items-center justify-between rounded-[12px] bg-black/[0.04] px-3 py-2">
+                  <span>
+                    <span className="block text-[13px] font-medium">{r.name}</span>
+                    <span className="block text-[11px] text-[var(--color-ink-soft)]">vence {r.next_due}</span>
+                  </span>
+                  <span className={`text-[13px] font-semibold ${r.kind === "income" ? "text-[#30d158]" : "text-[var(--color-ink)]"}`}>
+                    {fmtMoney(r.amount_minor, r.currency)}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
+
       {/* Flujo + categorías */}
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="glass rounded-[var(--radius-card)] p-5 lg:col-span-2">

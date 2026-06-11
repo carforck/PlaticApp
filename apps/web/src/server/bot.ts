@@ -1,5 +1,12 @@
-import { Money, RegisterTransaction } from "@platica/core";
-import type { AccountType, ExtractResult, InterpretContext, TransactionDraft, TransactionKind } from "@platica/core";
+import { Money, RegisterTransaction, firstDueDate, nextOccurrence } from "@platica/core";
+import type {
+  AccountType,
+  ExtractResult,
+  Frequency,
+  InterpretContext,
+  TransactionDraft,
+  TransactionKind,
+} from "@platica/core";
 import { createAdminClient } from "./supabase-admin";
 import { accountRepo, categoryRepo, debtRepo, idempotencyStore, transactionRepo } from "./repos";
 import { telegram } from "./telegram";
@@ -68,6 +75,23 @@ interface DebtItem {
   currency: string;
   description: string | null;
 }
+interface RecurrenceItem {
+  name: string;
+  kind: TransactionKind;
+  amountMinor: number;
+  currency: string;
+  categoryHint: string | null;
+  accountHint: string | null;
+  frequency: Frequency;
+  dayOfMonth: number | null;
+}
+
+const FREQ_LABEL: Record<Frequency, string> = {
+  weekly: "semanal",
+  biweekly: "quincenal",
+  monthly: "mensual",
+  yearly: "anual",
+};
 
 /** Punto de entrada: procesa un update ya validado. Idempotente. */
 export async function processUpdate(update: TgUpdate): Promise<void> {
@@ -163,10 +187,10 @@ async function handleMessage(msg: TgMessage): Promise<void> {
       return;
     }
 
-    if (result.transactions.length === 0 && result.debts.length === 0) {
+    if (result.transactions.length === 0 && result.debts.length === 0 && result.recurrences.length === 0) {
       await telegram.sendMessage(
         chatId,
-        "🤔 No detecté ningún movimiento ni deuda ahí. Cuéntame un gasto, ingreso, inversión o préstamo.",
+        "🤔 No detecté ningún movimiento ni deuda ahí. Cuéntame un gasto, ingreso, inversión, préstamo o pago fijo.",
       );
       return;
     }
@@ -219,21 +243,35 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
     currency: d.amount.currency,
     description: d.description ?? null,
   }));
+  const recurrences: RecurrenceItem[] = result.recurrences.map((r) => ({
+    name: r.name,
+    kind: r.kind,
+    amountMinor: r.amount.minorUnits,
+    currency: r.amount.currency,
+    categoryHint: r.categoryHint ?? null,
+    accountHint: r.accountHint ?? null,
+    frequency: r.frequency,
+    dayOfMonth: r.dayOfMonth ?? null,
+  }));
 
   const { data, error } = await db
     .from("pending_drafts")
-    .insert({ user_id: userId, draft: { items, debts } })
+    .insert({ user_id: userId, draft: { items, debts, recurrences } })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
 
-  const total = items.length + debts.length;
+  const total = items.length + debts.length + recurrences.length;
   const txLines = result.transactions.map(
     (d) =>
       `${KIND_LABEL[d.kind]} · <b>${fmt(d.amount)}</b>` +
       `${d.categoryHint ? ` · ${d.categoryHint}` : ""}${d.accountHint ? ` · ${d.accountHint}` : ""}`,
   );
   const debtLines = result.debts.map((d) => debtLine(d.counterparty, d.direction, d.amount));
+  const recLines = result.recurrences.map(
+    (r) =>
+      `🔁 <b>${fmt(r.amount)}</b> · ${r.name} (${FREQ_LABEL[r.frequency]}${r.dayOfMonth ? `, día ${r.dayOfMonth}` : ""})`,
+  );
 
   let body: string;
   if (total === 1 && result.transactions.length === 1) {
@@ -248,11 +286,18 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
     ]
       .filter(Boolean)
       .join("\n");
+  } else if (total === 1 && result.recurrences.length === 1) {
+    const r = result.recurrences[0]!;
+    body = [
+      `🔁 <b>Pago fijo ${FREQ_LABEL[r.frequency]}</b>`,
+      `<b>${fmt(r.amount)}</b> · ${r.name}`,
+      r.dayOfMonth ? `Día de pago: ${r.dayOfMonth}` : "",
+      "\nTe recordaré 1 día antes. ¿Lo guardo?",
+    ]
+      .filter(Boolean)
+      .join("\n");
   } else {
-    body =
-      `Detecté <b>${total}</b>:\n` +
-      [...txLines, ...debtLines].join("\n") +
-      "\n\n¿Los registro todos?";
+    body = `Detecté <b>${total}</b>:\n` + [...txLines, ...debtLines, ...recLines].join("\n") + "\n\n¿Los registro todos?";
   }
 
   await telegram.sendMessage(chatId, body, [
@@ -270,6 +315,11 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   const messageId = cb.message?.message_id;
   const [action, draftId] = (cb.data ?? "").split(":");
   if (!chatId || !messageId || !draftId) return void telegram.answerCallbackQuery(cb.id);
+
+  // Recordatorio de un pago fijo: registrar o saltar este ciclo.
+  if (action === "rok" || action === "rskip") {
+    return handleReminderAction(cb, chatId, messageId, action, draftId);
+  }
 
   const { data: row } = await db.from("pending_drafts").select("*").eq("id", draftId).maybeSingle();
   if (!row) {
@@ -328,11 +378,23 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     }
   }
 
+  const recurrences = (row.draft?.recurrences ?? []) as RecurrenceItem[];
+  let recOk = 0;
+  for (const r of recurrences) {
+    try {
+      await createRecurrence(db, row.user_id, r);
+      recOk++;
+    } catch {
+      failed++;
+    }
+  }
+
   await db.from("pending_drafts").delete().eq("id", draftId);
 
   const parts: string[] = [];
   if (txOk) parts.push(`${txOk} movimiento${txOk > 1 ? "s" : ""}`);
   if (debtOk) parts.push(`${debtOk} deuda${debtOk > 1 ? "s" : ""}`);
+  if (recOk) parts.push(`${recOk} pago fijo${recOk > 1 ? "s" : ""}`);
   const msg =
     parts.length === 0
       ? "⚠️ No pude registrar nada. Revisa que tengas una cuenta configurada."
@@ -340,4 +402,99 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 
   await telegram.editMessageText(chatId, messageId, msg);
   await telegram.answerCallbackQuery(cb.id, "¡Listo!");
+}
+
+const titleCase = (s: string) =>
+  s.trim().replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Crea una recurrencia (plantilla de pago fijo), resolviendo cuenta y categoría. */
+async function createRecurrence(db: ReturnType<typeof createAdminClient>, userId: string, r: RecurrenceItem) {
+  const accounts = accountRepo(db);
+  let account = r.accountHint ? await accounts.findByNameHint(userId, r.accountHint) : null;
+  if (!account && r.accountHint) account = await accounts.create(userId, titleCase(r.accountHint), "cash");
+  account ??= (await accounts.listByUser(userId))[0] ?? null;
+
+  const cats = categoryRepo(db);
+  let category = r.categoryHint ? await cats.findByNameHint(userId, r.categoryHint) : null;
+  if (!category && r.categoryHint && (r.kind === "expense" || r.kind === "income")) {
+    category = await cats.create(userId, titleCase(r.categoryHint), r.kind, null, null);
+  }
+
+  const nextDue = firstDueDate(r.frequency, r.dayOfMonth, new Date());
+  const { error } = await db.from("recurrences").insert({
+    user_id: userId,
+    name: r.name,
+    kind: r.kind,
+    amount_minor: r.amountMinor,
+    currency: r.currency,
+    category_id: category?.id ?? null,
+    account_id: account?.id ?? null,
+    frequency: r.frequency,
+    day_of_month: r.dayOfMonth,
+    next_due: ymd(nextDue),
+    remind_days_before: 1,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Maneja el botón del recordatorio: registrar el pago o saltar este ciclo. */
+async function handleReminderAction(
+  cb: TgCallback,
+  chatId: number,
+  messageId: number,
+  action: string,
+  recId: string,
+): Promise<void> {
+  const db = createAdminClient();
+  const { data: rec } = await db.from("recurrences").select("*").eq("id", recId).maybeSingle();
+  if (!rec) {
+    await telegram.answerCallbackQuery(cb.id, "Ese pago fijo ya no existe");
+    return;
+  }
+
+  if (action === "rok") {
+    let accountId = rec.account_id as string | null;
+    if (!accountId) accountId = (await accountRepo(db).listByUser(rec.user_id))[0]?.id ?? null;
+    if (accountId) {
+      await db.from("transactions").insert({
+        user_id: rec.user_id,
+        kind: rec.kind,
+        amount_minor: rec.amount_minor,
+        currency: rec.currency,
+        account_id: accountId,
+        category_id: rec.category_id,
+        description: rec.name,
+        occurred_at: new Date().toISOString(),
+        source: "web",
+      });
+    }
+  }
+
+  const next = nextOccurrence(new Date(`${rec.next_due}T00:00:00`), rec.frequency as Frequency);
+  await db.from("recurrences").update({ next_due: ymd(next), last_reminded: null }).eq("id", recId);
+
+  const money = Money.of(rec.amount_minor, rec.currency);
+  await telegram.editMessageText(
+    chatId,
+    messageId,
+    action === "rok"
+      ? `✅ <b>Registrado</b> · ${fmt(money)} (${rec.name})\nPróximo: ${ymd(next)} 📅`
+      : `⏭️ Saltado este ciclo · ${rec.name}\nPróximo: ${ymd(next)}`,
+  );
+  await telegram.answerCallbackQuery(cb.id, "¡Listo!");
+}
+
+/** Envía el recordatorio de un pago fijo (lo llama el cron). */
+export async function sendRecurrenceReminder(chatId: number, recId: string, name: string, amountText: string, freqLabel: string) {
+  await telegram.sendMessage(
+    chatId,
+    `🔔 <b>Recordatorio de pago fijo</b>\n${amountText} · ${name} (${freqLabel})\n¿Lo registro?`,
+    [
+      [
+        { text: "✅ Registrar", callback_data: `rok:${recId}` },
+        { text: "⏭️ Saltar", callback_data: `rskip:${recId}` },
+      ],
+    ],
+  );
 }

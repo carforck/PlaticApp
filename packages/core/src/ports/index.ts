@@ -1,6 +1,7 @@
 import type { Account, Category } from "../domain/account";
 import type { AccountType } from "../domain/types";
 import type { Debt, DebtDraft, NewDebt } from "../domain/debt";
+import type { RecurrenceDraft } from "../domain/recurrence";
 import type { NewTransaction, Transaction, TransactionDraft } from "../domain/transaction";
 
 /**
@@ -39,10 +40,11 @@ export interface CategoryRepository {
 }
 
 // ── IA: interpretación de lenguaje natural ──────────────────────
-/** Resultado de interpretar un mensaje: movimientos y/o deudas. */
+/** Resultado de interpretar un mensaje: movimientos, deudas y/o recurrencias. */
 export interface ExtractResult {
   transactions: TransactionDraft[];
   debts: DebtDraft[];
+  recurrences: RecurrenceDraft[];
 }
 
 /** Convierte texto libre en transacciones y/o deudas. (Adaptador: Gemini) */

@@ -3,8 +3,10 @@ import type {
   AccountType,
   DebtDraft,
   ExtractResult,
+  Frequency,
   ImageInterpreter,
   InterpretContext,
+  RecurrenceDraft,
   TextInterpreter,
   TransactionDraft,
   TransactionKind,
@@ -33,6 +35,9 @@ const responseSchema = {
           isDebt: { type: "boolean", description: "true si es préstamo/deuda con una persona" },
           counterparty: { type: "string", description: "Persona involucrada en la deuda" },
           debtDirection: { type: "string", enum: ["i_owe", "they_owe"], description: "i_owe: me prestaron; they_owe: yo presté" },
+          isRecurring: { type: "boolean", description: "true si es un pago fijo que se repite (arriendo, suscripción, sueldo mensual)" },
+          frequency: { type: "string", enum: ["weekly", "biweekly", "monthly", "yearly"] },
+          dayOfMonth: { type: "number", description: "Día del mes en que se paga (1-31), si aplica" },
           confidence: { type: "number" },
         },
         required: ["kind", "amount", "currency", "confidence"],
@@ -51,6 +56,7 @@ function buildPrompt(ctx: InterpretContext): string {
     "Detecta el medio de pago en 'account' (efectivo, tarjeta de crédito, Nequi, Daviplata, banco…) y su 'accountType' (cash/credit/wallet/bank/investment).",
     "Asigna la categoría MÁS LÓGICA según el comercio o concepto. Reconoces marcas: Netflix/Spotify/Disney+/HBO/YouTube Premium → Entretenimiento; Uber/Didi/taxi/gasolina/bus/peaje → Transporte; Rappi/restaurante/almuerzo/mercado/café → Comida; arriendo/servicios/luz/agua/internet → Hogar; EPS/farmacia/médico → Salud; gimnasio → Salud; salario/nómina → Salario. Prefiere una categoría existente si encaja; si no, propón una nueva con nombre corto y su 'categoryEmoji'.",
     "Si alguien te prestó o tú prestaste plata, marca isDebt=true, pon 'counterparty' (la persona) y 'debtDirection' (i_owe si te prestaron, they_owe si tú prestaste).",
+    "Si es un pago FIJO que se repite (arriendo, Netflix/suscripción, sueldo mensual, 'todos los meses', 'cada mes', 'fijo'), marca isRecurring=true con su 'frequency' (monthly por defecto) y 'dayOfMonth' si lo mencionan ('el día 5' → 5).",
     ctx.knownCategories.length ? `Categorías existentes (prefiere estas): ${ctx.knownCategories.join(", ")}.` : "",
     ctx.knownAccounts.length ? `Cuentas existentes: ${ctx.knownAccounts.join(", ")}.` : "",
     "Si no hay ningún movimiento ni deuda, devuelve items vacío.",
@@ -106,16 +112,30 @@ interface RawItem {
   isDebt?: boolean;
   counterparty?: string;
   debtDirection?: "i_owe" | "they_owe";
+  isRecurring?: boolean;
+  frequency?: "weekly" | "biweekly" | "monthly" | "yearly";
+  dayOfMonth?: number;
   confidence: number;
 }
 
 function split(raws: RawItem[], ctx: InterpretContext, source: TransactionDraft["source"]): ExtractResult {
   const transactions: TransactionDraft[] = [];
   const debts: DebtDraft[] = [];
+  const recurrences: RecurrenceDraft[] = [];
 
   for (const r of raws) {
     const amount = Money.fromMajor(r.amount, r.currency || ctx.defaultCurrency);
-    if (r.isDebt && r.counterparty) {
+    if (r.isRecurring) {
+      recurrences.push({
+        name: r.description || r.category || "Pago fijo",
+        kind: r.kind,
+        amount,
+        categoryHint: r.category || undefined,
+        accountHint: r.account || undefined,
+        frequency: (r.frequency as Frequency) || "monthly",
+        dayOfMonth: r.dayOfMonth || undefined,
+      });
+    } else if (r.isDebt && r.counterparty) {
       debts.push({
         counterparty: r.counterparty,
         // Si la IA no da dirección, se infiere: ingreso => me prestaron; gasto => yo presté.
@@ -141,7 +161,7 @@ function split(raws: RawItem[], ctx: InterpretContext, source: TransactionDraft[
       });
     }
   }
-  return { transactions, debts };
+  return { transactions, debts, recurrences };
 }
 
 export const geminiText: TextInterpreter = {

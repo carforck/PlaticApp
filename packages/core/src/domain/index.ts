@@ -3,3 +3,4 @@ export * from "./types";
 export * from "./account";
 export * from "./transaction";
 export * from "./debt";
+export * from "./recurrence";

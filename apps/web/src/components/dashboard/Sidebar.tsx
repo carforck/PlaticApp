@@ -11,6 +11,7 @@ const NAV = [
   { label: "Movimientos", icon: "💸", href: "/dashboard/movimientos" },
   { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
   { label: "Deudas", icon: "🤝", href: "/dashboard/deudas" },
+  { label: "Recurrentes", icon: "🔁", href: "/dashboard/recurrentes" },
   { label: "Inversiones", icon: "📈", href: "/dashboard/inversiones" },
   { label: "Categorías", icon: "🏷️", href: "/dashboard/categorias" },
   { label: "Ajustes", icon: "⚙️", href: "/dashboard/ajustes" },
