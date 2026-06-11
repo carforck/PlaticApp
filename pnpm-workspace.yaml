@@ -2,11 +2,8 @@ packages:
   - "apps/*"
   - "packages/*"
 
-allowBuilds:
-  esbuild: set this to true or false
-  sharp: set this to true or false
-
-# Permite que estas dependencias nativas ejecuten sus build scripts.
+# Aprueba los build scripts de estas dependencias nativas (evita
+# ERR_PNPM_IGNORED_BUILDS que hace fallar `pnpm install` en CI/Vercel).
 onlyBuiltDependencies:
   - esbuild
   - sharp
