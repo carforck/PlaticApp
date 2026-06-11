@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchDashboard, type DashboardData } from "@/lib/queries";
 import { fmtMoney, monthLabel } from "@/lib/format";
 import { NetWorthChart, SpendingDonut } from "./Charts";
+import { AddTransactionModal } from "./AddTransactionModal";
 
 const ACCOUNT_EMOJI: Record<string, string> = {
   bank: "🏦",
@@ -40,6 +41,7 @@ export function DashboardClient({
   const router = useRouter();
   const [data, setData] = useState(initialData);
   const [link, setLink] = useState<{ code: string; deepLink: string } | null>(null);
+  const [adding, setAdding] = useState(false);
   const supabase = useMemo(() => createClient(), []);
 
   async function linkTelegram() {
@@ -134,9 +136,14 @@ export function DashboardClient({
               {userEmail} · actualizado en tiempo real
             </p>
           </div>
-          <button onClick={logout} className="text-[13px] text-[var(--color-accent)] hover:underline">
-            Salir
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setAdding(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
+              + Registrar
+            </button>
+            <button onClick={logout} className="text-[13px] text-[var(--color-accent)] hover:underline">
+              Salir
+            </button>
+          </div>
         </header>
 
         <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -235,6 +242,15 @@ export function DashboardClient({
           </div>
         </section>
       </main>
+
+      {adding && (
+        <AddTransactionModal
+          accounts={data.accounts}
+          categories={data.categories}
+          onClose={() => setAdding(false)}
+          onSaved={refresh}
+        />
+      )}
     </div>
   );
 }
