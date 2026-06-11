@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { fetchDashboard, type DashboardData } from "@/lib/queries";
+import { useState } from "react";
+import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
 import { ACCOUNT_EMOJI, ACCOUNT_TYPE_LABEL } from "@/lib/labels";
-import { Sidebar } from "./Sidebar";
 
 const TYPES = [
   { value: "bank", label: "Banco" },
@@ -15,21 +13,9 @@ const TYPES = [
   { value: "credit", label: "Crédito" },
 ] as const;
 
-export function CuentasClient({ initialData }: { initialData: DashboardData }) {
-  const [data, setData] = useState(initialData);
+export function CuentasClient() {
+  const { data, refresh } = useDashboard();
   const [creating, setCreating] = useState(false);
-  const supabase = useMemo(() => createClient(), []);
-
-  const refresh = useCallback(async () => setData(await fetchDashboard(supabase)), [supabase]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("platica-cuentas")
-      .on("postgres_changes", { event: "*", schema: "public", table: "accounts" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refresh)
-      .subscribe();
-    return () => void supabase.removeChannel(channel);
-  }, [supabase, refresh]);
 
   const total = data.accounts.reduce((s, a) => s + a.balance_minor, 0);
 
@@ -43,10 +29,7 @@ export function CuentasClient({ initialData }: { initialData: DashboardData }) {
   }
 
   return (
-    <div className="flex min-h-screen gap-4 p-4">
-      <Sidebar />
-
-      <main className="flex-1 space-y-4">
+    <main className="flex-1 space-y-4">
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-[26px] font-semibold tracking-tight">Cuentas</h1>
@@ -90,10 +73,9 @@ export function CuentasClient({ initialData }: { initialData: DashboardData }) {
             <p className="text-[14px] text-[var(--color-ink-soft)]">Aún no tienes cuentas. Crea la primera.</p>
           )}
         </section>
-      </main>
 
       {creating && <NewAccountModal onClose={() => setCreating(false)} onSaved={refresh} />}
-    </div>
+    </main>
   );
 }
 

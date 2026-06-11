@@ -1,33 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { fetchDashboard, type DashboardData } from "@/lib/queries";
+import { useMemo } from "react";
+import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
-import { Sidebar } from "./Sidebar";
 
-export function InversionesClient({ initialData }: { initialData: DashboardData }) {
-  const [data, setData] = useState(initialData);
-  const supabase = useMemo(() => createClient(), []);
-  const refresh = useCallback(async () => setData(await fetchDashboard(supabase)), [supabase]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("platica-inversiones")
-      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refresh)
-      .subscribe();
-    return () => void supabase.removeChannel(channel);
-  }, [supabase, refresh]);
-
+export function InversionesClient() {
+  const { data } = useDashboard();
   const accById = useMemo(() => new Map(data.accounts.map((a) => [a.account_id, a])), [data.accounts]);
   const invs = data.transactions.filter((t) => t.kind === "investment");
   const total = invs.reduce((s, t) => s + t.amount_minor, 0);
   const investAccounts = data.accounts.filter((a) => a.type === "investment");
 
   return (
-    <div className="flex min-h-screen gap-4 p-4">
-      <Sidebar />
-      <main className="flex-1 space-y-4">
+    <main className="flex-1 space-y-4">
         <header>
           <h1 className="text-[26px] font-semibold tracking-tight">Inversiones</h1>
           <p className="text-[13px] text-[var(--color-ink-soft)]">Aportes registrados y cuentas de inversión</p>
@@ -70,7 +55,6 @@ export function InversionesClient({ initialData }: { initialData: DashboardData 
             </ul>
           )}
         </div>
-      </main>
-    </div>
+    </main>
   );
 }

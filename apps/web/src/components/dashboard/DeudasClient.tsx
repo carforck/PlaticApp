@@ -1,25 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { fetchDashboard, type DashboardData, type DebtRow } from "@/lib/queries";
+import { useState } from "react";
+import { useDashboard } from "@/lib/dashboard-context";
+import { type DebtRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
-import { Sidebar } from "./Sidebar";
 
-export function DeudasClient({ initialData }: { initialData: DashboardData }) {
-  const [data, setData] = useState(initialData);
+export function DeudasClient() {
+  const { data, refresh } = useDashboard();
   const [creating, setCreating] = useState(false);
-  const supabase = useMemo(() => createClient(), []);
-
-  const refresh = useCallback(async () => setData(await fetchDashboard(supabase)), [supabase]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("platica-deudas")
-      .on("postgres_changes", { event: "*", schema: "public", table: "debts" }, refresh)
-      .subscribe();
-    return () => void supabase.removeChannel(channel);
-  }, [supabase, refresh]);
 
   const debts = data.debts;
   const open = debts.filter((d) => d.status === "open");
@@ -36,10 +24,7 @@ export function DeudasClient({ initialData }: { initialData: DashboardData }) {
   }
 
   return (
-    <div className="flex min-h-screen gap-4 p-4">
-      <Sidebar />
-
-      <main className="flex-1 space-y-4">
+    <main className="flex-1 space-y-4">
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-[26px] font-semibold tracking-tight">Deudas</h1>
@@ -74,10 +59,9 @@ export function DeudasClient({ initialData }: { initialData: DashboardData }) {
             </ul>
           )}
         </div>
-      </main>
 
       {creating && <NewDebtModal onClose={() => setCreating(false)} onSaved={refresh} />}
-    </div>
+    </main>
   );
 }
 

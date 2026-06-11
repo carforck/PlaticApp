@@ -1,29 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { fetchDashboard, type CategoryRow, type DashboardData } from "@/lib/queries";
-import { Sidebar } from "./Sidebar";
+import { useState } from "react";
+import { useDashboard } from "@/lib/dashboard-context";
+import { type CategoryRow } from "@/lib/queries";
 
 const APPLIES_LABEL: Record<string, string> = { expense: "Gasto", income: "Ingreso" };
 const EMOJIS = ["🍽️", "🚕", "🏠", "🎬", "🩺", "💰", "🛒", "✈️", "🎁", "📚", "👕", "🐶", "💡", "📱", "🏷️", "🍻"];
 const COLORS = ["#ff9f0a", "#0a84ff", "#bf5af2", "#30d158", "#ff375f", "#5e5ce6", "#ff6482", "#64d2ff", "#8e8e93"];
 
-export function CategoriasClient({ initialData }: { initialData: DashboardData }) {
-  const [data, setData] = useState(initialData);
+export function CategoriasClient() {
+  const { data, refresh } = useDashboard();
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [creating, setCreating] = useState(false);
-  const supabase = useMemo(() => createClient(), []);
-
-  const refresh = useCallback(async () => setData(await fetchDashboard(supabase)), [supabase]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("platica-categorias")
-      .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, refresh)
-      .subscribe();
-    return () => void supabase.removeChannel(channel);
-  }, [supabase, refresh]);
 
   async function remove(id: string) {
     await fetch(`/api/categories?id=${id}`, { method: "DELETE" });
@@ -33,9 +21,7 @@ export function CategoriasClient({ initialData }: { initialData: DashboardData }
   const cats = [...data.categories].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="flex min-h-screen gap-4 p-4">
-      <Sidebar />
-      <main className="flex-1 space-y-4">
+    <main className="flex-1 space-y-4">
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-[26px] font-semibold tracking-tight">Categorías</h1>
@@ -72,7 +58,6 @@ export function CategoriasClient({ initialData }: { initialData: DashboardData }
             </div>
           ))}
         </section>
-      </main>
 
       {(creating || editing) && (
         <CategoryModal
@@ -84,7 +69,7 @@ export function CategoriasClient({ initialData }: { initialData: DashboardData }
           onSaved={refresh}
         />
       )}
-    </div>
+    </main>
   );
 }
 

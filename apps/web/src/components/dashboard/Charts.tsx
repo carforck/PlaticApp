@@ -3,7 +3,11 @@
 import {
   Area,
   AreaChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -38,6 +42,27 @@ export function NetWorthChart({ series }: { series: { mes: string; valor: number
         <Tooltip formatter={(v: number) => fmtMoney(v)} contentStyle={tooltipStyle} />
         <Area type="monotone" dataKey="valor" stroke="#0a84ff" strokeWidth={3} fill="url(#nw)" />
       </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function CashflowChart({
+  data,
+}: {
+  data: { mes: string; ingresos: number; gastos: number; balance: number }[];
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <LineChart data={data} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+        <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#6e6e73", fontSize: 12 }} />
+        <YAxis tickFormatter={fmtShort} axisLine={false} tickLine={false} tick={{ fill: "#6e6e73", fontSize: 12 }} width={48} />
+        <Tooltip formatter={(v: number) => fmtMoney(v)} contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+        <Line type="monotone" dataKey="ingresos" name="Ingresos" stroke="#30d158" strokeWidth={2.5} dot={false} />
+        <Line type="monotone" dataKey="gastos" name="Gastos" stroke="#ff375f" strokeWidth={2.5} dot={false} />
+        <Line type="monotone" dataKey="balance" name="Balance" stroke="#0a84ff" strokeWidth={2.5} strokeDasharray="5 4" dot={false} />
+      </LineChart>
     </ResponsiveContainer>
   );
 }

@@ -1,175 +1,157 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { fetchDashboard, type DashboardData } from "@/lib/queries";
+import { useDashboard } from "@/lib/dashboard-context";
+import type { DashboardData } from "@/lib/queries";
 import { fmtMoney, monthLabel } from "@/lib/format";
 import { ACCOUNT_EMOJI, SOURCE_EMOJI } from "@/lib/labels";
-import { NetWorthChart, SpendingDonut } from "./Charts";
+import { CashflowChart, NetWorthChart, SpendingDonut } from "./Charts";
 import { AddTransactionModal } from "./AddTransactionModal";
-import { Sidebar } from "./Sidebar";
 
-export function DashboardClient({
-  initialData,
-  userEmail,
-}: {
-  initialData: DashboardData;
-  userEmail: string;
-}) {
-  const [data, setData] = useState(initialData);
+export function DashboardClient() {
+  const { data, userEmail, refresh } = useDashboard();
   const [adding, setAdding] = useState(false);
-  const supabase = useMemo(() => createClient(), []);
-
-  const refresh = useCallback(async () => {
-    setData(await fetchDashboard(supabase));
-  }, [supabase]);
-
-  // Realtime: cualquier cambio en transactions/accounts refresca el dashboard.
-  useEffect(() => {
-    const channel = supabase
-      .channel("platica-dashboard")
-      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "accounts" }, refresh)
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [supabase, refresh]);
-
   const d = useDerived(data);
 
   return (
-    <div className="flex min-h-screen gap-4 p-4">
-      <Sidebar />
+    <main className="flex-1 space-y-4">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-[26px] font-semibold tracking-tight">Resumen</h1>
+          <p className="text-[13px] text-[var(--color-ink-soft)]">{userEmail} · en tiempo real</p>
+        </div>
+        <button onClick={() => setAdding(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
+          + Registrar
+        </button>
+      </header>
 
-      <main className="flex-1 space-y-4">
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="text-[26px] font-semibold tracking-tight">Resumen</h1>
-            <p className="text-[13px] text-[var(--color-ink-soft)]">
-              {userEmail} · actualizado en tiempo real
-            </p>
+      {/* KPIs */}
+      <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <StatCard label="Patrimonio neto" value={fmtMoney(d.netWorth)} accent="text-[var(--color-ink)]" hint="Saldo total" />
+        <StatCard label="Ingresos" value={fmtMoney(d.income)} accent="text-[#30d158]" hint="Este mes" />
+        <StatCard label="Gastos" value={fmtMoney(d.expense)} accent="text-[#ff375f]" hint="Este mes" />
+        <StatCard
+          label="Balance del mes"
+          value={fmtMoney(d.balance)}
+          accent={d.balance >= 0 ? "text-[#30d158]" : "text-[#ff375f]"}
+          hint="Ingresos − gastos"
+        />
+        <StatCard label="Tasa de ahorro" value={`${d.savingsRate}%`} accent="text-[#0a84ff]" hint="Del ingreso" />
+        <StatCard label="Invertido" value={fmtMoney(d.invested)} accent="text-[#bf5af2]" hint="Este mes" />
+      </section>
+
+      {(d.theyOwe > 0 || d.iOwe > 0) && (
+        <Link
+          href="/dashboard/deudas"
+          className="glass flex items-center justify-between rounded-[var(--radius-card)] p-4 transition hover:brightness-[1.02]"
+        >
+          <span className="text-[13px] font-medium text-[var(--color-ink-soft)]">🤝 Deudas</span>
+          <span className="flex items-center gap-5 text-[14px]">
+            <span>Te deben <b className="text-[#30d158]">{fmtMoney(d.theyOwe)}</b></span>
+            <span>Debes <b className="text-[#ff375f]">{fmtMoney(d.iOwe)}</b></span>
+            <span className="text-[var(--color-accent)]">→</span>
+          </span>
+        </Link>
+      )}
+
+      {/* Flujo + categorías */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="glass rounded-[var(--radius-card)] p-5 lg:col-span-2">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold">Flujo: ingresos vs gastos</h2>
+            <span className="text-[12px] text-[var(--color-ink-soft)]">Últimos 6 meses</span>
           </div>
-          <button onClick={() => setAdding(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
-            + Registrar
-          </button>
-        </header>
+          <CashflowChart data={d.cashflow} />
+        </div>
+        <div className="glass rounded-[var(--radius-card)] p-5">
+          <h2 className="mb-2 text-[15px] font-semibold">Gastos por categoría</h2>
+          <SpendingDonut data={d.spendingByCategory} />
+          <ul className="mt-3 space-y-1.5">
+            {d.spendingByCategory.slice(0, 6).map((s) => (
+              <li key={s.name} className="flex items-center justify-between text-[13px]">
+                <span className="flex items-center gap-2">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                  {s.name}
+                </span>
+                <span className="text-[var(--color-ink-soft)]">{fmtMoney(s.value)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
-        <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Patrimonio neto" value={fmtMoney(d.netWorth)} accent="text-[var(--color-ink)]" hint="Saldo total" />
-          <StatCard label="Ingresos" value={fmtMoney(d.income)} accent="text-[#30d158]" hint="Este mes" />
-          <StatCard label="Gastos" value={fmtMoney(d.expense)} accent="text-[#ff375f]" hint="Este mes" />
-          <StatCard label="Invertido" value={fmtMoney(d.invested)} accent="text-[#bf5af2]" hint="Este mes" />
-        </section>
+      {/* Patrimonio (ancho completo) */}
+      <section className="glass rounded-[var(--radius-card)] p-5">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold">Evolución del patrimonio</h2>
+          <span className="text-[12px] text-[var(--color-ink-soft)]">Últimos 6 meses</span>
+        </div>
+        <NetWorthChart series={d.netWorthSeries} />
+      </section>
 
-        {(d.theyOwe > 0 || d.iOwe > 0) && (
-          <Link
-            href="/dashboard/deudas"
-            className="glass flex items-center justify-between rounded-[var(--radius-card)] p-4 transition hover:brightness-[1.02]"
-          >
-            <span className="text-[13px] font-medium text-[var(--color-ink-soft)]">🤝 Deudas</span>
-            <span className="flex items-center gap-5 text-[14px]">
-              <span>
-                Te deben <b className="text-[#30d158]">{fmtMoney(d.theyOwe)}</b>
-              </span>
-              <span>
-                Debes <b className="text-[#ff375f]">{fmtMoney(d.iOwe)}</b>
-              </span>
-              <span className="text-[var(--color-accent)]">→</span>
-            </span>
-          </Link>
-        )}
-
-        <section className="grid gap-4 lg:grid-cols-3">
-          <div className="glass rounded-[var(--radius-card)] p-5 lg:col-span-2">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold">Evolución del patrimonio</h2>
-              <span className="text-[12px] text-[var(--color-ink-soft)]">Últimos 6 meses</span>
-            </div>
-            <NetWorthChart series={d.netWorthSeries} />
-          </div>
-          <div className="glass rounded-[var(--radius-card)] p-5">
-            <h2 className="mb-2 text-[15px] font-semibold">Gastos por categoría</h2>
-            <SpendingDonut data={d.spendingByCategory} />
-            <ul className="mt-3 space-y-1.5">
-              {d.spendingByCategory.map((s) => (
-                <li key={s.name} className="flex items-center justify-between text-[13px]">
-                  <span className="flex items-center gap-2">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-                    {s.name}
+      {/* Cuentas + movimientos */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="glass rounded-[var(--radius-card)] p-5">
+          <h2 className="mb-3 text-[15px] font-semibold">Cuentas</h2>
+          {data.accounts.length === 0 ? (
+            <p className="text-[13px] text-[var(--color-ink-soft)]">Aún no tienes cuentas.</p>
+          ) : (
+            <ul className="space-y-2.5">
+              {data.accounts.map((a) => (
+                <li key={a.account_id} className="flex items-center justify-between">
+                  <span className="flex items-center gap-2.5">
+                    <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
+                      {ACCOUNT_EMOJI[a.type] ?? "💼"}
+                    </span>
+                    <span className="text-[14px] font-medium">{a.name}</span>
                   </span>
-                  <span className="text-[var(--color-ink-soft)]">{fmtMoney(s.value)}</span>
+                  <span className="text-[14px] font-semibold">{fmtMoney(a.balance_minor, a.currency)}</span>
                 </li>
               ))}
             </ul>
-          </div>
-        </section>
+          )}
+        </div>
 
-        <section className="grid gap-4 lg:grid-cols-3">
-          <div className="glass rounded-[var(--radius-card)] p-5">
-            <h2 className="mb-3 text-[15px] font-semibold">Cuentas</h2>
-            {data.accounts.length === 0 ? (
-              <p className="text-[13px] text-[var(--color-ink-soft)]">Aún no tienes cuentas.</p>
-            ) : (
-              <ul className="space-y-2.5">
-                {data.accounts.map((a) => (
-                  <li key={a.account_id} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2.5">
+        <div className="glass rounded-[var(--radius-card)] p-5 lg:col-span-2">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold">Movimientos recientes</h2>
+            <span className="text-[12px] text-[var(--color-ink-soft)]">vía Telegram 🎙️ 💬 🖼️</span>
+          </div>
+          {data.transactions.length === 0 ? (
+            <p className="text-[13px] text-[var(--color-ink-soft)]">
+              Aún no hay movimientos. Háblale al bot de Telegram o usa “+ Registrar”.
+            </p>
+          ) : (
+            <ul className="divide-y divide-black/5">
+              {data.transactions.slice(0, 8).map((t) => {
+                const cat = d.catById.get(t.category_id ?? "");
+                const signed = t.kind === "income" ? t.amount_minor : -t.amount_minor;
+                return (
+                  <li key={t.id} className="flex items-center justify-between py-2.5">
+                    <span className="flex items-center gap-3">
                       <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
-                        {ACCOUNT_EMOJI[a.type] ?? "💼"}
+                        {cat?.emoji ?? "🧾"}
                       </span>
-                      <span className="text-[14px] font-medium">{a.name}</span>
+                      <span>
+                        <span className="block text-[14px] font-medium">{t.description ?? cat?.name ?? "Movimiento"}</span>
+                        <span className="block text-[12px] text-[var(--color-ink-soft)]">
+                          {cat?.name ?? t.kind} · {new Date(t.occurred_at).toLocaleDateString("es-CO")} ·{" "}
+                          {SOURCE_EMOJI[t.source] ?? "•"}
+                        </span>
+                      </span>
                     </span>
-                    <span className="text-[14px] font-semibold">{fmtMoney(a.balance_minor, a.currency)}</span>
+                    <span className={`text-[14px] font-semibold ${signed > 0 ? "text-[#30d158]" : "text-[var(--color-ink)]"}`}>
+                      {signed > 0 ? "+" : ""}
+                      {fmtMoney(signed, t.currency)}
+                    </span>
                   </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="glass rounded-[var(--radius-card)] p-5 lg:col-span-2">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold">Movimientos recientes</h2>
-              <span className="text-[12px] text-[var(--color-ink-soft)]">vía Telegram 🎙️ 💬 🖼️</span>
-            </div>
-            {data.transactions.length === 0 ? (
-              <p className="text-[13px] text-[var(--color-ink-soft)]">
-                Aún no hay movimientos. Háblale al bot de Telegram o usa “+ Registrar”.
-              </p>
-            ) : (
-              <ul className="divide-y divide-black/5">
-                {data.transactions.slice(0, 8).map((t) => {
-                  const cat = d.catById.get(t.category_id ?? "");
-                  const signed = t.kind === "income" ? t.amount_minor : -t.amount_minor;
-                  return (
-                    <li key={t.id} className="flex items-center justify-between py-2.5">
-                      <span className="flex items-center gap-3">
-                        <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
-                          {cat?.emoji ?? "🧾"}
-                        </span>
-                        <span>
-                          <span className="block text-[14px] font-medium">
-                            {t.description ?? cat?.name ?? "Movimiento"}
-                          </span>
-                          <span className="block text-[12px] text-[var(--color-ink-soft)]">
-                            {cat?.name ?? t.kind} · {new Date(t.occurred_at).toLocaleDateString("es-CO")} ·{" "}
-                            {SOURCE_EMOJI[t.source] ?? "•"}
-                          </span>
-                        </span>
-                      </span>
-                      <span className={`text-[14px] font-semibold ${signed > 0 ? "text-[#30d158]" : "text-[var(--color-ink)]"}`}>
-                        {signed > 0 ? "+" : ""}
-                        {fmtMoney(signed, t.currency)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </section>
-      </main>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
 
       {adding && (
         <AddTransactionModal
@@ -179,7 +161,7 @@ export function DashboardClient({
           onSaved={refresh}
         />
       )}
-    </div>
+    </main>
   );
 }
 
@@ -187,36 +169,42 @@ function StatCard({ label, value, hint, accent }: { label: string; value: string
   return (
     <div className="glass rounded-[var(--radius-card)] p-4">
       <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">{label}</p>
-      <p className={`mt-1 text-[22px] font-semibold tracking-tight ${accent}`}>{value}</p>
+      <p className={`mt-1 text-[20px] font-semibold tracking-tight ${accent}`}>{value}</p>
       <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">{hint}</p>
     </div>
   );
 }
 
-/** Deriva totales, serie de patrimonio y gastos por categoría de los datos crudos. */
+/** Deriva KPIs y series temporales de los datos crudos. */
 function useDerived(data: DashboardData) {
   return useMemo(() => {
     const catById = new Map(data.categories.map((c) => [c.id, c]));
     const netWorth = data.accounts.reduce((s, a) => s + a.balance_minor, 0);
 
     const now = new Date();
-    const isThisMonth = (iso: string) => {
-      const dt = new Date(iso);
-      return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
-    };
+    const monthKey = (dt: Date) => `${dt.getFullYear()}-${dt.getMonth()}`;
+    const thisKey = monthKey(now);
 
-    let income = 0,
-      expense = 0,
-      invested = 0;
+    let income = 0;
+    let expense = 0;
+    let invested = 0;
     const byCat = new Map<string, number>();
+    // Acumuladores por mes para la serie de flujo.
+    const monthAgg = new Map<string, { ingresos: number; gastos: number }>();
 
     for (const t of data.transactions) {
-      if (!isThisMonth(t.occurred_at)) continue;
+      const dt = new Date(t.occurred_at);
+      const k = monthKey(dt);
+      const agg = monthAgg.get(k) ?? { ingresos: 0, gastos: 0 };
+      if (t.kind === "income") agg.ingresos += t.amount_minor;
+      else agg.gastos += t.amount_minor; // gasto/inversión/transfer cuentan como salida
+      monthAgg.set(k, agg);
+
+      if (k !== thisKey) continue;
       if (t.kind === "income") income += t.amount_minor;
       else if (t.kind === "expense") {
         expense += t.amount_minor;
-        const key = t.category_id ?? "otros";
-        byCat.set(key, (byCat.get(key) ?? 0) + t.amount_minor);
+        byCat.set(t.category_id ?? "otros", (byCat.get(t.category_id ?? "otros") ?? 0) + t.amount_minor);
       } else if (t.kind === "investment") invested += t.amount_minor;
     }
 
@@ -227,28 +215,44 @@ function useDerived(data: DashboardData) {
       })
       .sort((a, b) => b.value - a.value);
 
-    const deltaByMonthKey = new Map<string, number>();
-    for (const t of data.transactions) {
-      const dt = new Date(t.occurred_at);
-      const key = `${dt.getFullYear()}-${dt.getMonth()}`;
-      const delta = t.kind === "income" ? t.amount_minor : -t.amount_minor;
-      deltaByMonthKey.set(key, (deltaByMonthKey.get(key) ?? 0) + delta);
-    }
+    // Series de los últimos 6 meses (flujo + patrimonio).
+    const cashflow: { mes: string; ingresos: number; gastos: number; balance: number }[] = [];
+    const netWorthSeries: { mes: string; valor: number }[] = [];
     let running = netWorth;
-    const cursor = new Date(now.getFullYear(), now.getMonth(), 1);
-    const tmp: { mes: string; valor: number }[] = [];
+    const cur = new Date(now.getFullYear(), now.getMonth(), 1);
+    const tmpNW: { mes: string; valor: number }[] = [];
+    const tmpCF: typeof cashflow = [];
     for (let i = 0; i < 6; i++) {
-      tmp.push({ mes: monthLabel(cursor), valor: running });
-      const key = `${cursor.getFullYear()}-${cursor.getMonth()}`;
-      running -= deltaByMonthKey.get(key) ?? 0;
-      cursor.setMonth(cursor.getMonth() - 1);
+      const k = `${cur.getFullYear()}-${cur.getMonth()}`;
+      const agg = monthAgg.get(k) ?? { ingresos: 0, gastos: 0 };
+      tmpCF.push({ mes: monthLabel(cur), ingresos: agg.ingresos, gastos: agg.gastos, balance: agg.ingresos - agg.gastos });
+      tmpNW.push({ mes: monthLabel(cur), valor: running });
+      running -= agg.ingresos - agg.gastos;
+      cur.setMonth(cur.getMonth() - 1);
     }
-    const netWorthSeries = tmp.reverse();
+    cashflow.push(...tmpCF.reverse());
+    netWorthSeries.push(...tmpNW.reverse());
+
+    const balance = income - expense;
+    const savingsRate = income > 0 ? Math.round((balance / income) * 100) : 0;
 
     const openDebts = data.debts.filter((x) => x.status === "open");
     const theyOwe = openDebts.filter((x) => x.direction === "they_owe").reduce((s, x) => s + x.amount_minor, 0);
     const iOwe = openDebts.filter((x) => x.direction === "i_owe").reduce((s, x) => s + x.amount_minor, 0);
 
-    return { catById, netWorth, income, expense, invested, spendingByCategory, netWorthSeries, theyOwe, iOwe };
+    return {
+      catById,
+      netWorth,
+      income,
+      expense,
+      invested,
+      balance,
+      savingsRate,
+      spendingByCategory,
+      cashflow,
+      netWorthSeries,
+      theyOwe,
+      iOwe,
+    };
   }, [data]);
 }

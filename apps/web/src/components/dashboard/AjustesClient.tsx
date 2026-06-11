@@ -3,18 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Sidebar } from "./Sidebar";
+import { useDashboard } from "@/lib/dashboard-context";
 
-export interface ProfileData {
-  email: string;
-  displayName: string;
-  defaultCurrency: string;
-  timezone: string;
-  telegramLinked: boolean;
-}
-
-export function AjustesClient({ profile }: { profile: ProfileData }) {
+export function AjustesClient() {
   const router = useRouter();
+  const { profile } = useDashboard();
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [defaultCurrency, setDefaultCurrency] = useState(profile.defaultCurrency);
   const [timezone, setTimezone] = useState(profile.timezone);
@@ -40,9 +33,7 @@ export function AjustesClient({ profile }: { profile: ProfileData }) {
   const field = "mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] outline-none ring-[var(--color-accent)] focus:ring-2";
 
   return (
-    <div className="flex min-h-screen gap-4 p-4">
-      <Sidebar />
-      <main className="flex-1 space-y-4">
+    <main className="flex-1 space-y-4">
         <header>
           <h1 className="text-[26px] font-semibold tracking-tight">Ajustes</h1>
           <p className="text-[13px] text-[var(--color-ink-soft)]">{profile.email}</p>
@@ -94,7 +85,6 @@ export function AjustesClient({ profile }: { profile: ProfileData }) {
         >
           Cerrar sesión
         </button>
-      </main>
-    </div>
+    </main>
   );
 }
