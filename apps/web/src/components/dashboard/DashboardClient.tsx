@@ -1,35 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchDashboard, type DashboardData } from "@/lib/queries";
 import { fmtMoney, monthLabel } from "@/lib/format";
+import { ACCOUNT_EMOJI, SOURCE_EMOJI } from "@/lib/labels";
 import { NetWorthChart, SpendingDonut } from "./Charts";
 import { AddTransactionModal } from "./AddTransactionModal";
-
-const ACCOUNT_EMOJI: Record<string, string> = {
-  bank: "🏦",
-  cash: "💵",
-  wallet: "📱",
-  investment: "📈",
-  credit: "💳",
-};
-const SOURCE_EMOJI: Record<string, string> = {
-  telegram_text: "💬",
-  telegram_audio: "🎙️",
-  telegram_image: "🖼️",
-  web: "🖥️",
-};
-
-const nav = [
-  { label: "Resumen", icon: "🏠", active: true },
-  { label: "Movimientos", icon: "💸", active: false },
-  { label: "Cuentas", icon: "🏦", active: false },
-  { label: "Inversiones", icon: "📈", active: false },
-  { label: "Categorías", icon: "🏷️", active: false },
-  { label: "Ajustes", icon: "⚙️", active: false },
-];
+import { Sidebar } from "./Sidebar";
 
 export function DashboardClient({
   initialData,
@@ -38,16 +16,9 @@ export function DashboardClient({
   initialData: DashboardData;
   userEmail: string;
 }) {
-  const router = useRouter();
   const [data, setData] = useState(initialData);
-  const [link, setLink] = useState<{ code: string; deepLink: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const supabase = useMemo(() => createClient(), []);
-
-  async function linkTelegram() {
-    const res = await fetch("/api/telegram/link-code", { method: "POST" });
-    if (res.ok) setLink(await res.json());
-  }
 
   const refresh = useCallback(async () => {
     setData(await fetchDashboard(supabase));
@@ -67,67 +38,10 @@ export function DashboardClient({
 
   const d = useDerived(data);
 
-  async function logout() {
-    await supabase.auth.signOut();
-    router.push("/");
-  }
-
   return (
     <div className="flex min-h-screen gap-4 p-4">
-      {/* Sidebar */}
-      <aside className="glass animate-float-in hidden w-60 shrink-0 flex-col rounded-[var(--radius-card)] p-3 md:flex">
-        <div className="flex items-center gap-2 px-2 py-2">
-          <span className="traffic-light bg-[#ff5f57]" />
-          <span className="traffic-light bg-[#febc2e]" />
-          <span className="traffic-light bg-[#28c840]" />
-        </div>
-        <div className="px-2 py-3">
-          <p className="text-[15px] font-semibold tracking-tight">Platica</p>
-          <p className="text-[12px] text-[var(--color-ink-soft)]">Control financiero</p>
-        </div>
-        <nav className="mt-2 space-y-0.5">
-          {nav.map((n) => (
-            <button
-              key={n.label}
-              className={`flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[14px] transition ${
-                n.active ? "bg-[var(--color-accent)] text-white shadow-sm" : "hover:bg-black/5"
-              }`}
-            >
-              <span className="text-[15px]">{n.icon}</span>
-              {n.label}
-            </button>
-          ))}
-        </nav>
-        <div className="mt-auto rounded-[12px] bg-black/[0.04] p-3">
-          <p className="text-[12px] font-medium">Bot de Telegram</p>
-          {link ? (
-            <div className="mt-1.5">
-              <p className="text-[11px] text-[var(--color-ink-soft)]">Envía este código al bot:</p>
-              <p className="my-1 text-center text-[18px] font-bold tracking-[0.2em] text-[var(--color-accent)]">
-                {link.code}
-              </p>
-              <a
-                href={link.deepLink}
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-[8px] bg-[var(--color-accent)] py-1.5 text-center text-[12px] font-medium text-white"
-              >
-                Abrir @PlaticApp_bot
-              </a>
-              <p className="mt-1 text-[10px] text-[var(--color-ink-soft)]">Vence en 15 min</p>
-            </div>
-          ) : (
-            <button
-              onClick={linkTelegram}
-              className="mt-1.5 w-full rounded-[8px] border border-black/10 bg-white/70 py-1.5 text-[12px] font-medium transition hover:bg-white"
-            >
-              🔗 Vincular Telegram
-            </button>
-          )}
-        </div>
-      </aside>
+      <Sidebar />
 
-      {/* Contenido */}
       <main className="flex-1 space-y-4">
         <header className="flex items-center justify-between">
           <div>
@@ -136,14 +50,9 @@ export function DashboardClient({
               {userEmail} · actualizado en tiempo real
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setAdding(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
-              + Registrar
-            </button>
-            <button onClick={logout} className="text-[13px] text-[var(--color-accent)] hover:underline">
-              Salir
-            </button>
-          </div>
+          <button onClick={() => setAdding(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
+            + Registrar
+          </button>
         </header>
 
         <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -207,7 +116,7 @@ export function DashboardClient({
             </div>
             {data.transactions.length === 0 ? (
               <p className="text-[13px] text-[var(--color-ink-soft)]">
-                Aún no hay movimientos. Háblale al bot de Telegram para registrar el primero.
+                Aún no hay movimientos. Háblale al bot de Telegram o usa “+ Registrar”.
               </p>
             ) : (
               <ul className="divide-y divide-black/5">
@@ -299,8 +208,6 @@ function useDerived(data: DashboardData) {
       })
       .sort((a, b) => b.value - a.value);
 
-    // Serie de patrimonio: balance actual y reconstrucción hacia atrás por mes.
-    const months: { mes: string; valor: number }[] = [];
     const deltaByMonthKey = new Map<string, number>();
     for (const t of data.transactions) {
       const dt = new Date(t.occurred_at);
@@ -317,8 +224,8 @@ function useDerived(data: DashboardData) {
       running -= deltaByMonthKey.get(key) ?? 0;
       cursor.setMonth(cursor.getMonth() - 1);
     }
-    months.push(...tmp.reverse());
+    const netWorthSeries = tmp.reverse();
 
-    return { catById, netWorth, income, expense, invested, spendingByCategory, netWorthSeries: months };
+    return { catById, netWorth, income, expense, invested, spendingByCategory, netWorthSeries };
   }, [data]);
 }

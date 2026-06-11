@@ -1,0 +1,179 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { fetchDashboard, type DashboardData } from "@/lib/queries";
+import { fmtMoney } from "@/lib/format";
+import { ACCOUNT_EMOJI, ACCOUNT_TYPE_LABEL } from "@/lib/labels";
+import { Sidebar } from "./Sidebar";
+
+const TYPES = [
+  { value: "bank", label: "Banco" },
+  { value: "cash", label: "Efectivo" },
+  { value: "wallet", label: "Billetera" },
+  { value: "investment", label: "Inversión" },
+  { value: "credit", label: "Crédito" },
+] as const;
+
+export function CuentasClient({ initialData }: { initialData: DashboardData }) {
+  const [data, setData] = useState(initialData);
+  const [creating, setCreating] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
+
+  const refresh = useCallback(async () => setData(await fetchDashboard(supabase)), [supabase]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("platica-cuentas")
+      .on("postgres_changes", { event: "*", schema: "public", table: "accounts" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refresh)
+      .subscribe();
+    return () => void supabase.removeChannel(channel);
+  }, [supabase, refresh]);
+
+  const total = data.accounts.reduce((s, a) => s + a.balance_minor, 0);
+
+  async function archive(id: string) {
+    await fetch("/api/accounts", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, archived: true }),
+    });
+    refresh();
+  }
+
+  return (
+    <div className="flex min-h-screen gap-4 p-4">
+      <Sidebar />
+
+      <main className="flex-1 space-y-4">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[26px] font-semibold tracking-tight">Cuentas</h1>
+            <p className="text-[13px] text-[var(--color-ink-soft)]">
+              Patrimonio total: <span className="font-semibold text-[var(--color-ink)]">{fmtMoney(total)}</span>
+            </p>
+          </div>
+          <button onClick={() => setCreating(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
+            + Nueva cuenta
+          </button>
+        </header>
+
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {data.accounts.map((a) => (
+            <div key={a.account_id} className="glass group relative rounded-[var(--radius-card)] p-5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-[12px] bg-black/[0.05] text-[20px]">
+                  {ACCOUNT_EMOJI[a.type] ?? "💼"}
+                </span>
+                <div>
+                  <p className="text-[15px] font-semibold">{a.name}</p>
+                  <p className="text-[12px] text-[var(--color-ink-soft)]">
+                    {ACCOUNT_TYPE_LABEL[a.type] ?? a.type} · {a.currency}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 text-[24px] font-semibold tracking-tight">
+                {fmtMoney(a.balance_minor, a.currency)}
+              </p>
+              <button
+                onClick={() => archive(a.account_id)}
+                className="absolute right-4 top-4 text-[12px] text-[var(--color-ink-soft)] opacity-0 transition hover:text-[#ff375f] group-hover:opacity-100"
+                title="Archivar cuenta"
+              >
+                Archivar
+              </button>
+            </div>
+          ))}
+
+          {data.accounts.length === 0 && (
+            <p className="text-[14px] text-[var(--color-ink-soft)]">Aún no tienes cuentas. Crea la primera.</p>
+          )}
+        </section>
+      </main>
+
+      {creating && <NewAccountModal onClose={() => setCreating(false)} onSaved={refresh} />}
+    </div>
+  );
+}
+
+function NewAccountModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState("");
+  const [type, setType] = useState<string>("bank");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    const res = await fetch("/api/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, type }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      onSaved();
+      onClose();
+    } else {
+      setError((await res.json().catch(() => ({}))).error ?? "No se pudo crear");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="glass animate-float-in w-full max-w-sm overflow-hidden rounded-[var(--radius-card)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
+          <span className="traffic-light bg-[#ff5f57]" />
+          <span className="traffic-light bg-[#febc2e]" />
+          <span className="traffic-light bg-[#28c840]" />
+          <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Nueva cuenta</span>
+        </div>
+        <form onSubmit={submit} className="space-y-4 p-6">
+          <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+            Nombre
+            <input
+              autoFocus
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Bancolombia, Nequi, Efectivo…"
+              className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] outline-none ring-[var(--color-accent)] focus:ring-2"
+            />
+          </label>
+          <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+            Tipo
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
+            >
+              {TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
+            >
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving} className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70">
+              {saving ? "Creando…" : "Crear cuenta"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
