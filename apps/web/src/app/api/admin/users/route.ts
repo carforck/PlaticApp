@@ -1,0 +1,69 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/server/supabase-admin";
+import { ADMIN_EMAIL } from "@/lib/admin";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** Lista de usuarios registrados con métricas. SOLO para el admin. */
+export async function GET() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return NextResponse.json({ error: "no autorizado" }, { status: 403 });
+  }
+
+  const db = createAdminClient();
+  const [{ data: list }, tx, accts, balances, debts, links] = await Promise.all([
+    db.auth.admin.listUsers({ perPage: 1000 }),
+    db.from("transactions").select("user_id"),
+    db.from("accounts").select("user_id"),
+    db.from("account_balances").select("user_id, balance_minor"),
+    db.from("debts").select("user_id, status"),
+    db.from("telegram_links").select("user_id, telegram_username, linked_at"),
+  ]);
+
+  const tally = (rows: { user_id: string }[] | null) => {
+    const m = new Map<string, number>();
+    for (const r of rows ?? []) m.set(r.user_id, (m.get(r.user_id) ?? 0) + 1);
+    return m;
+  };
+  const txByUser = tally(tx.data);
+  const acctByUser = tally(accts.data);
+  const netByUser = new Map<string, number>();
+  for (const b of balances.data ?? []) netByUser.set(b.user_id, (netByUser.get(b.user_id) ?? 0) + b.balance_minor);
+  const debtOpenByUser = new Map<string, number>();
+  for (const d of debts.data ?? []) if (d.status === "open") debtOpenByUser.set(d.user_id, (debtOpenByUser.get(d.user_id) ?? 0) + 1);
+  const linkByUser = new Map((links.data ?? []).map((l) => [l.user_id, l]));
+
+  const users = (list?.users ?? [])
+    .map((u) => {
+      const meta = u.user_metadata ?? {};
+      const link = linkByUser.get(u.id);
+      return {
+        id: u.id,
+        email: u.email ?? "",
+        name: (meta.full_name as string) ?? (meta.name as string) ?? "",
+        avatar: (meta.avatar_url as string) ?? (meta.picture as string) ?? null,
+        provider: (u.app_metadata?.provider as string) ?? "email",
+        createdAt: u.created_at,
+        lastSignIn: u.last_sign_in_at ?? null,
+        confirmed: !!u.email_confirmed_at,
+        telegram: link ? (link.telegram_username ?? "vinculado") : null,
+        transactions: txByUser.get(u.id) ?? 0,
+        accounts: acctByUser.get(u.id) ?? 0,
+        netWorth: netByUser.get(u.id) ?? 0,
+        openDebts: debtOpenByUser.get(u.id) ?? 0,
+      };
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return NextResponse.json({
+    total: users.length,
+    linked: users.filter((u) => u.telegram).length,
+    users,
+  });
+}

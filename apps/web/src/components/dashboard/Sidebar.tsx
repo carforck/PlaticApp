@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboard } from "@/lib/dashboard-context";
+import { ADMIN_EMAIL } from "@/lib/admin";
 import { Avatar } from "./Avatar";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -83,6 +84,17 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
             </Link>
           );
         })}
+        {profile.email === ADMIN_EMAIL && (
+          <Link
+            href="/dashboard/admin"
+            className={`flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[14px] transition ${
+              pathname === "/dashboard/admin" ? "bg-[var(--color-accent)] text-white shadow-sm" : "hover:bg-black/5"
+            }`}
+          >
+            <span className="text-[15px]">🛡️</span>
+            Admin
+          </Link>
+        )}
         {SOON.map((n) => (
           <span
             key={n.label}

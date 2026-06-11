@@ -19,6 +19,7 @@ const TITLES: Record<string, string> = {
   "/dashboard/inversiones": "Inversiones",
   "/dashboard/categorias": "Categorías",
   "/dashboard/perfil": "Perfil",
+  "/dashboard/admin": "Admin",
 };
 
 export function DashboardChrome({ children }: { children: React.ReactNode }) {
