@@ -100,7 +100,7 @@ export function LoginCard() {
         <span className="traffic-light bg-[#ff5f57]" />
         <span className="traffic-light bg-[#febc2e]" />
         <span className="traffic-light bg-[#28c840]" />
-        <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Platica · iniciar sesión</span>
+        <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">PlaticApp · iniciar sesión</span>
       </div>
 
       <div className="grid md:grid-cols-[1.1fr_1fr]">
@@ -108,7 +108,7 @@ export function LoginCard() {
         <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0a84ff] via-[#5e5ce6] to-[#bf5af2] p-8 text-white md:flex">
           <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
           <div className="relative">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-white/70">Platica</p>
+            <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-white/70">PlaticApp</p>
             <h2 className="mt-2 max-w-xs text-[26px] font-semibold leading-tight tracking-tight">
               Tus finanzas, en una conversación.
             </h2>

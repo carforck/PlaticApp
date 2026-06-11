@@ -149,7 +149,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   if (/^\/start\b/i.test(text)) {
     await telegram.sendMessage(
       chatId,
-      "👋 <b>Hola, soy Platica.</b>\nVincula tu cuenta: abre la app web, genera tu código y mándamelo aquí, o usa el botón «Vincular Telegram».",
+      "👋 <b>Hola, soy PlaticApp.</b>\nVincula tu cuenta: abre la app web, genera tu código y mándamelo aquí, o usa el botón «Vincular Telegram».",
     );
     return;
   }
