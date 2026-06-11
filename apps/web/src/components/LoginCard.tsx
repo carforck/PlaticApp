@@ -4,7 +4,7 @@ import { useState } from "react";
 import Lottie from "lottie-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import pulse from "@/app/login-pulse.json";
+import anim from "@/app/login-anim.json";
 
 type Status = "idle" | "loading" | "sent" | "error";
 
@@ -24,6 +24,12 @@ function EyeIcon({ open }: { open: boolean }) {
   );
 }
 
+const FEATURES = [
+  { icon: "💬", title: "Registra hablando", desc: "Texto, audio o foto en Telegram" },
+  { icon: "🧠", title: "IA que entiende", desc: "Categoriza y detecta deudas sola" },
+  { icon: "⚡", title: "En tiempo real", desc: "Tu dashboard se actualiza al vuelo" },
+];
+
 export function LoginCard() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -36,8 +42,7 @@ export function LoginCard() {
     e.preventDefault();
     setStatus("loading");
     setMessage("");
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await createClient().auth.signInWithPassword({ email, password });
     if (error) {
       setStatus("error");
       setMessage(error.message === "Invalid login credentials" ? "Correo o contraseña incorrectos." : error.message);
@@ -55,8 +60,7 @@ export function LoginCard() {
     }
     setStatus("loading");
     setMessage("");
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await createClient().auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
@@ -73,46 +77,62 @@ export function LoginCard() {
     "w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] text-[var(--color-ink)] outline-none ring-[var(--color-accent)] transition focus:border-[var(--color-accent)] focus:ring-2 disabled:opacity-60";
 
   return (
-    <div className="glass animate-float-in w-full max-w-4xl overflow-hidden rounded-[var(--radius-card)]">
+    <div className="glass animate-float-in w-full max-w-5xl overflow-hidden rounded-[var(--radius-card)] shadow-2xl">
       {/* Barra de ventana macOS */}
       <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
         <span className="traffic-light bg-[#ff5f57]" />
         <span className="traffic-light bg-[#febc2e]" />
         <span className="traffic-light bg-[#28c840]" />
-        <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Platica</span>
+        <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Platica · iniciar sesión</span>
       </div>
 
-      <div className="grid md:grid-cols-2">
-        {/* Hero con animación Lottie — solo desktop */}
-        <div className="relative hidden items-center justify-center bg-gradient-to-br from-[#0a84ff]/12 to-[#bf5af2]/12 p-10 md:flex">
-          <div className="w-60">
-            <Lottie animationData={pulse} loop autoplay />
+      <div className="grid md:grid-cols-[1.1fr_1fr]">
+        {/* Hero — solo desktop */}
+        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0a84ff] via-[#5e5ce6] to-[#bf5af2] p-8 text-white md:flex">
+          <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-white/70">Platica</p>
+            <h2 className="mt-2 max-w-xs text-[26px] font-semibold leading-tight tracking-tight">
+              Tus finanzas, en una conversación.
+            </h2>
           </div>
-          <div className="absolute bottom-8 left-8 right-8">
-            <p className="text-[16px] font-semibold text-[var(--color-ink)]">Háblale a tu plata.</p>
-            <p className="mt-1 text-[13px] leading-snug text-[var(--color-ink-soft)]">
-              Registra gastos, ingresos e inversiones conversando con el bot de Telegram. Todo
-              aquí, en tiempo real.
-            </p>
+
+          <div className="relative mx-auto w-full max-w-[300px]">
+            <Lottie animationData={anim} loop autoplay />
           </div>
+
+          <ul className="relative space-y-2.5">
+            {FEATURES.map((f) => (
+              <li key={f.title} className="flex items-center gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-white/15 text-[16px] backdrop-blur">
+                  {f.icon}
+                </span>
+                <span>
+                  <span className="block text-[14px] font-medium">{f.title}</span>
+                  <span className="block text-[12px] text-white/70">{f.desc}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* Formulario */}
         <div className="flex flex-col justify-center p-6 sm:p-10">
-          {/* Logo mark + animación compacta en móvil */}
-          <div className="mb-5 flex items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-gradient-to-br from-[#0a84ff] to-[#bf5af2] text-[20px] shadow-[0_8px_20px_-8px_rgba(10,132,255,0.8)]">
-              💸
-            </span>
-            <div className="md:hidden">
-              <div className="-my-2 h-14 w-14">
-                <Lottie animationData={pulse} loop autoplay />
-              </div>
-            </div>
+          {/* Animación compacta en móvil */}
+          <div className="mx-auto -mb-2 w-40 md:hidden">
+            <Lottie animationData={anim} loop autoplay />
           </div>
 
-          <h1 className="text-[26px] font-semibold tracking-tight sm:text-[28px]">Bienvenido</h1>
-          <p className="mt-1 text-[14px] text-[var(--color-ink-soft)]">
+          <div className="mb-5 hidden items-center gap-3 md:flex">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-gradient-to-br from-[#0a84ff] to-[#bf5af2] text-[20px] text-white shadow-[0_8px_20px_-8px_rgba(10,132,255,0.8)]">
+              💸
+            </span>
+          </div>
+
+          <h1 className="text-center text-[26px] font-semibold tracking-tight sm:text-left sm:text-[28px]">
+            Bienvenido
+          </h1>
+          <p className="mt-1 text-center text-[14px] text-[var(--color-ink-soft)] sm:text-left">
             Ingresa con tu correo y contraseña.
           </p>
 
