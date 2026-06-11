@@ -20,8 +20,10 @@ export async function GET(req: NextRequest) {
 
   const db = createAdminClient();
   const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const to = new Date(now.getFullYear(), now.getMonth(), 1);
+  // ?test=current => mes en curso (para previsualizar). Por defecto: mes anterior.
+  const testCurrent = new URL(req.url).searchParams.get("test") === "current";
+  const from = testCurrent ? new Date(now.getFullYear(), now.getMonth(), 1) : new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const to = testCurrent ? new Date(now.getFullYear(), now.getMonth() + 1, 1) : new Date(now.getFullYear(), now.getMonth(), 1);
   const monthLabel = `${MONTHS[from.getMonth()]} ${from.getFullYear()}`;
 
   const { data: links } = await db.from("telegram_links").select("user_id, telegram_chat_id");
