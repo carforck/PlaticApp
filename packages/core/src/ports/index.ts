@@ -29,6 +29,13 @@ export interface DebtRepository {
 export interface CategoryRepository {
   listByUser(userId: string): Promise<Category[]>;
   findByNameHint(userId: string, hint: string): Promise<Category | null>;
+  create(
+    userId: string,
+    name: string,
+    appliesTo: "expense" | "income" | null,
+    emoji: string | null,
+    color: string | null,
+  ): Promise<Category>;
 }
 
 // ── IA: interpretación de lenguaje natural ──────────────────────

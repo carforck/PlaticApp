@@ -180,6 +180,15 @@ export function categoryRepo(db: SupabaseClient): CategoryRepository {
         .maybeSingle();
       return data ? map(data) : null;
     },
+    async create(userId, name, appliesTo, emoji, color) {
+      const { data, error } = await db
+        .from("categories")
+        .insert({ user_id: userId, name, applies_to: appliesTo, emoji, color })
+        .select("*")
+        .single();
+      if (error) throw new Error(error.message);
+      return map(data);
+    },
   };
 }
 

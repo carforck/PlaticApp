@@ -11,6 +11,8 @@ export interface TransactionDraft {
   amount: Money;
   /** Texto crudo de la categoría sugerida por la IA (se resuelve a un id luego). */
   categoryHint?: string;
+  /** Emoji sugerido por la IA para la categoría (si hay que crearla). */
+  categoryEmojiHint?: string;
   /** Cuenta sugerida (ej. "efectivo", "Nequi"). Se resuelve a un id luego. */
   accountHint?: string;
   /** Tipo de cuenta inferido por la IA; sirve para crearla si no existe. */

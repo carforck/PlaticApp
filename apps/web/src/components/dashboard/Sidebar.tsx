@@ -11,13 +11,12 @@ const NAV = [
   { label: "Movimientos", icon: "💸", href: "/dashboard/movimientos" },
   { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
   { label: "Deudas", icon: "🤝", href: "/dashboard/deudas" },
+  { label: "Inversiones", icon: "📈", href: "/dashboard/inversiones" },
+  { label: "Categorías", icon: "🏷️", href: "/dashboard/categorias" },
+  { label: "Ajustes", icon: "⚙️", href: "/dashboard/ajustes" },
 ] as const;
 
-const SOON = [
-  { label: "Inversiones", icon: "📈" },
-  { label: "Categorías", icon: "🏷️" },
-  { label: "Ajustes", icon: "⚙️" },
-] as const;
+const SOON: { label: string; icon: string }[] = [];
 
 export function Sidebar() {
   const pathname = usePathname();

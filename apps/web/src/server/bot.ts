@@ -54,6 +54,7 @@ interface DraftItem {
   amountMinor: number;
   currency: string;
   categoryHint: string | null;
+  categoryEmoji: string | null;
   accountHint: string | null;
   accountType: AccountType | null;
   description: string | null;
@@ -204,6 +205,7 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
     amountMinor: d.amount.minorUnits,
     currency: d.amount.currency,
     categoryHint: d.categoryHint ?? null,
+    categoryEmoji: d.categoryEmojiHint ?? null,
     accountHint: d.accountHint ?? null,
     accountType: d.accountTypeHint ?? null,
     description: d.description ?? null,
@@ -300,6 +302,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
         accountHint: d.accountHint ?? undefined,
         accountType: d.accountType ?? undefined,
         categoryHint: d.categoryHint ?? undefined,
+        categoryEmoji: d.categoryEmoji ?? undefined,
         description: d.description ?? undefined,
         occurredAt: new Date(d.occurredAt),
         source: d.source,

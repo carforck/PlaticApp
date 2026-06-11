@@ -33,9 +33,20 @@ export class RegisterTransaction {
 
     if (!account) throw new Error("El usuario no tiene ninguna cuenta configurada");
 
-    const category = input.categoryHint
+    let category = input.categoryHint
       ? await this.categories.findByNameHint(input.userId, input.categoryHint)
       : null;
+
+    // Si sugirió una categoría que no existe, se crea (categorías intuitivas).
+    if (!category && input.categoryHint && (input.kind === "expense" || input.kind === "income")) {
+      category = await this.categories.create(
+        input.userId,
+        titleCase(input.categoryHint),
+        input.kind,
+        input.categoryEmoji ?? null,
+        pickColor(input.categoryHint),
+      );
+    }
 
     const newTx: NewTransaction = {
       userId: input.userId,
@@ -63,6 +74,7 @@ export interface RegisterTransactionInput {
   accountHint?: string;
   accountType?: AccountType;
   categoryHint?: string;
+  categoryEmoji?: string;
   description?: string;
   occurredAt: Date;
   source: SourceChannel;
@@ -70,4 +82,11 @@ export interface RegisterTransactionInput {
 
 function titleCase(s: string): string {
   return s.trim().replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+const PALETTE = ["#ff9f0a", "#0a84ff", "#bf5af2", "#30d158", "#ff375f", "#5e5ce6", "#ff6482", "#64d2ff"];
+function pickColor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length]!;
 }

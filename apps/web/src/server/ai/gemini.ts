@@ -25,7 +25,8 @@ const responseSchema = {
           kind: { type: "string", enum: ["expense", "income", "investment", "transfer"] },
           amount: { type: "number", description: "Monto en la moneda local, positivo" },
           currency: { type: "string" },
-          category: { type: "string", description: "Categoría sugerida" },
+          category: { type: "string", description: "Categoría lógica del gasto/ingreso" },
+          categoryEmoji: { type: "string", description: "Un emoji que represente la categoría" },
           account: { type: "string", description: "Cuenta/medio: efectivo, tarjeta de crédito, Nequi, banco…" },
           accountType: { type: "string", enum: ["bank", "cash", "investment", "wallet", "credit"] },
           description: { type: "string" },
@@ -48,6 +49,7 @@ function buildPrompt(ctx: InterpretContext): string {
     `Moneda por defecto: ${ctx.defaultCurrency}. Si no se indica, usa esa.`,
     "Montos en lenguaje natural: '50 mil'=50000, '2 lucas'=2000, '1.5M'=1500000, '40k'=40000.",
     "Detecta el medio de pago en 'account' (efectivo, tarjeta de crédito, Nequi, Daviplata, banco…) y su 'accountType' (cash/credit/wallet/bank/investment).",
+    "Asigna la categoría MÁS LÓGICA según el comercio o concepto. Reconoces marcas: Netflix/Spotify/Disney+/HBO/YouTube Premium → Entretenimiento; Uber/Didi/taxi/gasolina/bus/peaje → Transporte; Rappi/restaurante/almuerzo/mercado/café → Comida; arriendo/servicios/luz/agua/internet → Hogar; EPS/farmacia/médico → Salud; gimnasio → Salud; salario/nómina → Salario. Prefiere una categoría existente si encaja; si no, propón una nueva con nombre corto y su 'categoryEmoji'.",
     "Si alguien te prestó o tú prestaste plata, marca isDebt=true, pon 'counterparty' (la persona) y 'debtDirection' (i_owe si te prestaron, they_owe si tú prestaste).",
     ctx.knownCategories.length ? `Categorías existentes (prefiere estas): ${ctx.knownCategories.join(", ")}.` : "",
     ctx.knownAccounts.length ? `Cuentas existentes: ${ctx.knownAccounts.join(", ")}.` : "",
@@ -97,6 +99,7 @@ interface RawItem {
   amount: number;
   currency: string;
   category?: string;
+  categoryEmoji?: string;
   account?: string;
   accountType?: string;
   description?: string;
@@ -128,6 +131,7 @@ function split(raws: RawItem[], ctx: InterpretContext, source: TransactionDraft[
         kind: r.kind,
         amount,
         categoryHint: r.category || undefined,
+        categoryEmojiHint: r.categoryEmoji || undefined,
         accountHint: r.account || undefined,
         accountTypeHint: accountType,
         description: r.description || undefined,
