@@ -5,7 +5,7 @@ const DEV = {
   role: "Desarrollador de Software · Cartagena, CO",
   website: "https://vanttagetech.com",
   github: "https://github.com/carforck",
-  linkedin: "https://www.linkedin.com/in/carloscarranzavillera",
+  linkedin: "https://www.linkedin.com/in/carloscarranzavillera/",
   email: "carforck@gmail.com",
 };
 
