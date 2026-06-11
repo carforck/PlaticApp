@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboard } from "@/lib/dashboard-context";
+import { Avatar } from "./Avatar";
 
 export function AjustesClient() {
   const router = useRouter();
@@ -40,6 +41,13 @@ export function AjustesClient() {
         </header>
 
         <div className="glass max-w-lg rounded-[var(--radius-card)] p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <Avatar url={profile.avatarUrl} name={profile.displayName || profile.email} size={56} />
+            <div>
+              <p className="text-[16px] font-semibold">{profile.displayName || "Mi cuenta"}</p>
+              <p className="text-[13px] text-[var(--color-ink-soft)]">{profile.email}</p>
+            </div>
+          </div>
           <form onSubmit={save} className="space-y-4">
             <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
               Nombre

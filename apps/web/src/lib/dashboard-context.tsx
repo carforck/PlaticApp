@@ -7,6 +7,7 @@ import { fetchDashboard, type DashboardData } from "@/lib/queries";
 export interface DashboardProfile {
   email: string;
   displayName: string;
+  avatarUrl: string | null;
   defaultCurrency: string;
   timezone: string;
   telegramLinked: boolean;

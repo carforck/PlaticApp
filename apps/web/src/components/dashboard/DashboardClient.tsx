@@ -8,6 +8,7 @@ import { fmtMoney, monthLabel } from "@/lib/format";
 import { ACCOUNT_EMOJI, SOURCE_EMOJI } from "@/lib/labels";
 import { CashflowChart, NetWorthChart, SpendingDonut } from "./Charts";
 import { AddTransactionModal } from "./AddTransactionModal";
+import { AnimatedNumber } from "./AnimatedNumber";
 
 export function DashboardClient() {
   const { data, userEmail, refresh } = useDashboard();
@@ -28,17 +29,18 @@ export function DashboardClient() {
 
       {/* KPIs */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <StatCard label="Patrimonio neto" value={fmtMoney(d.netWorth)} accent="text-[var(--color-ink)]" hint="Saldo total" />
-        <StatCard label="Ingresos" value={fmtMoney(d.income)} accent="text-[#30d158]" hint="Este mes" />
-        <StatCard label="Gastos" value={fmtMoney(d.expense)} accent="text-[#ff375f]" hint="Este mes" />
+        <StatCard label="Patrimonio neto" amount={d.netWorth} format={fmtMoney} accent="text-[var(--color-ink)]" hint="Saldo total" />
+        <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint="Este mes" />
+        <StatCard label="Gastos" amount={d.expense} format={fmtMoney} accent="text-[#ff375f]" hint="Este mes" />
         <StatCard
           label="Balance del mes"
-          value={fmtMoney(d.balance)}
+          amount={d.balance}
+          format={fmtMoney}
           accent={d.balance >= 0 ? "text-[#30d158]" : "text-[#ff375f]"}
           hint="Ingresos − gastos"
         />
-        <StatCard label="Tasa de ahorro" value={`${d.savingsRate}%`} accent="text-[#0a84ff]" hint="Del ingreso" />
-        <StatCard label="Invertido" value={fmtMoney(d.invested)} accent="text-[#bf5af2]" hint="Este mes" />
+        <StatCard label="Tasa de ahorro" amount={d.savingsRate} format={(n) => `${n}%`} accent="text-[#0a84ff]" hint="Del ingreso" />
+        <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint="Este mes" />
       </section>
 
       {(d.theyOwe > 0 || d.iOwe > 0) && (
@@ -192,11 +194,25 @@ export function DashboardClient() {
   );
 }
 
-function StatCard({ label, value, hint, accent }: { label: string; value: string; hint: string; accent: string }) {
+function StatCard({
+  label,
+  amount,
+  format,
+  hint,
+  accent,
+}: {
+  label: string;
+  amount: number;
+  format: (n: number) => string;
+  hint: string;
+  accent: string;
+}) {
   return (
     <div className="glass rounded-[var(--radius-card)] p-4">
       <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">{label}</p>
-      <p className={`mt-1 text-[20px] font-semibold tracking-tight ${accent}`}>{value}</p>
+      <p className={`mt-1 text-[20px] font-semibold tracking-tight ${accent}`}>
+        <AnimatedNumber value={amount} format={format} />
+      </p>
       <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">{hint}</p>
     </div>
   );

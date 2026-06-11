@@ -5,6 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useDashboard } from "@/lib/dashboard-context";
+import { Avatar } from "./Avatar";
+import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
   { label: "Resumen", icon: "🏠", href: "/dashboard" },
@@ -22,6 +25,7 @@ const SOON: { label: string; icon: string }[] = [];
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { profile } = useDashboard();
   const [link, setLink] = useState<{ code: string; deepLink: string } | null>(null);
 
   async function linkTelegram() {
@@ -41,9 +45,14 @@ export function Sidebar() {
         <span className="traffic-light bg-[#febc2e]" />
         <span className="traffic-light bg-[#28c840]" />
       </div>
-      <div className="px-2 py-3">
-        <p className="text-[15px] font-semibold tracking-tight">Platica</p>
-        <p className="text-[12px] text-[var(--color-ink-soft)]">Control financiero</p>
+      <div className="flex items-center gap-2.5 px-2 py-3">
+        <Avatar url={profile.avatarUrl} name={profile.displayName || profile.email} size={38} />
+        <div className="min-w-0">
+          <p className="truncate text-[14px] font-semibold tracking-tight">
+            {profile.displayName || "Mi cuenta"}
+          </p>
+          <p className="truncate text-[12px] text-[var(--color-ink-soft)]">{profile.email}</p>
+        </div>
       </div>
 
       <nav className="mt-2 space-y-0.5">
@@ -102,6 +111,7 @@ export function Sidebar() {
             </button>
           )}
         </div>
+        <ThemeToggle />
         <button
           onClick={logout}
           className="w-full rounded-[8px] px-2.5 py-2 text-left text-[13px] text-[var(--color-ink-soft)] transition hover:bg-black/5"
