@@ -207,17 +207,30 @@ async function handleMessage(msg: TgMessage): Promise<void> {
 
 async function buildContext(userId: string): Promise<InterpretContext> {
   const db = createAdminClient();
-  const [{ data: profile }, cats, accs] = await Promise.all([
+  const [{ data: profile }, cats, accs, { data: recentTx }, { data: recs }] = await Promise.all([
     db.from("profiles").select("default_currency, timezone").eq("id", userId).maybeSingle(),
     categoryRepo(db).listByUser(userId),
     accountRepo(db).listByUser(userId),
+    db.from("transactions").select("description, amount_minor").not("description", "is", null).order("occurred_at", { ascending: false }).limit(50),
+    db.from("recurrences").select("name, amount_minor").eq("active", true),
   ]);
+
+  // Conceptos conocidos con su monto típico (último visto), para inferir "el Netflix que ya sabes".
+  const merchants = new Map<string, number>();
+  for (const r of recs ?? []) if (r.name) merchants.set(r.name, r.amount_minor);
+  for (const t of recentTx ?? []) {
+    const k = (t.description as string)?.trim();
+    if (k && !merchants.has(k)) merchants.set(k, t.amount_minor);
+  }
+  const knownMerchants = [...merchants.entries()].slice(0, 25).map(([n, a]) => `${n}=${a}`);
+
   return {
     defaultCurrency: profile?.default_currency ?? "COP",
     timezone: profile?.timezone ?? "America/Bogota",
     now: new Date(),
     knownCategories: cats.map((c) => c.name),
     knownAccounts: accs.map((a) => a.name),
+    knownMerchants,
   };
 }
 

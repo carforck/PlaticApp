@@ -59,6 +59,9 @@ function buildPrompt(ctx: InterpretContext): string {
     "Si es un pago FIJO que se repite (arriendo, Netflix/suscripción, sueldo mensual, 'todos los meses', 'cada mes', 'fijo'), marca isRecurring=true con su 'frequency' (monthly por defecto) y 'dayOfMonth' si lo mencionan ('el día 5' → 5).",
     ctx.knownCategories.length ? `Categorías existentes (prefiere estas): ${ctx.knownCategories.join(", ")}.` : "",
     ctx.knownAccounts.length ? `Cuentas existentes: ${ctx.knownAccounts.join(", ")}.` : "",
+    ctx.knownMerchants?.length
+      ? `Conceptos ya registrados con su monto (formato concepto=monto): ${ctx.knownMerchants.join(", ")}. Si el usuario menciona uno de estos SIN decir el monto (ej. "el Netflix que ya sabes"), usa ese monto conocido.`
+      : "",
     "Si no hay ningún movimiento ni deuda, devuelve items vacío.",
   ]
     .filter(Boolean)
@@ -67,35 +70,43 @@ function buildPrompt(ctx: InterpretContext): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
 async function generate(body: Record<string, unknown>): Promise<RawItem[]> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("Falta GEMINI_API_KEY");
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+  // Cadena de modelos: si el principal está saturado (503), cae al siguiente.
+  const primary = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const models = [...new Set([primary, "gemini-2.5-flash-lite", "gemini-flash-latest"])];
+  const payload = JSON.stringify({
+    ...body,
+    generationConfig: { responseMimeType: "application/json", responseSchema, temperature: 0.2 },
+  });
 
   let lastErr = "";
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await fetch(`${ENDPOINT}/${model}:generateContent?key=${key}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...body,
-        generationConfig: { responseMimeType: "application/json", responseSchema, temperature: 0.2 },
-      }),
-    });
-
-    if (res.ok) {
-      const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-      const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error("Gemini no devolvió contenido");
-      return (JSON.parse(text).items ?? []) as RawItem[];
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`${ENDPOINT}/${model}:generateContent?key=${key}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: payload,
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return (JSON.parse(text).items ?? []) as RawItem[];
+          lastErr = "vacío";
+        } else {
+          lastErr = `${res.status}`;
+          if (!RETRYABLE.has(res.status)) break; // error del modelo => probar el siguiente
+        }
+      } catch (e) {
+        lastErr = (e as Error).message;
+      }
+      await sleep(400 * (attempt + 1));
     }
-
-    lastErr = `${res.status}`;
-    if (res.status === 503 || res.status === 429 || res.status === 500) {
-      await sleep(800 * (attempt + 1));
-      continue;
-    }
-    throw new Error(`Gemini ${res.status}: ${await res.text()}`);
   }
   throw new Error(`SATURADO (${lastErr})`);
 }

@@ -69,6 +69,8 @@ export interface InterpretContext {
   now: Date;
   knownCategories: string[];
   knownAccounts: string[];
+  /** Conceptos ya registrados con su monto típico, ej. "Netflix=44000". */
+  knownMerchants?: string[];
 }
 
 // ── Idempotencia ────────────────────────────────────────────────

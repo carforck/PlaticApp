@@ -3,6 +3,7 @@ import { processUpdate, type TgUpdate } from "@/server/bot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30; // margen para reintentos de Gemini
 
 /**
  * Webhook de Telegram. Telegram manda un header secreto que validamos.
