@@ -366,10 +366,11 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   let txOk = 0;
   let debtOk = 0;
   let failed = 0;
+  const touchedCategories = new Set<string>();
 
   for (const d of items) {
     try {
-      await useCase.execute({
+      const tx = await useCase.execute({
         userId: row.user_id,
         kind: d.kind,
         amount: Money.of(d.amountMinor, d.currency),
@@ -381,6 +382,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
         occurredAt: new Date(d.occurredAt),
         source: d.source,
       });
+      if (tx.kind === "expense" && tx.categoryId) touchedCategories.add(tx.categoryId);
       txOk++;
     } catch {
       failed++;
@@ -419,10 +421,14 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   if (txOk) parts.push(`${txOk} movimiento${txOk > 1 ? "s" : ""}`);
   if (debtOk) parts.push(`${debtOk} deuda${debtOk > 1 ? "s" : ""}`);
   if (recOk) parts.push(`${recOk} pago fijo${recOk > 1 ? "s" : ""}`);
-  const msg =
+  let msg =
     parts.length === 0
       ? "⚠️ No pude registrar nada. Revisa que tengas una cuenta configurada."
       : `✅ <b>Registré ${parts.join(" y ")}</b>${failed ? ` (${failed} fallaron)` : ""}.\nYa aparece en tu dashboard 📊`;
+
+  // Alertas de presupuesto para las categorías afectadas.
+  const alerts = await budgetAlerts(db, row.user_id, [...touchedCategories]);
+  if (alerts.length) msg += `\n\n${alerts.join("\n")}`;
 
   await telegram.editMessageText(chatId, messageId, msg);
   await telegram.answerCallbackQuery(cb.id, "¡Listo!");
@@ -536,6 +542,45 @@ async function handleReminderAction(
 }
 
 const pesos = (minor: number) => fmt(Money.of(minor, "COP"));
+
+/** Alertas de presupuesto: avisa si una categoría llegó al 80% o se pasó este mes. */
+async function budgetAlerts(
+  db: ReturnType<typeof createAdminClient>,
+  userId: string,
+  categoryIds: string[],
+): Promise<string[]> {
+  if (categoryIds.length === 0) return [];
+  const { data: budgets } = await db
+    .from("budgets")
+    .select("category_id, amount_minor")
+    .eq("user_id", userId)
+    .in("category_id", categoryIds);
+  if (!budgets?.length) return [];
+
+  const from = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const { data: txs } = await db
+    .from("transactions")
+    .select("category_id, amount_minor")
+    .eq("user_id", userId)
+    .eq("kind", "expense")
+    .gte("occurred_at", from)
+    .in("category_id", categoryIds);
+  const spent = new Map<string, number>();
+  for (const t of txs ?? []) spent.set(t.category_id, (spent.get(t.category_id) ?? 0) + t.amount_minor);
+
+  const { data: cats } = await db.from("categories").select("id, name").in("id", categoryIds);
+  const name = new Map((cats ?? []).map((c) => [c.id as string, c.name as string]));
+
+  const alerts: string[] = [];
+  for (const b of budgets) {
+    const s = spent.get(b.category_id) ?? 0;
+    const pct = Math.round((s / b.amount_minor) * 100);
+    const cat = name.get(b.category_id) ?? "esa categoría";
+    if (pct >= 100) alerts.push(`🔴 Te pasaste del presupuesto de <b>${cat}</b>: ${pesos(s)} de ${pesos(b.amount_minor)}.`);
+    else if (pct >= 80) alerts.push(`🟠 Vas en ${pct}% del presupuesto de <b>${cat}</b> (${pesos(s)} de ${pesos(b.amount_minor)}).`);
+  }
+  return alerts;
+}
 
 /** Responde una pregunta del usuario calculando desde la base de datos. */
 async function answerQuery(userId: string, q: QueryIntent): Promise<string> {

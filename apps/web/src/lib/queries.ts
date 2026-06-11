@@ -60,6 +60,12 @@ export interface ReceiptRow {
   created_at: string;
 }
 
+export interface BudgetRow {
+  id: string;
+  category_id: string | null;
+  amount_minor: number;
+}
+
 export interface DashboardData {
   accounts: AccountRow[];
   transactions: TxRow[];
@@ -67,11 +73,12 @@ export interface DashboardData {
   debts: DebtRow[];
   recurrences: RecurrenceRow[];
   receipts: ReceiptRow[];
+  budgets: BudgetRow[];
 }
 
 /** Trae todo lo que el dashboard necesita. Sirve para server y browser client. */
 export async function fetchDashboard(supabase: SupabaseClient): Promise<DashboardData> {
-  const [accounts, transactions, categories, debts, recurrences, receipts] = await Promise.all([
+  const [accounts, transactions, categories, debts, recurrences, receipts, budgets] = await Promise.all([
     supabase.from("account_balances").select("*"),
     supabase
       .from("transactions")
@@ -82,6 +89,7 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
     supabase.from("debts").select("*").order("created_at", { ascending: false }),
     supabase.from("recurrences").select("*").order("next_due", { ascending: true }),
     supabase.from("receipts").select("id, path, caption, created_at").order("created_at", { ascending: false }).limit(60),
+    supabase.from("budgets").select("id, category_id, amount_minor"),
   ]);
 
   return {
@@ -91,5 +99,6 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
     debts: (debts.data as DebtRow[]) ?? [],
     recurrences: (recurrences.data as RecurrenceRow[]) ?? [],
     receipts: (receipts.data as ReceiptRow[]) ?? [],
+    budgets: (budgets.data as BudgetRow[]) ?? [],
   };
 }

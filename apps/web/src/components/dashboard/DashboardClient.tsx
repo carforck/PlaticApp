@@ -84,6 +84,35 @@ export function DashboardClient() {
         </section>
       )}
 
+      {d.budgetsProgress.length > 0 && (
+        <section className="glass rounded-[var(--radius-card)] p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold">🎯 Presupuestos del mes</h2>
+            <Link href="/dashboard/presupuestos" className="text-[12px] text-[var(--color-accent)] hover:underline">
+              Ver todos →
+            </Link>
+          </div>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {d.budgetsProgress.map((b) => {
+              const color = b.pct >= 100 ? "#ff375f" : b.pct >= 80 ? "#ff9f0a" : "#30d158";
+              return (
+                <li key={b.id}>
+                  <div className="mb-1 flex items-center justify-between text-[13px]">
+                    <span className="font-medium">{b.emoji} {b.name}</span>
+                    <span className="text-[var(--color-ink-soft)]">
+                      {fmtMoney(b.spent)} / {fmtMoney(b.budget)} · <b style={{ color }}>{b.pct}%</b>
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, b.pct)}%`, background: color }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {/* Flujo + categorías */}
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="glass rounded-[var(--radius-card)] p-5 lg:col-span-2">
@@ -283,6 +312,23 @@ function useDerived(data: DashboardData) {
     const theyOwe = openDebts.filter((x) => x.direction === "they_owe").reduce((s, x) => s + x.amount_minor, 0);
     const iOwe = openDebts.filter((x) => x.direction === "i_owe").reduce((s, x) => s + x.amount_minor, 0);
 
+    const budgetsProgress = data.budgets
+      .filter((b) => b.category_id)
+      .map((b) => {
+        const c = catById.get(b.category_id!);
+        const spent = byCat.get(b.category_id!) ?? 0;
+        return {
+          id: b.id,
+          name: c?.name ?? "Categoría",
+          emoji: c?.emoji ?? "🏷️",
+          budget: b.amount_minor,
+          spent,
+          pct: Math.round((spent / b.amount_minor) * 100),
+        };
+      })
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 4);
+
     return {
       catById,
       netWorth,
@@ -296,6 +342,7 @@ function useDerived(data: DashboardData) {
       netWorthSeries,
       theyOwe,
       iOwe,
+      budgetsProgress,
     };
   }, [data]);
 }

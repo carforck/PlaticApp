@@ -55,6 +55,7 @@ export function DashboardProvider({
       .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "recurrences" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "receipts" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "budgets" }, refresh)
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
