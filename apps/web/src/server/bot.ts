@@ -324,12 +324,50 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
     body = `Detecté <b>${total}</b>:\n` + [...txLines, ...debtLines, ...recLines].join("\n") + "\n\n¿Los registro todos?";
   }
 
+  const warnings = await detectWarnings(db, userId, result.transactions);
+  if (warnings.length) body += `\n\n${warnings.join("\n")}`;
+
   await telegram.sendMessage(chatId, body, [
     [
       { text: total > 1 ? "✅ Registrar todo" : "✅ Sí, registrar", callback_data: `ok:${data.id}` },
       { text: "✏️ Cancelar", callback_data: `no:${data.id}` },
     ],
   ]);
+}
+
+/** Detecta posibles duplicados o gastos inusualmente altos para avisar antes de confirmar. */
+async function detectWarnings(
+  db: ReturnType<typeof createAdminClient>,
+  userId: string,
+  drafts: TransactionDraft[],
+): Promise<string[]> {
+  const expenses = drafts.filter((d) => d.kind === "expense");
+  if (expenses.length === 0) return [];
+
+  const { data: recent } = await db
+    .from("transactions")
+    .select("amount_minor, occurred_at")
+    .eq("user_id", userId)
+    .eq("kind", "expense")
+    .order("occurred_at", { ascending: false })
+    .limit(40);
+  const rows = recent ?? [];
+  if (rows.length === 0) return [];
+
+  const avg = rows.reduce((s, t) => s + t.amount_minor, 0) / rows.length;
+  const dayAgo = Date.now() - 24 * 3600 * 1000;
+  const warnings: string[] = [];
+
+  for (const d of expenses) {
+    const amt = d.amount.minorUnits;
+    const dup = rows.some((t) => t.amount_minor === amt && new Date(t.occurred_at).getTime() > dayAgo);
+    if (dup) {
+      warnings.push(`👯 Registraste ${fmt(d.amount)} hace poco — ¿es un duplicado?`);
+    } else if (avg > 0 && amt > avg * 3) {
+      warnings.push(`📈 ${fmt(d.amount)} es inusualmente alto (tu promedio es ~${pesos(Math.round(avg))}).`);
+    }
+  }
+  return [...new Set(warnings)];
 }
 
 // ── Confirmación ───────────────────────────────────────────────

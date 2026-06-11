@@ -203,6 +203,37 @@ function split(
   return { transactions, debts, recurrences, query };
 }
 
+/** Genera texto libre (sin esquema), con la misma cadena de modelos y reintentos. */
+export async function summarize(prompt: string): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("Falta GEMINI_API_KEY");
+  const models = [...new Set([process.env.GEMINI_MODEL || "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"])];
+  const payload = JSON.stringify({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.5 },
+  });
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`${ENDPOINT}/${model}:generateContent?key=${key}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: payload,
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return text.trim();
+        } else if (!RETRYABLE.has(res.status)) break;
+      } catch {
+        /* reintenta */
+      }
+      await sleep(400 * (attempt + 1));
+    }
+  }
+  throw new Error("SATURADO");
+}
+
 export const geminiText: TextInterpreter = {
   async interpret(text, ctx) {
     const { items, query } = await generate({
