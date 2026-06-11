@@ -70,13 +70,14 @@ export function MovimientosClient() {
         {rows.length === 0 ? (
           <p className="p-8 text-center text-[14px] text-[var(--color-ink-soft)]">No hay movimientos que coincidan.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-[14px]">
             <thead>
               <tr className="border-b border-black/5 text-left text-[12px] text-[var(--color-ink-soft)]">
-                <th className="px-5 py-3 font-medium">Concepto</th>
-                <th className="px-3 py-3 font-medium">Cuenta</th>
-                <th className="px-3 py-3 font-medium">Fecha</th>
-                <th className="px-5 py-3 text-right font-medium">Monto</th>
+                <th className="px-4 py-3 font-medium sm:px-5">Concepto</th>
+                <th className="hidden px-3 py-3 font-medium sm:table-cell">Cuenta</th>
+                <th className="hidden px-3 py-3 font-medium sm:table-cell">Fecha</th>
+                <th className="px-4 py-3 text-right font-medium sm:px-5">Monto</th>
               </tr>
             </thead>
             <tbody>
@@ -86,24 +87,25 @@ export function MovimientosClient() {
                 const signed = t.kind === "income" ? t.amount_minor : -t.amount_minor;
                 return (
                   <tr key={t.id} className="border-b border-black/5 last:border-0 hover:bg-black/[0.02]">
-                    <td className="px-5 py-3">
+                    <td className="px-4 py-3 sm:px-5">
                       <span className="flex items-center gap-3">
-                        <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
                           {cat?.emoji ?? KIND_EMOJI[t.kind] ?? "🧾"}
                         </span>
-                        <span>
-                          <span className="block font-medium">{t.description ?? cat?.name ?? KIND_LABEL[t.kind]}</span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{t.description ?? cat?.name ?? KIND_LABEL[t.kind]}</span>
                           <span className="block text-[12px] text-[var(--color-ink-soft)]">
                             {cat?.name ?? KIND_LABEL[t.kind]} · {SOURCE_EMOJI[t.source] ?? "•"}
+                            <span className="sm:hidden"> · {new Date(t.occurred_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}</span>
                           </span>
                         </span>
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-[var(--color-ink-soft)]">{acc?.name ?? "—"}</td>
-                    <td className="px-3 py-3 text-[var(--color-ink-soft)]">
+                    <td className="hidden px-3 py-3 text-[var(--color-ink-soft)] sm:table-cell">{acc?.name ?? "—"}</td>
+                    <td className="hidden px-3 py-3 text-[var(--color-ink-soft)] sm:table-cell">
                       {new Date(t.occurred_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}
                     </td>
-                    <td className={`px-5 py-3 text-right font-semibold ${signed > 0 ? "text-[#30d158]" : "text-[var(--color-ink)]"}`}>
+                    <td className={`whitespace-nowrap px-4 py-3 text-right font-semibold sm:px-5 ${signed > 0 ? "text-[#30d158]" : "text-[var(--color-ink)]"}`}>
                       {signed > 0 ? "+" : ""}
                       {fmtMoney(signed, t.currency)}
                     </td>
@@ -112,6 +114,7 @@ export function MovimientosClient() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

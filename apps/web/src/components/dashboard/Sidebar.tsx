@@ -23,7 +23,7 @@ const NAV = [
 
 const SOON: { label: string; icon: string }[] = [];
 
-export function Sidebar() {
+export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile } = useDashboard();
@@ -40,7 +40,13 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="glass animate-float-in hidden w-60 shrink-0 flex-col rounded-[var(--radius-card)] p-3 md:flex">
+    <aside
+      className={
+        inDrawer
+          ? "glass flex h-full w-[82vw] max-w-[18rem] shrink-0 flex-col rounded-[var(--radius-card)] p-3"
+          : "glass animate-float-in hidden w-60 shrink-0 flex-col rounded-[var(--radius-card)] p-3 md:flex"
+      }
+    >
       <div className="flex items-center gap-2 px-2 py-2">
         <span className="traffic-light bg-[#ff5f57]" />
         <span className="traffic-light bg-[#febc2e]" />

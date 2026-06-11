@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchDashboard } from "@/lib/queries";
 import { DashboardProvider } from "@/lib/dashboard-context";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { DashboardChrome } from "@/components/dashboard/DashboardChrome";
 
 export const dynamic = "force-dynamic";
 
@@ -35,10 +35,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         telegramLinked: !!link,
       }}
     >
-      <div className="flex min-h-screen gap-4 p-4">
-        <Sidebar />
-        {children}
-      </div>
+      <DashboardChrome>{children}</DashboardChrome>
     </DashboardProvider>
   );
 }
