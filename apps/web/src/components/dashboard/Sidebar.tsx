@@ -18,7 +18,7 @@ const NAV = [
   { label: "Recibos", icon: "🧾", href: "/dashboard/recibos" },
   { label: "Inversiones", icon: "📈", href: "/dashboard/inversiones" },
   { label: "Categorías", icon: "🏷️", href: "/dashboard/categorias" },
-  { label: "Ajustes", icon: "⚙️", href: "/dashboard/ajustes" },
+  { label: "Perfil", icon: "👤", href: "/dashboard/perfil" },
 ] as const;
 
 const SOON: { label: string; icon: string }[] = [];

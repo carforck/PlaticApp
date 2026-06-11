@@ -11,6 +11,9 @@ export interface DashboardProfile {
   defaultCurrency: string;
   timezone: string;
   telegramLinked: boolean;
+  createdAt: string;
+  emailVerified: boolean;
+  provider: string;
 }
 
 interface DashboardCtx {

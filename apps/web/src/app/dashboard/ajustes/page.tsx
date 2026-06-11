@@ -1,5 +1,5 @@
-import { AjustesClient } from "@/components/dashboard/AjustesClient";
+import { redirect } from "next/navigation";
 
 export default function AjustesPage() {
-  return <AjustesClient />;
+  redirect("/dashboard/perfil");
 }

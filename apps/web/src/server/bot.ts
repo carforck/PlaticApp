@@ -4,6 +4,7 @@ import type {
   ExtractResult,
   Frequency,
   InterpretContext,
+  QueryIntent,
   TransactionDraft,
   TransactionKind,
 } from "@platica/core";
@@ -188,10 +189,19 @@ async function handleMessage(msg: TgMessage): Promise<void> {
       return;
     }
 
-    if (result.transactions.length === 0 && result.debts.length === 0 && result.recurrences.length === 0) {
+    const nothingToRegister =
+      result.transactions.length === 0 && result.debts.length === 0 && result.recurrences.length === 0;
+
+    // Si es una pregunta, la respondemos en vez de registrar.
+    if (nothingToRegister && result.query) {
+      await telegram.sendMessage(chatId, await answerQuery(userId, result.query));
+      return;
+    }
+
+    if (nothingToRegister) {
       await telegram.sendMessage(
         chatId,
-        "🤔 No detecté ningún movimiento ni deuda ahí. Cuéntame un gasto, ingreso, inversión, préstamo o pago fijo.",
+        "🤔 No detecté nada. Cuéntame un gasto/ingreso/préstamo, o pregúntame algo como «¿cuánto gasté en comida este mes?».",
       );
       return;
     }
@@ -523,6 +533,106 @@ async function handleReminderAction(
       : `⏭️ Saltado este ciclo · ${rec.name}\nPróximo: ${ymd(next)}`,
   );
   await telegram.answerCallbackQuery(cb.id, "¡Listo!");
+}
+
+const pesos = (minor: number) => fmt(Money.of(minor, "COP"));
+
+/** Responde una pregunta del usuario calculando desde la base de datos. */
+async function answerQuery(userId: string, q: QueryIntent): Promise<string> {
+  const db = createAdminClient();
+  const now = new Date();
+
+  // Rango temporal de la consulta.
+  let from: Date | null = new Date(now.getFullYear(), now.getMonth(), 1);
+  let to: Date | null = null;
+  let periodLabel = "este mes";
+  if (q.period === "all") {
+    from = null;
+    periodLabel = "en total";
+  } else if (q.period === "last_month") {
+    from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    to = new Date(now.getFullYear(), now.getMonth(), 1);
+    periodLabel = "el mes pasado";
+  }
+  // Trae gastos/ingresos del usuario en el rango, sumados en JS (escala personal).
+  async function sumByKind(kind: "expense" | "income"): Promise<{ amount_minor: number; category_id: string | null }[]> {
+    let qb = db.from("transactions").select("amount_minor, category_id").eq("user_id", userId).eq("kind", kind);
+    if (from) qb = qb.gte("occurred_at", from.toISOString());
+    if (to) qb = qb.lt("occurred_at", to.toISOString());
+    const { data } = await qb;
+    return data ?? [];
+  }
+
+  try {
+    if (q.type === "balance") {
+      const { data } = await db.from("account_balances").select("name, balance_minor").eq("user_id", userId);
+      const total = (data ?? []).reduce((s, a) => s + a.balance_minor, 0);
+      const lines = (data ?? []).map((a) => `• ${a.name}: ${pesos(a.balance_minor)}`).join("\n");
+      return `💰 <b>Tu patrimonio:</b> ${pesos(total)}\n${lines}`;
+    }
+
+    if (q.type === "debts") {
+      const { data } = await db.from("debts").select("counterparty, direction, amount_minor").eq("user_id", userId).eq("status", "open");
+      const owe = (data ?? []).filter((d) => d.direction === "i_owe").reduce((s, d) => s + d.amount_minor, 0);
+      const owed = (data ?? []).filter((d) => d.direction === "they_owe").reduce((s, d) => s + d.amount_minor, 0);
+      const detail = (data ?? [])
+        .map((d) => (d.direction === "i_owe" ? `• Le debes a ${d.counterparty}: ${pesos(d.amount_minor)}` : `• ${d.counterparty} te debe: ${pesos(d.amount_minor)}`))
+        .join("\n");
+      return `🤝 <b>Deudas</b>\nDebes: ${pesos(owe)} · Te deben: ${pesos(owed)}${detail ? `\n${detail}` : ""}`;
+    }
+
+    if (q.type === "recent") {
+      const { data } = await db
+        .from("transactions")
+        .select("kind, amount_minor, description, occurred_at")
+        .eq("user_id", userId)
+        .order("occurred_at", { ascending: false })
+        .limit(5);
+      if (!data?.length) return "No tienes movimientos aún.";
+      const lines = data
+        .map((t) => {
+          const signed = t.kind === "income" ? "+" : "−";
+          return `• ${signed}${pesos(t.amount_minor)} · ${t.description ?? t.kind} (${new Date(t.occurred_at).toLocaleDateString("es-CO")})`;
+        })
+        .join("\n");
+      return `🧾 <b>Últimos movimientos</b>\n${lines}`;
+    }
+
+    if (q.type === "income") {
+      const rows = await sumByKind("income");
+      const total = rows.reduce((s, t) => s + t.amount_minor, 0);
+      return `💵 <b>Ingresos ${periodLabel}:</b> ${pesos(total)}`;
+    }
+
+    // expenses + top_categories: traer gastos del periodo.
+    const { data: cats } = await db.from("categories").select("id, name").eq("user_id", userId);
+    const catName = new Map((cats ?? []).map((c) => [c.id as string, c.name as string]));
+    const txs = await sumByKind("expense");
+
+    if (q.type === "top_categories") {
+      const byCat = new Map<string, number>();
+      for (const t of txs) byCat.set(t.category_id ?? "otros", (byCat.get(t.category_id ?? "otros") ?? 0) + t.amount_minor);
+      const top = [...byCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      if (!top.length) return `No registras gastos ${periodLabel}.`;
+      const lines = top.map(([id, v]) => `• ${catName.get(id) ?? "Otros"}: ${pesos(v)}`).join("\n");
+      return `📊 <b>En lo que más gastas ${periodLabel}:</b>\n${lines}`;
+    }
+
+    // expenses (opcional por categoría)
+    let rows = txs;
+    let catLabel = "";
+    if (q.category) {
+      const match = (cats ?? []).find((c) => (c.name as string).toLowerCase().includes(q.category!.toLowerCase()));
+      if (match) {
+        rows = rows.filter((t) => t.category_id === match.id);
+        catLabel = ` en ${match.name}`;
+      }
+    }
+    const total = rows.reduce((s, t) => s + t.amount_minor, 0);
+    return `💸 <b>Gastos${catLabel} ${periodLabel}:</b> ${pesos(total)}`;
+  } catch (e) {
+    return `⚠️ No pude calcular eso: ${(e as Error).message}`;
+  }
 }
 
 /** Envía el recordatorio de un pago fijo (lo llama el cron). */

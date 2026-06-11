@@ -40,11 +40,19 @@ export interface CategoryRepository {
 }
 
 // ── IA: interpretación de lenguaje natural ──────────────────────
-/** Resultado de interpretar un mensaje: movimientos, deudas y/o recurrencias. */
+/** Pregunta del usuario sobre sus finanzas (consulta en lenguaje natural). */
+export interface QueryIntent {
+  type: "balance" | "expenses" | "income" | "debts" | "top_categories" | "recent";
+  category?: string;
+  period?: "this_month" | "last_month" | "all";
+}
+
+/** Resultado de interpretar un mensaje: movimientos, deudas, recurrencias y/o una consulta. */
 export interface ExtractResult {
   transactions: TransactionDraft[];
   debts: DebtDraft[];
   recurrences: RecurrenceDraft[];
+  query: QueryIntent | null;
 }
 
 /** Convierte texto libre en transacciones y/o deudas. (Adaptador: Gemini) */

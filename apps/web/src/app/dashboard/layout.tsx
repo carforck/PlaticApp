@@ -33,6 +33,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         defaultCurrency: profile?.default_currency ?? "COP",
         timezone: profile?.timezone ?? "America/Bogota",
         telegramLinked: !!link,
+        createdAt: user.created_at ?? "",
+        emailVerified: !!(meta.email_verified ?? user.email_confirmed_at),
+        provider: (user.app_metadata?.provider as string) ?? "email",
       }}
     >
       <DashboardChrome>{children}</DashboardChrome>

@@ -6,6 +6,7 @@ import type {
   Frequency,
   ImageInterpreter,
   InterpretContext,
+  QueryIntent,
   RecurrenceDraft,
   TextInterpreter,
   TransactionDraft,
@@ -43,6 +44,18 @@ const responseSchema = {
         required: ["kind", "amount", "currency", "confidence"],
       },
     },
+    query: {
+      type: "object",
+      description: "Si el usuario hace una PREGUNTA sobre sus finanzas (no registra nada)",
+      properties: {
+        type: {
+          type: "string",
+          enum: ["balance", "expenses", "income", "debts", "top_categories", "recent"],
+        },
+        category: { type: "string" },
+        period: { type: "string", enum: ["this_month", "last_month", "all"] },
+      },
+    },
   },
   required: ["items"],
 } as const;
@@ -63,6 +76,7 @@ function buildPrompt(ctx: InterpretContext): string {
       ? `Conceptos ya registrados con su monto (formato concepto=monto): ${ctx.knownMerchants.join(", ")}. Si el usuario menciona uno de estos SIN decir el monto (ej. "el Netflix que ya sabes"), usa ese monto conocido.`
       : "",
     "Si no hay ningún movimiento ni deuda, devuelve items vacío.",
+    "Si el usuario PREGUNTA por sus finanzas (ej. «¿cuánto debo?», «¿cuánto gasté en comida este mes?», «¿cuánto tengo?», «¿en qué gasto más?», «mis últimos movimientos»), NO registres nada: llena 'query' con type (balance=cuánto tengo, expenses=gastos, income=ingresos, debts=deudas, top_categories=en qué gasto más, recent=últimos), 'category' si menciona una, y 'period' (this_month por defecto, last_month, all).",
   ]
     .filter(Boolean)
     .join("\n");
@@ -72,7 +86,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
-async function generate(body: Record<string, unknown>): Promise<RawItem[]> {
+interface GenResult {
+  items: RawItem[];
+  query: QueryIntent | null;
+}
+
+async function generate(body: Record<string, unknown>): Promise<GenResult> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("Falta GEMINI_API_KEY");
 
@@ -96,7 +115,11 @@ async function generate(body: Record<string, unknown>): Promise<RawItem[]> {
         if (res.ok) {
           const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
           const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) return (JSON.parse(text).items ?? []) as RawItem[];
+          if (text) {
+            const parsed = JSON.parse(text) as { items?: RawItem[]; query?: QueryIntent };
+            const query = parsed.query && parsed.query.type ? parsed.query : null;
+            return { items: parsed.items ?? [], query };
+          }
           lastErr = "vacío";
         } else {
           lastErr = `${res.status}`;
@@ -129,7 +152,12 @@ interface RawItem {
   confidence: number;
 }
 
-function split(raws: RawItem[], ctx: InterpretContext, source: TransactionDraft["source"]): ExtractResult {
+function split(
+  raws: RawItem[],
+  query: QueryIntent | null,
+  ctx: InterpretContext,
+  source: TransactionDraft["source"],
+): ExtractResult {
   const transactions: TransactionDraft[] = [];
   const debts: DebtDraft[] = [];
   const recurrences: RecurrenceDraft[] = [];
@@ -172,22 +200,22 @@ function split(raws: RawItem[], ctx: InterpretContext, source: TransactionDraft[
       });
     }
   }
-  return { transactions, debts, recurrences };
+  return { transactions, debts, recurrences, query };
 }
 
 export const geminiText: TextInterpreter = {
   async interpret(text, ctx) {
-    const raws = await generate({
+    const { items, query } = await generate({
       contents: [{ role: "user", parts: [{ text: `${buildPrompt(ctx)}\n\nUsuario: ${text}` }] }],
     });
-    return split(raws, ctx, "telegram_text");
+    return split(items, query, ctx, "telegram_text");
   },
 };
 
 export const geminiImage: ImageInterpreter = {
   async interpret(image, mimeType, ctx) {
     const base64 = Buffer.from(image).toString("base64");
-    const raws = await generate({
+    const { items, query } = await generate({
       contents: [
         {
           role: "user",
@@ -198,6 +226,6 @@ export const geminiImage: ImageInterpreter = {
         },
       ],
     });
-    return split(raws, ctx, "telegram_image");
+    return split(items, query, ctx, "telegram_image");
   },
 };
