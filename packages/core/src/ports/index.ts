@@ -24,9 +24,9 @@ export interface CategoryRepository {
 }
 
 // ── IA: interpretación de lenguaje natural ──────────────────────
-/** Convierte texto libre en un borrador de transacción. (Adaptador: Gemini) */
+/** Convierte texto libre en una o varias transacciones. (Adaptador: Gemini) */
 export interface TextInterpreter {
-  interpret(text: string, ctx: InterpretContext): Promise<TransactionDraft>;
+  interpret(text: string, ctx: InterpretContext): Promise<TransactionDraft[]>;
 }
 
 /** Transcribe audio a texto. (Adaptador: Groq Whisper) */
@@ -34,9 +34,9 @@ export interface AudioTranscriber {
   transcribe(audio: Uint8Array, mimeType: string): Promise<string>;
 }
 
-/** Extrae datos de una imagen/recibo a un borrador. (Adaptador: Gemini Vision) */
+/** Extrae una o varias transacciones de una imagen/recibo. (Adaptador: Gemini Vision) */
 export interface ImageInterpreter {
-  interpret(image: Uint8Array, mimeType: string, ctx: InterpretContext): Promise<TransactionDraft>;
+  interpret(image: Uint8Array, mimeType: string, ctx: InterpretContext): Promise<TransactionDraft[]>;
 }
 
 /** Contexto que ayuda a la IA a clasificar mejor (categorías y cuentas del usuario). */

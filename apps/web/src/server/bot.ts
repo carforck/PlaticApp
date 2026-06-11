@@ -44,11 +44,21 @@ const fmt = (m: Money) =>
     m.minorUnits,
   );
 
+/** Forma serializable de un borrador (lo que guardamos en pending_drafts.draft.items). */
+interface DraftItem {
+  kind: TransactionKind;
+  amountMinor: number;
+  currency: string;
+  categoryHint: string | null;
+  accountHint: string | null;
+  description: string | null;
+  occurredAt: string;
+  source: TransactionDraft["source"];
+}
+
 /** Punto de entrada: procesa un update ya validado. Idempotente. */
 export async function processUpdate(update: TgUpdate): Promise<void> {
   const db = createAdminClient();
-
-  // 1) Idempotencia: Telegram reintenta; procesamos cada update una sola vez.
   const isNew = await idempotencyStore(db).claim(String(update.update_id));
   if (!isNew) return;
 
@@ -100,7 +110,6 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   const chatId = msg.chat.id;
   const text = msg.text?.trim() ?? "";
 
-  // Comandos de arranque/vinculación: /start CODE  o  /vincular CODE
   const startMatch = text.match(/^\/(?:start|vincular)(?:@\w+)?\s+(\S+)/i);
   if (startMatch) return handleLinkCode(chatId, startMatch[1]!, msg.from?.username);
 
@@ -114,7 +123,6 @@ async function handleMessage(msg: TgMessage): Promise<void> {
 
   const userId = await resolveUserId(chatId);
   if (!userId) {
-    // Quizás escribió el código de vinculación pelado (sin /vincular).
     const maybeCode = text.replace(/\s+/g, "");
     if (/^[A-Za-z0-9]{6}$/.test(maybeCode)) {
       return handleLinkCode(chatId, maybeCode, msg.from?.username);
@@ -128,28 +136,40 @@ async function handleMessage(msg: TgMessage): Promise<void> {
 
   try {
     const ctx = await buildContext(userId);
-    let draft: TransactionDraft;
+    let drafts: TransactionDraft[];
 
     if (msg.voice || msg.audio) {
       const fileId = (msg.voice ?? msg.audio)!.file_id;
       const { bytes, mimeHint } = await telegram.downloadFile(fileId);
       const transcript = await groqAudio.transcribe(bytes, mimeHint);
       await telegram.sendMessage(chatId, `🎙️ Te entendí: <i>«${transcript}»</i>`);
-      draft = { ...(await geminiText.interpret(transcript, ctx)), source: "telegram_audio" };
+      drafts = (await geminiText.interpret(transcript, ctx)).map((d) => ({ ...d, source: "telegram_audio" as const }));
     } else if (msg.photo?.length) {
       const largest = msg.photo[msg.photo.length - 1]!;
       const { bytes, mimeHint } = await telegram.downloadFile(largest.file_id);
-      draft = await geminiImage.interpret(bytes, mimeHint, ctx);
-      if (msg.caption) draft.description ??= msg.caption;
+      drafts = await geminiImage.interpret(bytes, mimeHint, ctx);
+      if (msg.caption && drafts[0]) drafts[0].description ??= msg.caption;
     } else if (text) {
-      draft = await geminiText.interpret(text, ctx);
+      drafts = await geminiText.interpret(text, ctx);
     } else {
       return;
     }
 
-    await proposeDraft(chatId, userId, draft);
+    if (drafts.length === 0) {
+      await telegram.sendMessage(
+        chatId,
+        "🤔 No detecté ningún movimiento ahí. Cuéntame un gasto, ingreso o inversión (ej. «taxi 12 mil»).",
+      );
+      return;
+    }
+
+    await proposeDrafts(chatId, userId, drafts);
   } catch (err) {
-    await telegram.sendMessage(chatId, `⚠️ Algo falló procesando eso: ${(err as Error).message}`);
+    const m = (err as Error).message;
+    const friendly = m.includes("SATURADO")
+      ? "😵‍💫 El modelo de IA está saturado en este momento. Reintenta en unos segundos."
+      : `⚠️ Algo falló procesando eso: ${m}`;
+    await telegram.sendMessage(chatId, friendly);
   }
 }
 
@@ -169,38 +189,50 @@ async function buildContext(userId: string): Promise<InterpretContext> {
   };
 }
 
-/** Guarda el borrador y pide confirmación con botones. */
-async function proposeDraft(chatId: number, userId: string, draft: TransactionDraft): Promise<void> {
+/** Guarda los borradores y pide confirmación (uno o varios) con botones. */
+async function proposeDrafts(chatId: number, userId: string, drafts: TransactionDraft[]): Promise<void> {
   const db = createAdminClient();
-  const draftJson = {
-    kind: draft.kind,
-    amountMinor: draft.amount.minorUnits,
-    currency: draft.amount.currency,
-    categoryHint: draft.categoryHint ?? null,
-    accountHint: draft.accountHint ?? null,
-    description: draft.description ?? null,
-    occurredAt: draft.occurredAt.toISOString(),
-    source: draft.source,
-  };
+  const items: DraftItem[] = drafts.map((d) => ({
+    kind: d.kind,
+    amountMinor: d.amount.minorUnits,
+    currency: d.amount.currency,
+    categoryHint: d.categoryHint ?? null,
+    accountHint: d.accountHint ?? null,
+    description: d.description ?? null,
+    occurredAt: d.occurredAt.toISOString(),
+    source: d.source,
+  }));
+
   const { data, error } = await db
     .from("pending_drafts")
-    .insert({ user_id: userId, draft: draftJson })
+    .insert({ user_id: userId, draft: { items } })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
 
-  const lines = [
-    KIND_LABEL[draft.kind],
-    `<b>${fmt(draft.amount)}</b>${draft.categoryHint ? ` · ${draft.categoryHint}` : ""}`,
-    draft.description ? `“${draft.description}”` : "",
-    draft.accountHint ? `Cuenta: ${draft.accountHint}` : "",
-    draft.confidence < 0.5 ? "\n🤔 No estoy muy seguro, revisa los datos." : "",
-    "\n¿Lo registro?",
-  ].filter(Boolean);
+  let body: string;
+  if (drafts.length === 1) {
+    const d = drafts[0]!;
+    body = [
+      KIND_LABEL[d.kind],
+      `<b>${fmt(d.amount)}</b>${d.categoryHint ? ` · ${d.categoryHint}` : ""}`,
+      d.description ? `“${d.description}”` : "",
+      d.accountHint ? `Cuenta: ${d.accountHint}` : "",
+      d.confidence < 0.5 ? "\n🤔 No estoy muy seguro, revisa los datos." : "",
+      "\n¿Lo registro?",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  } else {
+    const lines = drafts.map(
+      (d) => `${KIND_LABEL[d.kind]} · <b>${fmt(d.amount)}</b>${d.categoryHint ? ` · ${d.categoryHint}` : ""}`,
+    );
+    body = `Detecté <b>${drafts.length} movimientos</b>:\n${lines.join("\n")}\n\n¿Los registro todos?`;
+  }
 
-  await telegram.sendMessage(chatId, lines.join("\n"), [
+  await telegram.sendMessage(chatId, body, [
     [
-      { text: "✅ Sí, registrar", callback_data: `ok:${data.id}` },
+      { text: drafts.length > 1 ? "✅ Registrar todos" : "✅ Sí, registrar", callback_data: `ok:${data.id}` },
       { text: "✏️ Cancelar", callback_data: `no:${data.id}` },
     ],
   ]);
@@ -227,29 +259,41 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     return;
   }
 
-  // Confirmar => ejecutar el caso de uso del dominio.
-  const d = row.draft as Record<string, unknown>;
+  // Confirmar => registrar todos los ítems vía el caso de uso del dominio.
+  const items = (row.draft?.items ?? []) as DraftItem[];
   const useCase = new RegisterTransaction(transactionRepo(db), accountRepo(db), categoryRepo(db));
-  try {
-    const tx = await useCase.execute({
-      userId: row.user_id,
-      kind: d.kind as TransactionKind,
-      amount: Money.of(d.amountMinor as number, d.currency as string),
-      accountHint: (d.accountHint as string) ?? undefined,
-      categoryHint: (d.categoryHint as string) ?? undefined,
-      description: (d.description as string) ?? undefined,
-      occurredAt: new Date(d.occurredAt as string),
-      source: d.source as TransactionDraft["source"],
-    });
-    await db.from("pending_drafts").delete().eq("id", draftId);
-    await telegram.editMessageText(
-      chatId,
-      messageId,
-      `✅ <b>Registrado</b> · ${fmt(tx.amount)}\nYa aparece en tu dashboard 📊`,
-    );
-    await telegram.answerCallbackQuery(cb.id, "¡Listo!");
-  } catch (err) {
-    await telegram.answerCallbackQuery(cb.id, "Error al registrar");
-    await telegram.editMessageText(chatId, messageId, `⚠️ No pude registrar: ${(err as Error).message}`);
+  const registered: Money[] = [];
+  let failed = 0;
+
+  for (const d of items) {
+    try {
+      const tx = await useCase.execute({
+        userId: row.user_id,
+        kind: d.kind,
+        amount: Money.of(d.amountMinor, d.currency),
+        accountHint: d.accountHint ?? undefined,
+        categoryHint: d.categoryHint ?? undefined,
+        description: d.description ?? undefined,
+        occurredAt: new Date(d.occurredAt),
+        source: d.source,
+      });
+      registered.push(tx.amount);
+    } catch {
+      failed++;
+    }
   }
+
+  await db.from("pending_drafts").delete().eq("id", draftId);
+
+  let msg: string;
+  if (registered.length === 0) {
+    msg = "⚠️ No pude registrar los movimientos. Revisa que tengas una cuenta configurada.";
+  } else if (registered.length === 1) {
+    msg = `✅ <b>Registrado</b> · ${fmt(registered[0]!)}\nYa aparece en tu dashboard 📊`;
+  } else {
+    msg = `✅ <b>Registré ${registered.length} movimientos</b>${failed ? ` (${failed} fallaron)` : ""}.\nYa aparecen en tu dashboard 📊`;
+  }
+
+  await telegram.editMessageText(chatId, messageId, msg);
+  await telegram.answerCallbackQuery(cb.id, "¡Listo!");
 }
