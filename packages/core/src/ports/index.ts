@@ -1,4 +1,6 @@
 import type { Account, Category } from "../domain/account";
+import type { AccountType } from "../domain/types";
+import type { Debt, DebtDraft, NewDebt } from "../domain/debt";
 import type { NewTransaction, Transaction, TransactionDraft } from "../domain/transaction";
 
 /**
@@ -16,6 +18,12 @@ export interface TransactionRepository {
 export interface AccountRepository {
   listByUser(userId: string): Promise<Account[]>;
   findByNameHint(userId: string, hint: string): Promise<Account | null>;
+  create(userId: string, name: string, type: AccountType): Promise<Account>;
+}
+
+export interface DebtRepository {
+  create(debt: NewDebt): Promise<Debt>;
+  listByUser(userId: string): Promise<Debt[]>;
 }
 
 export interface CategoryRepository {
@@ -24,9 +32,15 @@ export interface CategoryRepository {
 }
 
 // ── IA: interpretación de lenguaje natural ──────────────────────
-/** Convierte texto libre en una o varias transacciones. (Adaptador: Gemini) */
+/** Resultado de interpretar un mensaje: movimientos y/o deudas. */
+export interface ExtractResult {
+  transactions: TransactionDraft[];
+  debts: DebtDraft[];
+}
+
+/** Convierte texto libre en transacciones y/o deudas. (Adaptador: Gemini) */
 export interface TextInterpreter {
-  interpret(text: string, ctx: InterpretContext): Promise<TransactionDraft[]>;
+  interpret(text: string, ctx: InterpretContext): Promise<ExtractResult>;
 }
 
 /** Transcribe audio a texto. (Adaptador: Groq Whisper) */
@@ -34,9 +48,9 @@ export interface AudioTranscriber {
   transcribe(audio: Uint8Array, mimeType: string): Promise<string>;
 }
 
-/** Extrae una o varias transacciones de una imagen/recibo. (Adaptador: Gemini Vision) */
+/** Extrae transacciones y/o deudas de una imagen/recibo. (Adaptador: Gemini Vision) */
 export interface ImageInterpreter {
-  interpret(image: Uint8Array, mimeType: string, ctx: InterpretContext): Promise<TransactionDraft[]>;
+  interpret(image: Uint8Array, mimeType: string, ctx: InterpretContext): Promise<ExtractResult>;
 }
 
 /** Contexto que ayuda a la IA a clasificar mejor (categorías y cuentas del usuario). */

@@ -15,9 +15,21 @@ export class RegisterTransaction {
   ) {}
 
   async execute(input: RegisterTransactionInput): Promise<Transaction> {
-    const account =
-      (input.accountHint && (await this.accounts.findByNameHint(input.userId, input.accountHint))) ||
-      (await this.accounts.listByUser(input.userId))[0];
+    let account = input.accountHint
+      ? await this.accounts.findByNameHint(input.userId, input.accountHint)
+      : null;
+
+    // Si mencionó una cuenta que no existe, se crea (cuentas intuitivas por chat).
+    if (!account && input.accountHint) {
+      account = await this.accounts.create(
+        input.userId,
+        titleCase(input.accountHint),
+        input.accountType ?? "cash",
+      );
+    }
+
+    // Sin hint: usa la primera cuenta del usuario como predeterminada.
+    account ??= (await this.accounts.listByUser(input.userId))[0] ?? null;
 
     if (!account) throw new Error("El usuario no tiene ninguna cuenta configurada");
 
@@ -42,15 +54,20 @@ export class RegisterTransaction {
 }
 
 import type { Money } from "../domain/money";
-import type { SourceChannel, TransactionKind } from "../domain/types";
+import type { AccountType, SourceChannel, TransactionKind } from "../domain/types";
 
 export interface RegisterTransactionInput {
   userId: string;
   kind: TransactionKind;
   amount: Money;
   accountHint?: string;
+  accountType?: AccountType;
   categoryHint?: string;
   description?: string;
   occurredAt: Date;
   source: SourceChannel;
+}
+
+function titleCase(s: string): string {
+  return s.trim().replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }

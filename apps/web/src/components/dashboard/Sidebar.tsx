@@ -10,6 +10,7 @@ const NAV = [
   { label: "Resumen", icon: "🏠", href: "/dashboard" },
   { label: "Movimientos", icon: "💸", href: "/dashboard/movimientos" },
   { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
+  { label: "Deudas", icon: "🤝", href: "/dashboard/deudas" },
 ] as const;
 
 const SOON = [

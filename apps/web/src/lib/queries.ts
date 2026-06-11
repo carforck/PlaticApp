@@ -28,15 +28,27 @@ export interface CategoryRow {
   applies_to: string | null;
 }
 
+export interface DebtRow {
+  id: string;
+  counterparty: string;
+  direction: "i_owe" | "they_owe";
+  amount_minor: number;
+  currency: string;
+  description: string | null;
+  status: "open" | "settled";
+  created_at: string;
+}
+
 export interface DashboardData {
   accounts: AccountRow[];
   transactions: TxRow[];
   categories: CategoryRow[];
+  debts: DebtRow[];
 }
 
 /** Trae todo lo que el dashboard necesita. Sirve para server y browser client. */
 export async function fetchDashboard(supabase: SupabaseClient): Promise<DashboardData> {
-  const [accounts, transactions, categories] = await Promise.all([
+  const [accounts, transactions, categories, debts] = await Promise.all([
     supabase.from("account_balances").select("*"),
     supabase
       .from("transactions")
@@ -44,11 +56,13 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
       .order("occurred_at", { ascending: false })
       .limit(100),
     supabase.from("categories").select("*"),
+    supabase.from("debts").select("*").order("created_at", { ascending: false }),
   ]);
 
   return {
     accounts: (accounts.data as AccountRow[]) ?? [],
     transactions: (transactions.data as TxRow[]) ?? [],
     categories: (categories.data as CategoryRow[]) ?? [],
+    debts: (debts.data as DebtRow[]) ?? [],
   };
 }

@@ -2,9 +2,13 @@ import { Money } from "@platica/core";
 import type {
   Account,
   AccountRepository,
+  AccountType,
   Category,
   CategoryRepository,
+  Debt,
+  DebtRepository,
   IdempotencyStore,
+  NewDebt,
   NewTransaction,
   Transaction,
   TransactionRepository,
@@ -98,6 +102,55 @@ export function accountRepo(db: SupabaseClient): AccountRepository {
         .limit(1)
         .maybeSingle();
       return data ? map(data) : null;
+    },
+    async create(userId, name, type: AccountType) {
+      const { data, error } = await db
+        .from("accounts")
+        .insert({ user_id: userId, name, type })
+        .select("*")
+        .single();
+      if (error) throw new Error(error.message);
+      return map(data);
+    },
+  };
+}
+
+export function debtRepo(db: SupabaseClient): DebtRepository {
+  const map = (d: Record<string, unknown>): Debt => ({
+    id: d.id as string,
+    userId: d.user_id as string,
+    counterparty: d.counterparty as string,
+    direction: d.direction as Debt["direction"],
+    amount: Money.of(d.amount_minor as number, d.currency as string),
+    description: (d.description as string) ?? null,
+    status: d.status as Debt["status"],
+    createdAt: new Date(d.created_at as string),
+  });
+  return {
+    async create(debt: NewDebt) {
+      const { data, error } = await db
+        .from("debts")
+        .insert({
+          user_id: debt.userId,
+          counterparty: debt.counterparty,
+          direction: debt.direction,
+          amount_minor: debt.amount.minorUnits,
+          currency: debt.amount.currency,
+          description: debt.description ?? null,
+        })
+        .select("*")
+        .single();
+      if (error) throw new Error(error.message);
+      return map(data);
+    },
+    async listByUser(userId) {
+      const { data, error } = await db
+        .from("debts")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []).map(map);
     },
   };
 }

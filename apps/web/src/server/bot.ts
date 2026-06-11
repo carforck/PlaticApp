@@ -1,7 +1,7 @@
 import { Money, RegisterTransaction } from "@platica/core";
-import type { InterpretContext, TransactionDraft, TransactionKind } from "@platica/core";
+import type { AccountType, ExtractResult, InterpretContext, TransactionDraft, TransactionKind } from "@platica/core";
 import { createAdminClient } from "./supabase-admin";
-import { accountRepo, categoryRepo, idempotencyStore, transactionRepo } from "./repos";
+import { accountRepo, categoryRepo, debtRepo, idempotencyStore, transactionRepo } from "./repos";
 import { telegram } from "./telegram";
 import { geminiText, geminiImage } from "./ai/gemini";
 import { groqAudio } from "./ai/groq";
@@ -44,16 +44,28 @@ const fmt = (m: Money) =>
     m.minorUnits,
   );
 
-/** Forma serializable de un borrador (lo que guardamos en pending_drafts.draft.items). */
+const debtLine = (counterparty: string, direction: "i_owe" | "they_owe", m: Money) =>
+  direction === "i_owe"
+    ? `🤝 Le debes a <b>${counterparty}</b>: ${fmt(m)}`
+    : `🤝 <b>${counterparty}</b> te debe: ${fmt(m)}`;
+
 interface DraftItem {
   kind: TransactionKind;
   amountMinor: number;
   currency: string;
   categoryHint: string | null;
   accountHint: string | null;
+  accountType: AccountType | null;
   description: string | null;
   occurredAt: string;
   source: TransactionDraft["source"];
+}
+interface DebtItem {
+  counterparty: string;
+  direction: "i_owe" | "they_owe";
+  amountMinor: number;
+  currency: string;
+  description: string | null;
 }
 
 /** Punto de entrada: procesa un update ya validado. Idempotente. */
@@ -69,11 +81,7 @@ export async function processUpdate(update: TgUpdate): Promise<void> {
 // ── Vinculación de cuenta ──────────────────────────────────────
 async function resolveUserId(chatId: number): Promise<string | null> {
   const db = createAdminClient();
-  const { data } = await db
-    .from("telegram_links")
-    .select("user_id")
-    .eq("telegram_chat_id", chatId)
-    .maybeSingle();
+  const { data } = await db.from("telegram_links").select("user_id").eq("telegram_chat_id", chatId).maybeSingle();
   return data?.user_id ?? null;
 }
 
@@ -101,7 +109,7 @@ async function handleLinkCode(chatId: number, code: string, username?: string): 
 
   await telegram.sendMessage(
     chatId,
-    "✅ <b>¡Cuenta vinculada!</b>\nYa puedes registrar movimientos. Escríbeme algo como:\n<i>«gasté 50 mil en el almuerzo»</i> 🍽️",
+    "✅ <b>¡Cuenta vinculada!</b>\nYa puedes registrar movimientos. Escríbeme algo como:\n<i>«gasté 50 mil en el almuerzo con la tarjeta»</i> 🍽️",
   );
 }
 
@@ -116,7 +124,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   if (/^\/start\b/i.test(text)) {
     await telegram.sendMessage(
       chatId,
-      "👋 <b>Hola, soy Platica.</b>\nPara empezar, vincula tu cuenta: abre la app web, genera tu código y mándamelo aquí, o entra desde el botón «Vincular Telegram».",
+      "👋 <b>Hola, soy Platica.</b>\nVincula tu cuenta: abre la app web, genera tu código y mándamelo aquí, o usa el botón «Vincular Telegram».",
     );
     return;
   }
@@ -124,9 +132,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   const userId = await resolveUserId(chatId);
   if (!userId) {
     const maybeCode = text.replace(/\s+/g, "");
-    if (/^[A-Za-z0-9]{6}$/.test(maybeCode)) {
-      return handleLinkCode(chatId, maybeCode, msg.from?.username);
-    }
+    if (/^[A-Za-z0-9]{6}$/.test(maybeCode)) return handleLinkCode(chatId, maybeCode, msg.from?.username);
     await telegram.sendMessage(
       chatId,
       "🔗 Aún no vinculas tu cuenta. Abre la app web, genera tu código y envíamelo aquí (o usa el botón «Vincular Telegram»).",
@@ -136,38 +142,39 @@ async function handleMessage(msg: TgMessage): Promise<void> {
 
   try {
     const ctx = await buildContext(userId);
-    let drafts: TransactionDraft[];
+    let result: ExtractResult;
 
     if (msg.voice || msg.audio) {
       const fileId = (msg.voice ?? msg.audio)!.file_id;
       const { bytes, mimeHint } = await telegram.downloadFile(fileId);
       const transcript = await groqAudio.transcribe(bytes, mimeHint);
       await telegram.sendMessage(chatId, `🎙️ Te entendí: <i>«${transcript}»</i>`);
-      drafts = (await geminiText.interpret(transcript, ctx)).map((d) => ({ ...d, source: "telegram_audio" as const }));
+      result = await geminiText.interpret(transcript, ctx);
+      result.transactions = result.transactions.map((d) => ({ ...d, source: "telegram_audio" as const }));
     } else if (msg.photo?.length) {
       const largest = msg.photo[msg.photo.length - 1]!;
       const { bytes, mimeHint } = await telegram.downloadFile(largest.file_id);
-      drafts = await geminiImage.interpret(bytes, mimeHint, ctx);
-      if (msg.caption && drafts[0]) drafts[0].description ??= msg.caption;
+      result = await geminiImage.interpret(bytes, mimeHint, ctx);
+      if (msg.caption && result.transactions[0]) result.transactions[0].description ??= msg.caption;
     } else if (text) {
-      drafts = await geminiText.interpret(text, ctx);
+      result = await geminiText.interpret(text, ctx);
     } else {
       return;
     }
 
-    if (drafts.length === 0) {
+    if (result.transactions.length === 0 && result.debts.length === 0) {
       await telegram.sendMessage(
         chatId,
-        "🤔 No detecté ningún movimiento ahí. Cuéntame un gasto, ingreso o inversión (ej. «taxi 12 mil»).",
+        "🤔 No detecté ningún movimiento ni deuda ahí. Cuéntame un gasto, ingreso, inversión o préstamo.",
       );
       return;
     }
 
-    await proposeDrafts(chatId, userId, drafts);
+    await proposeDrafts(chatId, userId, result);
   } catch (err) {
     const m = (err as Error).message;
     const friendly = m.includes("SATURADO")
-      ? "😵‍💫 El modelo de IA está saturado en este momento. Reintenta en unos segundos."
+      ? "😵‍💫 El modelo de IA está saturado ahora mismo. Reintenta en unos segundos."
       : `⚠️ Algo falló procesando eso: ${m}`;
     await telegram.sendMessage(chatId, friendly);
   }
@@ -189,30 +196,46 @@ async function buildContext(userId: string): Promise<InterpretContext> {
   };
 }
 
-/** Guarda los borradores y pide confirmación (uno o varios) con botones. */
-async function proposeDrafts(chatId: number, userId: string, drafts: TransactionDraft[]): Promise<void> {
+/** Guarda los borradores (movimientos + deudas) y pide confirmación. */
+async function proposeDrafts(chatId: number, userId: string, result: ExtractResult): Promise<void> {
   const db = createAdminClient();
-  const items: DraftItem[] = drafts.map((d) => ({
+  const items: DraftItem[] = result.transactions.map((d) => ({
     kind: d.kind,
     amountMinor: d.amount.minorUnits,
     currency: d.amount.currency,
     categoryHint: d.categoryHint ?? null,
     accountHint: d.accountHint ?? null,
+    accountType: d.accountTypeHint ?? null,
     description: d.description ?? null,
     occurredAt: d.occurredAt.toISOString(),
     source: d.source,
   }));
+  const debts: DebtItem[] = result.debts.map((d) => ({
+    counterparty: d.counterparty,
+    direction: d.direction,
+    amountMinor: d.amount.minorUnits,
+    currency: d.amount.currency,
+    description: d.description ?? null,
+  }));
 
   const { data, error } = await db
     .from("pending_drafts")
-    .insert({ user_id: userId, draft: { items } })
+    .insert({ user_id: userId, draft: { items, debts } })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
 
+  const total = items.length + debts.length;
+  const txLines = result.transactions.map(
+    (d) =>
+      `${KIND_LABEL[d.kind]} · <b>${fmt(d.amount)}</b>` +
+      `${d.categoryHint ? ` · ${d.categoryHint}` : ""}${d.accountHint ? ` · ${d.accountHint}` : ""}`,
+  );
+  const debtLines = result.debts.map((d) => debtLine(d.counterparty, d.direction, d.amount));
+
   let body: string;
-  if (drafts.length === 1) {
-    const d = drafts[0]!;
+  if (total === 1 && result.transactions.length === 1) {
+    const d = result.transactions[0]!;
     body = [
       KIND_LABEL[d.kind],
       `<b>${fmt(d.amount)}</b>${d.categoryHint ? ` · ${d.categoryHint}` : ""}`,
@@ -224,21 +247,21 @@ async function proposeDrafts(chatId: number, userId: string, drafts: Transaction
       .filter(Boolean)
       .join("\n");
   } else {
-    const lines = drafts.map(
-      (d) => `${KIND_LABEL[d.kind]} · <b>${fmt(d.amount)}</b>${d.categoryHint ? ` · ${d.categoryHint}` : ""}`,
-    );
-    body = `Detecté <b>${drafts.length} movimientos</b>:\n${lines.join("\n")}\n\n¿Los registro todos?`;
+    body =
+      `Detecté <b>${total}</b>:\n` +
+      [...txLines, ...debtLines].join("\n") +
+      "\n\n¿Los registro todos?";
   }
 
   await telegram.sendMessage(chatId, body, [
     [
-      { text: drafts.length > 1 ? "✅ Registrar todos" : "✅ Sí, registrar", callback_data: `ok:${data.id}` },
+      { text: total > 1 ? "✅ Registrar todo" : "✅ Sí, registrar", callback_data: `ok:${data.id}` },
       { text: "✏️ Cancelar", callback_data: `no:${data.id}` },
     ],
   ]);
 }
 
-// ── Confirmación (callback de los botones) ─────────────────────
+// ── Confirmación ───────────────────────────────────────────────
 async function handleCallback(cb: TgCallback): Promise<void> {
   const db = createAdminClient();
   const chatId = cb.message?.chat.id;
@@ -259,25 +282,44 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     return;
   }
 
-  // Confirmar => registrar todos los ítems vía el caso de uso del dominio.
   const items = (row.draft?.items ?? []) as DraftItem[];
+  const debts = (row.draft?.debts ?? []) as DebtItem[];
   const useCase = new RegisterTransaction(transactionRepo(db), accountRepo(db), categoryRepo(db));
-  const registered: Money[] = [];
+  const debtsRepo = debtRepo(db);
+
+  let txOk = 0;
+  let debtOk = 0;
   let failed = 0;
 
   for (const d of items) {
     try {
-      const tx = await useCase.execute({
+      await useCase.execute({
         userId: row.user_id,
         kind: d.kind,
         amount: Money.of(d.amountMinor, d.currency),
         accountHint: d.accountHint ?? undefined,
+        accountType: d.accountType ?? undefined,
         categoryHint: d.categoryHint ?? undefined,
         description: d.description ?? undefined,
         occurredAt: new Date(d.occurredAt),
         source: d.source,
       });
-      registered.push(tx.amount);
+      txOk++;
+    } catch {
+      failed++;
+    }
+  }
+
+  for (const d of debts) {
+    try {
+      await debtsRepo.create({
+        userId: row.user_id,
+        counterparty: d.counterparty,
+        direction: d.direction,
+        amount: Money.of(d.amountMinor, d.currency),
+        description: d.description ?? undefined,
+      });
+      debtOk++;
     } catch {
       failed++;
     }
@@ -285,14 +327,13 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 
   await db.from("pending_drafts").delete().eq("id", draftId);
 
-  let msg: string;
-  if (registered.length === 0) {
-    msg = "⚠️ No pude registrar los movimientos. Revisa que tengas una cuenta configurada.";
-  } else if (registered.length === 1) {
-    msg = `✅ <b>Registrado</b> · ${fmt(registered[0]!)}\nYa aparece en tu dashboard 📊`;
-  } else {
-    msg = `✅ <b>Registré ${registered.length} movimientos</b>${failed ? ` (${failed} fallaron)` : ""}.\nYa aparecen en tu dashboard 📊`;
-  }
+  const parts: string[] = [];
+  if (txOk) parts.push(`${txOk} movimiento${txOk > 1 ? "s" : ""}`);
+  if (debtOk) parts.push(`${debtOk} deuda${debtOk > 1 ? "s" : ""}`);
+  const msg =
+    parts.length === 0
+      ? "⚠️ No pude registrar nada. Revisa que tengas una cuenta configurada."
+      : `✅ <b>Registré ${parts.join(" y ")}</b>${failed ? ` (${failed} fallaron)` : ""}.\nYa aparece en tu dashboard 📊`;
 
   await telegram.editMessageText(chatId, messageId, msg);
   await telegram.answerCallbackQuery(cb.id, "¡Listo!");

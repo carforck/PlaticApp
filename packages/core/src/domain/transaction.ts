@@ -1,5 +1,5 @@
 import { Money } from "./money";
-import type { SourceChannel, TransactionKind } from "./types";
+import type { AccountType, SourceChannel, TransactionKind } from "./types";
 
 /**
  * Borrador de transacción: lo que la IA produce a partir de lo que el usuario
@@ -13,6 +13,8 @@ export interface TransactionDraft {
   categoryHint?: string;
   /** Cuenta sugerida (ej. "efectivo", "Nequi"). Se resuelve a un id luego. */
   accountHint?: string;
+  /** Tipo de cuenta inferido por la IA; sirve para crearla si no existe. */
+  accountTypeHint?: AccountType;
   description?: string;
   occurredAt: Date;
   /** Confianza 0..1 de la interpretación de la IA. */

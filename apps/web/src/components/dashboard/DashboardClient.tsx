@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { fetchDashboard, type DashboardData } from "@/lib/queries";
 import { fmtMoney, monthLabel } from "@/lib/format";
@@ -61,6 +62,24 @@ export function DashboardClient({
           <StatCard label="Gastos" value={fmtMoney(d.expense)} accent="text-[#ff375f]" hint="Este mes" />
           <StatCard label="Invertido" value={fmtMoney(d.invested)} accent="text-[#bf5af2]" hint="Este mes" />
         </section>
+
+        {(d.theyOwe > 0 || d.iOwe > 0) && (
+          <Link
+            href="/dashboard/deudas"
+            className="glass flex items-center justify-between rounded-[var(--radius-card)] p-4 transition hover:brightness-[1.02]"
+          >
+            <span className="text-[13px] font-medium text-[var(--color-ink-soft)]">🤝 Deudas</span>
+            <span className="flex items-center gap-5 text-[14px]">
+              <span>
+                Te deben <b className="text-[#30d158]">{fmtMoney(d.theyOwe)}</b>
+              </span>
+              <span>
+                Debes <b className="text-[#ff375f]">{fmtMoney(d.iOwe)}</b>
+              </span>
+              <span className="text-[var(--color-accent)]">→</span>
+            </span>
+          </Link>
+        )}
 
         <section className="grid gap-4 lg:grid-cols-3">
           <div className="glass rounded-[var(--radius-card)] p-5 lg:col-span-2">
@@ -226,6 +245,10 @@ function useDerived(data: DashboardData) {
     }
     const netWorthSeries = tmp.reverse();
 
-    return { catById, netWorth, income, expense, invested, spendingByCategory, netWorthSeries };
+    const openDebts = data.debts.filter((x) => x.status === "open");
+    const theyOwe = openDebts.filter((x) => x.direction === "they_owe").reduce((s, x) => s + x.amount_minor, 0);
+    const iOwe = openDebts.filter((x) => x.direction === "i_owe").reduce((s, x) => s + x.amount_minor, 0);
+
+    return { catById, netWorth, income, expense, invested, spendingByCategory, netWorthSeries, theyOwe, iOwe };
   }, [data]);
 }
