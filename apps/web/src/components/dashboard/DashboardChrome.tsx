@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useDashboard } from "@/lib/dashboard-context";
 import { Sidebar } from "./Sidebar";
 import { Avatar } from "./Avatar";
+import { TelegramConnectModal } from "./TelegramConnectModal";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Resumen",
@@ -22,8 +23,11 @@ const TITLES: Record<string, string> = {
 
 export function DashboardChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { profile } = useDashboard();
   const [open, setOpen] = useState(false);
+  const [connect, setConnect] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   // Cierra el drawer al navegar.
   useEffect(() => {
@@ -74,8 +78,40 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
 
+        {/* Onboarding: conectar Telegram */}
+        {!profile.telegramLinked && !dismissed && (
+          <div className="glass mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] p-3 ring-1 ring-[var(--color-accent)]/25">
+            <span className="flex items-center gap-2.5 text-[13px]">
+              <span className="text-[20px]">🤖</span>
+              <span>Conecta el bot de Telegram para registrar tus finanzas hablando, por audio o foto.</span>
+            </span>
+            <span className="flex items-center gap-2">
+              <button onClick={() => setConnect(true)} className="btn-mac px-3.5 py-1.5 text-[13px] font-medium">
+                Conectar
+              </button>
+              <button
+                onClick={() => setDismissed(true)}
+                aria-label="Descartar"
+                className="grid h-7 w-7 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5"
+              >
+                ✕
+              </button>
+            </span>
+          </div>
+        )}
+
         {children}
       </div>
+
+      {connect && (
+        <TelegramConnectModal
+          onClose={() => setConnect(false)}
+          onLinked={() => {
+            setConnect(false);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
