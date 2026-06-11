@@ -114,9 +114,14 @@ async function handleMessage(msg: TgMessage): Promise<void> {
 
   const userId = await resolveUserId(chatId);
   if (!userId) {
+    // Quizás escribió el código de vinculación pelado (sin /vincular).
+    const maybeCode = text.replace(/\s+/g, "");
+    if (/^[A-Za-z0-9]{6}$/.test(maybeCode)) {
+      return handleLinkCode(chatId, maybeCode, msg.from?.username);
+    }
     await telegram.sendMessage(
       chatId,
-      "🔗 Aún no vinculas tu cuenta. Abre la app web, genera tu código y envíamelo (o usa el botón «Vincular Telegram»).",
+      "🔗 Aún no vinculas tu cuenta. Abre la app web, genera tu código y envíamelo aquí (o usa el botón «Vincular Telegram»).",
     );
     return;
   }
