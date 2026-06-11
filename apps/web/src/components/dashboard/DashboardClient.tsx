@@ -11,16 +11,20 @@ import { AddTransactionModal } from "./AddTransactionModal";
 import { AnimatedNumber } from "./AnimatedNumber";
 
 export function DashboardClient() {
-  const { data, userEmail, refresh } = useDashboard();
+  const { data, profile, refresh } = useDashboard();
   const [adding, setAdding] = useState(false);
   const d = useDerived(data);
+  const firstName = (profile.displayName || "").trim().split(/\s+/)[0];
 
   return (
     <main className="flex-1 space-y-4">
       <header className="flex items-center justify-between">
         <div>
+          <p className="text-[13px] font-medium text-[var(--color-ink-soft)]">
+            👋 Hola{firstName ? `, ${firstName}` : ""}
+          </p>
           <h1 className="text-[26px] font-semibold tracking-tight">Resumen</h1>
-          <p className="text-[13px] text-[var(--color-ink-soft)]">{userEmail} · en tiempo real</p>
+          <p className="text-[12px] text-[var(--color-ink-soft)]">{profile.email} · en tiempo real</p>
         </div>
         <button onClick={() => setAdding(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
           + Registrar
