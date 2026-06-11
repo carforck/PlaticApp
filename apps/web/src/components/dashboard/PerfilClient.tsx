@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
 import { Avatar } from "./Avatar";
+import { DevCredit } from "@/components/DevCredit";
 
 export function PerfilClient() {
   const router = useRouter();
@@ -150,6 +151,8 @@ export function PerfilClient() {
       >
         Cerrar sesión
       </button>
+
+      <DevCredit className="pt-4" />
     </main>
   );
 }

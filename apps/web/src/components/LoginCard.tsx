@@ -4,6 +4,7 @@ import { useState } from "react";
 import Lottie from "lottie-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { DevCredit } from "@/components/DevCredit";
 import anim from "@/app/login-anim.json";
 
 type Status = "idle" | "loading" | "sent" | "error";
@@ -140,13 +141,17 @@ export function LoginCard() {
             <Lottie animationData={anim} loop autoplay />
           </div>
 
-          <div className="mb-5 hidden items-center gap-3 md:flex">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-gradient-to-br from-[#0a84ff] to-[#bf5af2] text-[20px] text-white shadow-[0_8px_20px_-8px_rgba(10,132,255,0.8)]">
+          {/* Nombre de la app sobre el formulario */}
+          <div className="mb-3 flex items-center justify-center gap-2.5 sm:justify-start">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-gradient-to-br from-[#0a84ff] to-[#bf5af2] text-[18px] text-white shadow-[0_8px_20px_-8px_rgba(10,132,255,0.8)]">
               💸
+            </span>
+            <span className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-[26px] font-bold tracking-tight text-transparent sm:text-[28px]">
+              PlaticApp!
             </span>
           </div>
 
-          <h1 className="text-center text-[26px] font-semibold tracking-tight sm:text-left sm:text-[28px]">
+          <h1 className="text-center text-[22px] font-semibold tracking-tight sm:text-left sm:text-[24px]">
             Bienvenido
           </h1>
           <p className="mt-1 text-center text-[14px] text-[var(--color-ink-soft)] sm:text-left">
@@ -239,6 +244,8 @@ export function LoginCard() {
               {message}
             </p>
           )}
+
+          <DevCredit className="mt-6 border-t border-black/5 pt-4" />
         </div>
       </div>
     </div>

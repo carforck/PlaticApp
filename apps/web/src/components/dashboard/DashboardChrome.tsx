@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDashboard } from "@/lib/dashboard-context";
 import { Sidebar } from "./Sidebar";
@@ -68,7 +69,9 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
           <span className="text-[15px] font-semibold tracking-tight">{title}</span>
-          <Avatar url={profile.avatarUrl} name={profile.displayName || profile.email} size={32} />
+          <Link href="/dashboard/perfil" aria-label="Ver perfil">
+            <Avatar url={profile.avatarUrl} name={profile.displayName || profile.email} size={32} />
+          </Link>
         </div>
 
         {children}

@@ -53,7 +53,11 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
         <span className="traffic-light bg-[#febc2e]" />
         <span className="traffic-light bg-[#28c840]" />
       </div>
-      <div className="flex items-center gap-2.5 px-2 py-3">
+      <Link
+        href="/dashboard/perfil"
+        className="flex items-center gap-2.5 rounded-[10px] px-2 py-2 transition hover:bg-black/5"
+        title="Ver perfil"
+      >
         <Avatar url={profile.avatarUrl} name={profile.displayName || profile.email} size={38} />
         <div className="min-w-0">
           <p className="truncate text-[14px] font-semibold tracking-tight">
@@ -61,7 +65,7 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
           </p>
           <p className="truncate text-[12px] text-[var(--color-ink-soft)]">{profile.email}</p>
         </div>
-      </div>
+      </Link>
 
       <nav className="mt-2 space-y-0.5">
         {NAV.map((n) => {
