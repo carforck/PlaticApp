@@ -42,7 +42,7 @@ function buildPrompt(ctx: InterpretContext): string {
 async function generate(body: Record<string, unknown>): Promise<RawDraft> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("Falta GEMINI_API_KEY");
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
   const res = await fetch(`${ENDPOINT}/${model}:generateContent?key=${key}`, {
     method: "POST",
