@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DevCredit } from "@/components/DevCredit";
 import { BrandIcon } from "@/components/BrandIcon";
+import { TelegramLoginButton } from "@/components/TelegramLoginButton";
 import anim from "@/app/login-anim.json";
 
 type Status = "idle" | "loading" | "sent" | "error";
@@ -211,6 +212,12 @@ export function LoginCard() {
             <button type="button" onClick={handleMagicLink} disabled={status === "loading"} className="w-full rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium text-[var(--color-ink)] transition hover:bg-white/90 disabled:opacity-60">
               ✉️ Enviarme un enlace mágico
             </button>
+            <div className="pt-0.5">
+              <TelegramLoginButton onError={(m) => { setStatus("error"); setMessage(m); }} />
+            </div>
+            <p className="text-center text-[11px] text-[var(--color-ink-soft)] sm:text-left">
+              Con Telegram entras sin contraseña y tu bot queda vinculado al instante.
+            </p>
           </div>
 
           {message && (
