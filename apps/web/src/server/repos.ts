@@ -28,6 +28,7 @@ export function transactionRepo(db: SupabaseClient): TransactionRepository {
           amount_minor: tx.amount.minorUnits,
           currency: tx.amount.currency,
           account_id: tx.accountId,
+          transfer_account_id: tx.transferAccountId ?? null,
           category_id: tx.categoryId ?? null,
           description: tx.description ?? null,
           occurred_at: tx.occurredAt.toISOString(),

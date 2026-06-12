@@ -65,6 +65,7 @@ interface DraftItem {
   categoryEmoji: string | null;
   accountHint: string | null;
   accountType: AccountType | null;
+  transferToHint: string | null;
   description: string | null;
   occurredAt: string;
   source: TransactionDraft["source"];
@@ -256,6 +257,7 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
     categoryEmoji: d.categoryEmojiHint ?? null,
     accountHint: d.accountHint ?? null,
     accountType: d.accountTypeHint ?? null,
+    transferToHint: d.transferToHint ?? null,
     description: d.description ?? null,
     occurredAt: d.occurredAt.toISOString(),
     source: d.source,
@@ -289,7 +291,8 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
   const txLines = result.transactions.map(
     (d) =>
       `${KIND_LABEL[d.kind]} · <b>${fmt(d.amount)}</b>` +
-      `${d.categoryHint ? ` · ${d.categoryHint}` : ""}${d.accountHint ? ` · ${d.accountHint}` : ""}`,
+      `${d.categoryHint ? ` · ${d.categoryHint}` : ""}${d.accountHint ? ` · ${d.accountHint}` : ""}` +
+      `${d.transferToHint ? ` → ${d.transferToHint}` : ""}`,
   );
   const debtLines = result.debts.map((d) => debtLine(d.counterparty, d.direction, d.amount));
   const recLines = result.recurrences.map(
@@ -414,6 +417,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
         amount: Money.of(d.amountMinor, d.currency),
         accountHint: d.accountHint ?? undefined,
         accountType: d.accountType ?? undefined,
+        transferAccountHint: d.transferToHint ?? undefined,
         categoryHint: d.categoryHint ?? undefined,
         categoryEmoji: d.categoryEmoji ?? undefined,
         description: d.description ?? undefined,

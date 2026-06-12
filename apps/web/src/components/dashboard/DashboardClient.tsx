@@ -33,7 +33,13 @@ export function DashboardClient() {
 
       {/* KPIs */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <StatCard label="Patrimonio neto" amount={d.netWorth} format={fmtMoney} accent="text-[var(--color-ink)]" hint="Saldo total" />
+        <StatCard
+          label="Patrimonio neto"
+          amount={d.netWorth}
+          format={fmtMoney}
+          accent="text-[var(--color-ink)]"
+          hint={d.theyOwe || d.iOwe ? `Con deudas: ${fmtMoney(d.netWorthAdjusted)}` : "Saldo total"}
+        />
         <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint="Este mes" />
         <StatCard label="Gastos" amount={d.expense} format={fmtMoney} accent="text-[#ff375f]" hint="Este mes" />
         <StatCard
@@ -346,6 +352,7 @@ function useDerived(data: DashboardData) {
       netWorthSeries,
       theyOwe,
       iOwe,
+      netWorthAdjusted: netWorth + theyOwe - iOwe,
       budgetsProgress,
     };
   }, [data]);

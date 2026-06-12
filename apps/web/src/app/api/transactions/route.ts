@@ -3,16 +3,48 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const KINDS = ["expense", "income", "investment"] as const;
+const KINDS = ["expense", "income", "investment", "transfer"] as const;
 type Kind = (typeof KINDS)[number];
 
 interface Body {
   kind: Kind;
   amount: number; // unidad mayor (pesos)
   accountId: string;
+  transferAccountId?: string | null;
   categoryId?: string | null;
   description?: string | null;
   occurredAt?: string | null;
+}
+
+/** Para transferencias/inversiones: resuelve la cuenta destino (crea "Inversiones" si hace falta). */
+async function resolveTransferAccount(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  kind: Kind,
+  accountId: string,
+  provided?: string | null,
+): Promise<string | null> {
+  let dest = provided || null;
+  if (kind === "investment" && !dest) {
+    const { data: inv } = await supabase
+      .from("accounts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("type", "investment")
+      .eq("archived", false)
+      .limit(1)
+      .maybeSingle();
+    if (inv) dest = inv.id;
+    else {
+      const { data: created } = await supabase
+        .from("accounts")
+        .insert({ user_id: userId, name: "Inversiones", type: "investment" })
+        .select("id")
+        .single();
+      dest = created?.id ?? null;
+    }
+  }
+  return dest && dest !== accountId ? dest : null;
 }
 
 /** Registra un movimiento manual desde la web. Respeta RLS (sesión del usuario). */
@@ -44,6 +76,10 @@ export async function POST(req: Request) {
     .maybeSingle();
   if (!account) return NextResponse.json({ error: "cuenta no encontrada" }, { status: 404 });
 
+  if (body.kind === "transfer" && !body.transferAccountId)
+    return NextResponse.json({ error: "falta la cuenta destino" }, { status: 400 });
+  const transferAccountId = await resolveTransferAccount(supabase, user.id, body.kind, account.id, body.transferAccountId);
+
   const { data, error } = await supabase
     .from("transactions")
     .insert({
@@ -52,6 +88,7 @@ export async function POST(req: Request) {
       amount_minor: Math.round(amount), // COP no usa decimales
       currency: account.currency,
       account_id: account.id,
+      transfer_account_id: transferAccountId,
       category_id: body.categoryId || null,
       description: body.description?.trim() || null,
       occurred_at: body.occurredAt || new Date().toISOString(),
@@ -83,6 +120,7 @@ export async function PATCH(req: Request) {
     patch.amount_minor = Math.round(amt);
   }
   if (b.categoryId !== undefined) patch.category_id = b.categoryId || null;
+  if (b.transferAccountId !== undefined) patch.transfer_account_id = b.transferAccountId || null;
   if (b.description !== undefined) patch.description = b.description?.trim() || null;
   if (b.occurredAt) patch.occurred_at = b.occurredAt;
   if (b.accountId) {

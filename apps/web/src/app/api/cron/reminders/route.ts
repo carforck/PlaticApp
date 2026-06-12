@@ -73,5 +73,12 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Housekeeping: limpia datos efímeros viejos.
+  const weekAgo = new Date(today.getTime() - 7 * 86400000).toISOString();
+  const dayAgo = new Date(today.getTime() - 86400000).toISOString();
+  await db.from("processed_updates").delete().lt("processed_at", weekAgo);
+  await db.from("link_codes").delete().or(`used_at.not.is.null,expires_at.lt.${today.toISOString()}`);
+  await db.from("pending_drafts").delete().lt("created_at", dayAgo);
+
   return NextResponse.json({ ok: true, reminded, rolled, checked: recs?.length ?? 0 });
 }

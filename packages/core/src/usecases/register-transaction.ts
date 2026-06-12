@@ -48,11 +48,34 @@ export class RegisterTransaction {
       );
     }
 
+    // Cuenta destino: transferencias (origen→destino) e inversiones (→ cuenta de inversión).
+    // Así la plata no "desaparece" del patrimonio, solo cambia de cuenta.
+    let transferAccountId: string | null = null;
+    if (input.kind === "transfer" || input.kind === "investment") {
+      let dest = input.transferAccountHint
+        ? await this.accounts.findByNameHint(input.userId, input.transferAccountHint)
+        : null;
+      if (!dest && input.transferAccountHint) {
+        dest = await this.accounts.create(
+          input.userId,
+          titleCase(input.transferAccountHint),
+          input.transferAccountType ?? (input.kind === "investment" ? "investment" : "bank"),
+        );
+      }
+      // Inversión sin destino explícito: usa (o crea) una cuenta de inversión.
+      if (!dest && input.kind === "investment") {
+        const accts = await this.accounts.listByUser(input.userId);
+        dest = accts.find((a) => a.type === "investment") ?? (await this.accounts.create(input.userId, "Inversiones", "investment"));
+      }
+      if (dest && dest.id !== account.id) transferAccountId = dest.id;
+    }
+
     const newTx: NewTransaction = {
       userId: input.userId,
       kind: input.kind,
       amount: input.amount,
       accountId: account.id,
+      transferAccountId,
       categoryId: category?.id ?? null,
       description: input.description ?? null,
       occurredAt: input.occurredAt,
@@ -73,6 +96,8 @@ export interface RegisterTransactionInput {
   amount: Money;
   accountHint?: string;
   accountType?: AccountType;
+  transferAccountHint?: string;
+  transferAccountType?: AccountType;
   categoryHint?: string;
   categoryEmoji?: string;
   description?: string;

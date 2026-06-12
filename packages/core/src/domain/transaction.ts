@@ -17,6 +17,8 @@ export interface TransactionDraft {
   accountHint?: string;
   /** Tipo de cuenta inferido por la IA; sirve para crearla si no existe. */
   accountTypeHint?: AccountType;
+  /** Cuenta destino en transferencias (ej. "pasé de Nequi a Bancolombia"). */
+  transferToHint?: string;
   description?: string;
   occurredAt: Date;
   /** Confianza 0..1 de la interpretación de la IA. */
@@ -46,6 +48,7 @@ export interface NewTransaction {
   kind: TransactionKind;
   amount: Money;
   accountId: string;
+  transferAccountId?: string | null;
   categoryId?: string | null;
   description?: string | null;
   occurredAt: Date;
@@ -59,15 +62,3 @@ export function assertValidNewTransaction(t: NewTransaction): void {
   if (!t.accountId) throw new Error("Toda transacción necesita una cuenta");
 }
 
-/** Efecto de una transacción sobre el saldo de su cuenta (signo incluido). */
-export function balanceEffect(kind: TransactionKind, amount: Money): Money {
-  switch (kind) {
-    case "income":
-      return amount;
-    case "expense":
-    case "investment":
-      return amount.negate();
-    case "transfer":
-      return amount.negate(); // la contraparte suma en la otra cuenta
-  }
-}

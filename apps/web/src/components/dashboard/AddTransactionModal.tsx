@@ -7,6 +7,7 @@ const KINDS = [
   { value: "expense", label: "Gasto", emoji: "💸" },
   { value: "income", label: "Ingreso", emoji: "💰" },
   { value: "investment", label: "Inversión", emoji: "📈" },
+  { value: "transfer", label: "Transferir", emoji: "🔄" },
 ] as const;
 type Kind = (typeof KINDS)[number]["value"];
 
@@ -24,11 +25,10 @@ export function AddTransactionModal({
   onSaved: () => void;
 }) {
   const isEdit = !!editTx;
-  const [kind, setKind] = useState<Kind>(
-    editTx && editTx.kind !== "transfer" ? (editTx.kind as Kind) : "expense",
-  );
+  const [kind, setKind] = useState<Kind>(editTx ? (editTx.kind as Kind) : "expense");
   const [amount, setAmount] = useState(editTx ? String(editTx.amount_minor) : "");
   const [accountId, setAccountId] = useState(editTx?.account_id ?? accounts[0]?.account_id ?? "");
+  const [transferAccountId, setTransferAccountId] = useState(editTx?.transfer_account_id ?? "");
   const [categoryId, setCategoryId] = useState(editTx?.category_id ?? "");
   const [description, setDescription] = useState(editTx?.description ?? "");
   const [saving, setSaving] = useState(false);
@@ -63,7 +63,8 @@ export function AddTransactionModal({
       kind,
       amount: Number(amount),
       accountId,
-      categoryId: categoryId || null,
+      categoryId: kind === "transfer" ? null : categoryId || null,
+      transferAccountId: kind === "transfer" ? transferAccountId || null : null,
       description: description || null,
     };
     const res = await fetch("/api/transactions", {
@@ -101,13 +102,13 @@ export function AddTransactionModal({
 
         <form onSubmit={submit} className="space-y-4 p-6">
           {/* Segmented control de tipo */}
-          <div className="grid grid-cols-3 gap-1 rounded-[10px] bg-black/[0.05] p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-black/[0.05] p-1 sm:grid-cols-4">
             {KINDS.map((k) => (
               <button
                 key={k.value}
                 type="button"
                 onClick={() => setKind(k.value)}
-                className={`rounded-[7px] py-1.5 text-[13px] font-medium transition ${
+                className={`rounded-[7px] py-1.5 text-[12px] font-medium transition ${
                   kind === k.value ? "bg-white shadow-sm" : "text-[var(--color-ink-soft)]"
                 }`}
               >
@@ -134,7 +135,7 @@ export function AddTransactionModal({
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
-              Cuenta
+              {kind === "transfer" ? "Desde" : "Cuenta"}
               <select
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
@@ -148,22 +149,40 @@ export function AddTransactionModal({
               </select>
             </label>
 
-            <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
-              Categoría
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
-              >
-                <option value="">— Sin categoría —</option>
-                {cats.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.emoji ? `${c.emoji} ` : ""}
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {kind === "transfer" ? (
+              <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+                Hacia
+                <select
+                  value={transferAccountId}
+                  onChange={(e) => setTransferAccountId(e.target.value)}
+                  className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
+                >
+                  <option value="">— Cuenta destino —</option>
+                  {accounts.filter((a) => a.account_id !== accountId).map((a) => (
+                    <option key={a.account_id} value={a.account_id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+                Categoría
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
+                >
+                  <option value="">— Sin categoría —</option>
+                  {cats.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.emoji ? `${c.emoji} ` : ""}
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
 
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
@@ -203,7 +222,7 @@ export function AddTransactionModal({
             )}
             <button
               type="submit"
-              disabled={saving || !accountId}
+              disabled={saving || !accountId || (kind === "transfer" && !transferAccountId)}
               className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70"
             >
               {saving ? "Guardando…" : isEdit ? "Guardar cambios" : "Registrar"}

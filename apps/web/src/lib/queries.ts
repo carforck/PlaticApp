@@ -15,6 +15,7 @@ export interface TxRow {
   amount_minor: number;
   currency: string;
   account_id: string;
+  transfer_account_id: string | null;
   category_id: string | null;
   description: string | null;
   occurred_at: string;

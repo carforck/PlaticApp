@@ -30,8 +30,9 @@ const responseSchema = {
           currency: { type: "string" },
           category: { type: "string", description: "Categoría lógica del gasto/ingreso" },
           categoryEmoji: { type: "string", description: "Un emoji que represente la categoría" },
-          account: { type: "string", description: "Cuenta/medio: efectivo, tarjeta de crédito, Nequi, banco…" },
+          account: { type: "string", description: "Cuenta/medio de ORIGEN: efectivo, tarjeta de crédito, Nequi, banco…" },
           accountType: { type: "string", enum: ["bank", "cash", "investment", "wallet", "credit"] },
+          transferTo: { type: "string", description: "Cuenta DESTINO si es transferencia entre cuentas (pasé de A a B → B)" },
           description: { type: "string" },
           isDebt: { type: "boolean", description: "true si es préstamo/deuda con una persona" },
           counterparty: { type: "string", description: "Persona involucrada en la deuda" },
@@ -67,6 +68,7 @@ function buildPrompt(ctx: InterpretContext): string {
     `Moneda por defecto: ${ctx.defaultCurrency}. Si no se indica, usa esa.`,
     "Montos en lenguaje natural: '50 mil'=50000, '2 lucas'=2000, '1.5M'=1500000, '40k'=40000.",
     "Detecta el medio de pago en 'account' (efectivo, tarjeta de crédito, Nequi, Daviplata, banco…) y su 'accountType' (cash/credit/wallet/bank/investment).",
+    "Si mueve plata entre SUS propias cuentas (ej. «pasé 100 mil de Nequi a Bancolombia», «retiré del banco a efectivo»), kind=transfer, account=ORIGEN y transferTo=DESTINO. No es gasto ni ingreso.",
     "Asigna la categoría MÁS LÓGICA según el comercio o concepto. Reconoces marcas: Netflix/Spotify/Disney+/HBO/YouTube Premium → Entretenimiento; Uber/Didi/taxi/gasolina/bus/peaje → Transporte; Rappi/restaurante/almuerzo/mercado/café → Comida; arriendo/servicios/luz/agua/internet → Hogar; EPS/farmacia/médico → Salud; gimnasio → Salud; salario/nómina → Salario. Prefiere una categoría existente si encaja; si no, propón una nueva con nombre corto y su 'categoryEmoji'.",
     "Si alguien te prestó o tú prestaste plata, marca isDebt=true, pon 'counterparty' (la persona) y 'debtDirection' (i_owe si te prestaron, they_owe si tú prestaste).",
     "Si es un pago FIJO que se repite (arriendo, Netflix/suscripción, sueldo mensual, 'todos los meses', 'cada mes', 'fijo'), marca isRecurring=true con su 'frequency' (monthly por defecto) y 'dayOfMonth' si lo mencionan ('el día 5' → 5).",
@@ -142,6 +144,7 @@ interface RawItem {
   categoryEmoji?: string;
   account?: string;
   accountType?: string;
+  transferTo?: string;
   description?: string;
   isDebt?: boolean;
   counterparty?: string;
@@ -193,6 +196,7 @@ function split(
         categoryEmojiHint: r.categoryEmoji || undefined,
         accountHint: r.account || undefined,
         accountTypeHint: accountType,
+        transferToHint: r.transferTo || undefined,
         description: r.description || undefined,
         occurredAt: ctx.now,
         confidence: r.confidence ?? 0.5,
