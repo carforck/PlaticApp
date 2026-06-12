@@ -7,6 +7,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import { Sidebar } from "./Sidebar";
 import { Avatar } from "./Avatar";
 import { TelegramConnectModal } from "./TelegramConnectModal";
+import { WelcomeModal } from "./WelcomeModal";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Resumen",
@@ -33,6 +34,17 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [connect, setConnect] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [welcome, setWelcome] = useState(false);
+
+  // Muestra el modal de bienvenida una sola vez para usuarios nuevos.
+  useEffect(() => {
+    if (!profile.welcomedAt) setWelcome(true);
+  }, [profile.welcomedAt]);
+
+  function closeWelcome() {
+    setWelcome(false);
+    void fetch("/api/me/welcomed", { method: "POST" });
+  }
 
   // Cierra el drawer al navegar.
   useEffect(() => {
@@ -113,6 +125,15 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
 
         {children}
       </div>
+
+      {welcome && (
+        <WelcomeModal
+          name={profile.displayName}
+          telegramLinked={profile.telegramLinked}
+          onClose={closeWelcome}
+          onConnectTelegram={() => setConnect(true)}
+        />
+      )}
 
       {connect && (
         <TelegramConnectModal

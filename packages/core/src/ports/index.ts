@@ -53,6 +53,8 @@ export interface ExtractResult {
   debts: DebtDraft[];
   recurrences: RecurrenceDraft[];
   query: QueryIntent | null;
+  /** Respuesta conversacional cuando el usuario solo charla/saluda/pregunta qué puede hacer. */
+  reply: string | null;
 }
 
 /** Convierte texto libre en transacciones y/o deudas. (Adaptador: Gemini) */

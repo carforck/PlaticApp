@@ -15,6 +15,7 @@ export interface DashboardProfile {
   emailVerified: boolean;
   provider: string;
   announcementsSeenAt: string | null;
+  welcomedAt: string | null;
 }
 
 interface DashboardCtx {

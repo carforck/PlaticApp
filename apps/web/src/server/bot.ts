@@ -134,11 +134,30 @@ async function handleLinkCode(chatId: number, code: string, username?: string): 
   });
   await db.from("link_codes").update({ used_at: new Date().toISOString() }).eq("code", lc.code);
 
-  await telegram.sendMessage(
-    chatId,
-    "✅ <b>¡Cuenta vinculada!</b>\nYa puedes registrar movimientos. Escríbeme algo como:\n<i>«gasté 50 mil en el almuerzo con la tarjeta»</i> 🍽️",
-  );
+  await telegram.sendMessage(chatId, WELCOME_TEXT);
 }
+
+const APP_URL = "https://platicapp-web.vercel.app";
+
+const WELCOME_TEXT = `💸 <b>¡Listo, ya estamos conectados!</b> Soy PlaticApp, tu copiloto financiero 🤖
+
+Cuéntame tu plata como le contarías a un amigo — por texto, audio 🎙️ o foto de un recibo 🖼️:
+
+📝 <b>Registrar</b>
+• «gasté 50 mil en el almuerzo con la tarjeta»
+• «me pagaron el sueldo 1.500.000»
+• «pasé 100 mil de Nequi a Bancolombia»
+• «Juan me prestó 200 mil»
+• «todos los meses pago arriendo 800 mil el día 5»
+
+❓ <b>Preguntarme</b>
+• «¿cuánto gasté este mes?» · «¿cuánto tengo?» · «¿en qué gasto más?»
+
+📊 <b>Tus gráficos y métricas</b> viven en tu panel web:
+${APP_URL}
+Ahí ves tu patrimonio, la evolución, presupuestos y mucho más en tiempo real.
+
+Escribe /ayuda cuando quieras. ¡Empecemos! 🚀`;
 
 // ── Mensajes ───────────────────────────────────────────────────
 async function handleMessage(msg: TgMessage): Promise<void> {
@@ -149,10 +168,18 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   if (startMatch) return handleLinkCode(chatId, startMatch[1]!, msg.from?.username);
 
   if (/^\/start\b/i.test(text)) {
-    await telegram.sendMessage(
-      chatId,
-      "👋 <b>Hola, soy PlaticApp.</b>\nVincula tu cuenta: abre la app web, genera tu código y mándamelo aquí, o usa el botón «Vincular Telegram».\n\nEscribe /ayuda para ver todo lo que puedo hacer.",
-    );
+    const linked = await resolveUserId(chatId);
+    if (linked) {
+      await telegram.sendMessage(
+        chatId,
+        `👋 <b>¡Hola de nuevo!</b> Aquí sigo, listo para anotar tu plata.\nCuéntame un gasto, mándame un audio 🎙️ o una foto de un recibo 🖼️.\n\n📊 Tus gráficos y métricas: ${APP_URL}\nEscribe /ayuda para ver todo lo que hago. 😉`,
+      );
+    } else {
+      await telegram.sendMessage(
+        chatId,
+        "👋 <b>¡Hola! Soy PlaticApp</b>, tu copiloto financiero 💸\nPara empezar, vincula tu cuenta: abre la app web, genera tu código y mándamelo aquí (o usa el botón «Vincular Telegram»).\n\n¿Aún no tienes cuenta? Créala en " + APP_URL,
+      );
+    }
     return;
   }
 
@@ -180,7 +207,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     if (/^[A-Za-z0-9]{6}$/.test(maybeCode)) return handleLinkCode(chatId, maybeCode, msg.from?.username);
     await telegram.sendMessage(
       chatId,
-      "🔗 Aún no vinculas tu cuenta. Abre la app web, genera tu código y envíamelo aquí (o usa el botón «Vincular Telegram»).",
+      `🔗 Me encantaría ayudarte, pero primero necesito que vinculemos tu cuenta 🙂\nAbre tu panel en ${APP_URL}, genera tu código de 6 dígitos y envíamelo aquí.`,
     );
     return;
   }
@@ -217,10 +244,16 @@ async function handleMessage(msg: TgMessage): Promise<void> {
       return;
     }
 
+    // Conversación: el usuario solo charla/saluda. Respondemos humano.
+    if (nothingToRegister && result.reply) {
+      await telegram.sendMessage(chatId, result.reply);
+      return;
+    }
+
     if (nothingToRegister) {
       await telegram.sendMessage(
         chatId,
-        "🤔 No detecté nada. Cuéntame un gasto/ingreso/préstamo, o pregúntame algo como «¿cuánto gasté en comida este mes?».",
+        "🤔 Hmm, no logré pillar un movimiento ahí. Cuéntame algo como «gasté 50 mil en el almuerzo» o pregúntame «¿cuánto gasté en comida este mes?». Si quieres ver todo lo que hago, escribe /ayuda 😉",
       );
       return;
     }
@@ -494,7 +527,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   await telegram.answerCallbackQuery(cb.id, "¡Listo!");
 }
 
-const AYUDA_TEXT = `🤖 <b>Esto puedo hacer por ti:</b>
+const AYUDA_TEXT = `🤖 <b>Soy PlaticApp y esto es lo que hago por ti:</b>
 
 📝 <b>Registrar</b> (escríbeme, mándame audio 🎙️ o foto de un recibo 🖼️):
 • «gasté 50 mil en el almuerzo»
