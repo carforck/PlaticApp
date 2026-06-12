@@ -3,6 +3,7 @@
 import { fmtMoney } from "@/lib/format";
 import { CashflowChart, SpendingDonut } from "@/components/dashboard/Charts";
 import { AnimatedNumber } from "@/components/dashboard/AnimatedNumber";
+import { AnimatedChat } from "./AnimatedChat";
 
 const CASHFLOW = [
   { mes: "Ene", ingresos: 3200000, gastos: 2100000, balance: 1100000 },
@@ -19,15 +20,6 @@ const DONUT = [
   { name: "Ocio", value: 250000, color: "#30d158" },
   { name: "Otros", value: 100000, color: "#8e8e93" },
 ];
-const CHAT = [
-  { me: true, text: "gasté 50 mil en el almuerzo con la tarjeta" },
-  { me: false, text: "💸 Gasto · $50.000 · Comida · Tarjeta de crédito\n¿Lo registro?" },
-  { me: true, text: "✅ sí" },
-  { me: false, text: "✅ Registrado. Ya aparece en tu dashboard 📊" },
-  { me: true, text: "¿cuánto gasté este mes?" },
-  { me: false, text: "💸 Gastos este mes: $2.050.000" },
-];
-
 export function LandingShowcase() {
   return (
     <section className="mx-auto max-w-6xl px-5 py-10">
@@ -64,26 +56,8 @@ export function LandingShowcase() {
           </div>
         </div>
 
-        {/* Chat de Telegram */}
-        <div className="glass animate-float-in rounded-[var(--radius-card)] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-[#229ED9] text-[15px]">✈️</span>
-            <span className="text-[14px] font-semibold">@PlaticApp_bot</span>
-          </div>
-          <div className="space-y-2">
-            {CHAT.map((m, i) => (
-              <div key={i} className={`flex ${m.me ? "justify-end" : "justify-start"}`}>
-                <span
-                  className={`max-w-[85%] whitespace-pre-line rounded-[14px] px-3 py-2 text-[12.5px] ${
-                    m.me ? "bg-[var(--color-accent)] text-white" : "bg-black/[0.06] text-[var(--color-ink)]"
-                  }`}
-                >
-                  {m.text}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Chat de Telegram (animado) */}
+        <AnimatedChat />
       </div>
     </section>
   );
