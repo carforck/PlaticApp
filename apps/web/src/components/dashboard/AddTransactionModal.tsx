@@ -11,6 +11,15 @@ const KINDS = [
 ] as const;
 type Kind = (typeof KINDS)[number]["value"];
 
+const NEW = "__new__";
+const ACCOUNT_TYPES = [
+  { value: "bank", label: "Banco" },
+  { value: "cash", label: "Efectivo" },
+  { value: "wallet", label: "Billetera" },
+  { value: "investment", label: "Inversión" },
+  { value: "credit", label: "Crédito" },
+] as const;
+
 export function AddTransactionModal({
   accounts,
   categories,
@@ -35,6 +44,10 @@ export function AddTransactionModal({
   const [description, setDescription] = useState(editTx?.description ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Crear cuenta nueva sin salir del formulario.
+  const [newAccName, setNewAccName] = useState("");
+  const [newAccType, setNewAccType] = useState<string>("bank");
+  const creatingAccount = accountId === NEW;
 
   async function remove() {
     if (!editTx) return;
@@ -61,10 +74,32 @@ export function AddTransactionModal({
     e.preventDefault();
     setError("");
     setSaving(true);
+
+    // Si eligió «Crear cuenta nueva», la creamos primero y usamos su id.
+    let resolvedAccountId = accountId;
+    if (creatingAccount) {
+      if (!newAccName.trim()) {
+        setSaving(false);
+        setError("Escribe el nombre de la cuenta nueva.");
+        return;
+      }
+      const ar = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: newAccName.trim(), type: newAccType, openingBalance: 0 }),
+      });
+      if (!ar.ok) {
+        setSaving(false);
+        setError((await ar.json().catch(() => ({}))).error ?? "No se pudo crear la cuenta.");
+        return;
+      }
+      resolvedAccountId = (await ar.json()).id;
+    }
+
     const payload = {
       kind,
       amount: Number(amount),
-      accountId,
+      accountId: resolvedAccountId,
       categoryId: kind === "transfer" ? null : categoryId || null,
       transferAccountId: kind === "transfer" ? transferAccountId || null : null,
       description: description || null,
@@ -148,6 +183,7 @@ export function AddTransactionModal({
                     {a.name}
                   </option>
                 ))}
+                <option value={NEW}>➕ Crear cuenta nueva</option>
               </select>
             </label>
 
@@ -187,6 +223,33 @@ export function AddTransactionModal({
             )}
           </div>
 
+          {creatingAccount && (
+            <div className="grid grid-cols-2 gap-3 rounded-[12px] bg-[var(--color-accent)]/8 p-3">
+              <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+                Nombre de la cuenta
+                <input
+                  autoFocus
+                  value={newAccName}
+                  onChange={(e) => setNewAccName(e.target.value)}
+                  placeholder="Nu, Lulo, Davivienda…"
+                  className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
+                />
+              </label>
+              <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+                Tipo
+                <select
+                  value={newAccType}
+                  onChange={(e) => setNewAccType(e.target.value)}
+                  className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
+                >
+                  {ACCOUNT_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Descripción (opcional)
             <input
@@ -224,7 +287,7 @@ export function AddTransactionModal({
             )}
             <button
               type="submit"
-              disabled={saving || !accountId || (kind === "transfer" && !transferAccountId)}
+              disabled={saving || !accountId || (creatingAccount && !newAccName.trim()) || (kind === "transfer" && !transferAccountId)}
               className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70"
             >
               {saving ? "Guardando…" : isEdit ? "Guardar cambios" : "Registrar"}

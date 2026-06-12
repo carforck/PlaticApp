@@ -13,6 +13,7 @@ import { accountRepo, categoryRepo, debtRepo, idempotencyStore, transactionRepo 
 import { telegram } from "./telegram";
 import { geminiText, geminiImage } from "./ai/gemini";
 import { groqAudio } from "./ai/groq";
+import { ACCOUNT_EMOJI } from "@/lib/labels";
 
 // ── Tipos mínimos del Update de Telegram ───────────────────────
 interface TgUser { id: number; username?: string; first_name?: string }
@@ -338,6 +339,37 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
     .single();
   if (error) throw new Error(error.message);
 
+  // ── ¿Preguntar la cuenta? Solo si es UNA transacción (gasto/ingreso/inversión),
+  //    y no se especificó medio (con 2+ cuentas) o se mencionó uno que no existe. ──
+  const single = items.length === 1 && debts.length === 0 && recurrences.length === 0 ? items[0]! : null;
+  if (single && (single.kind === "expense" || single.kind === "income" || single.kind === "investment")) {
+    const accounts = await accountRepo(db).listByUser(userId);
+    const matched = single.accountHint ? await accountRepo(db).findByNameHint(userId, single.accountHint) : null;
+    const unknownHint = !!single.accountHint && !matched;
+    const needAsk = (!single.accountHint && accounts.length >= 2) || unknownHint;
+
+    if (needAsk && accounts.length > 0) {
+      const verb =
+        single.kind === "income" ? "¿A qué cuenta entró?" : single.kind === "investment" ? "¿Desde qué cuenta salió?" : "¿Con qué pagaste?";
+      const head =
+        `${KIND_LABEL[single.kind]} · <b>${pesos(single.amountMinor)}</b>` +
+        `${single.description ? ` · ${single.description}` : ""}`;
+      const note = unknownHint ? `\n🔎 No encontré «${single.accountHint}» entre tus cuentas.` : "";
+
+      const accBtns = accounts.slice(0, 8).map((a) => ({
+        text: `${ACCOUNT_EMOJI[a.type] ?? "💼"} ${a.name}`,
+        callback_data: `selacc:${data.id}:${a.id}`,
+      }));
+      const rows: { text: string; callback_data: string }[][] = [];
+      for (let i = 0; i < accBtns.length; i += 2) rows.push(accBtns.slice(i, i + 2));
+      if (unknownHint) rows.push([{ text: `➕ Crear «${titleCase(single.accountHint!)}»`, callback_data: `newacc:${data.id}` }]);
+      rows.push([{ text: "✏️ Cancelar", callback_data: `no:${data.id}` }]);
+
+      await telegram.sendMessage(chatId, `${head}${note}\n\n${verb}`, rows);
+      return;
+    }
+  }
+
   const total = items.length + debts.length + recurrences.length;
   const txLines = result.transactions.map(
     (d) =>
@@ -429,7 +461,9 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   const db = createAdminClient();
   const chatId = cb.message?.chat.id;
   const messageId = cb.message?.message_id;
-  const [action, draftId] = (cb.data ?? "").split(":");
+  const seg = (cb.data ?? "").split(":");
+  const action = seg[0];
+  const draftId = seg[1];
   if (!chatId || !messageId || !draftId) return void telegram.answerCallbackQuery(cb.id);
 
   // Recordatorio de un pago fijo: registrar o saltar este ciclo.
@@ -450,8 +484,31 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     return;
   }
 
-  const items = (row.draft?.items ?? []) as DraftItem[];
-  const debts = (row.draft?.debts ?? []) as DebtItem[];
+  let draftRow = row;
+
+  // El usuario eligió una cuenta existente: la fijamos en el borrador (por nombre,
+  // así el caso de uso la resuelve sin crear nada). «newacc» deja el hint tal cual,
+  // para que se cree la cuenta mencionada.
+  if (action === "selacc") {
+    const accountId = seg[2];
+    const { data: acc } = await db
+      .from("accounts")
+      .select("name, type")
+      .eq("id", accountId ?? "")
+      .eq("user_id", row.user_id)
+      .maybeSingle();
+    const draftItems = (row.draft?.items ?? []) as DraftItem[];
+    if (draftItems[0] && acc) {
+      draftItems[0].accountHint = acc.name as string;
+      draftItems[0].accountType = acc.type as AccountType;
+    }
+    await db.from("pending_drafts").update({ draft: { ...row.draft, items: draftItems } }).eq("id", draftId);
+    const { data: refreshed } = await db.from("pending_drafts").select("*").eq("id", draftId).maybeSingle();
+    if (refreshed) draftRow = refreshed;
+  }
+
+  const items = (draftRow.draft?.items ?? []) as DraftItem[];
+  const debts = (draftRow.draft?.debts ?? []) as DebtItem[];
   const useCase = new RegisterTransaction(transactionRepo(db), accountRepo(db), categoryRepo(db));
   const debtsRepo = debtRepo(db);
 
@@ -463,7 +520,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   for (const d of items) {
     try {
       const tx = await useCase.execute({
-        userId: row.user_id,
+        userId: draftRow.user_id,
         kind: d.kind,
         amount: Money.of(d.amountMinor, d.currency),
         accountHint: d.accountHint ?? undefined,
@@ -485,7 +542,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   for (const d of debts) {
     try {
       await debtsRepo.create({
-        userId: row.user_id,
+        userId: draftRow.user_id,
         counterparty: d.counterparty,
         direction: d.direction,
         amount: Money.of(d.amountMinor, d.currency),
@@ -497,11 +554,11 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     }
   }
 
-  const recurrences = (row.draft?.recurrences ?? []) as RecurrenceItem[];
+  const recurrences = (draftRow.draft?.recurrences ?? []) as RecurrenceItem[];
   let recOk = 0;
   for (const r of recurrences) {
     try {
-      await createRecurrence(db, row.user_id, r);
+      await createRecurrence(db, draftRow.user_id, r);
       recOk++;
     } catch {
       failed++;
@@ -520,7 +577,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
       : `✅ <b>Registré ${parts.join(" y ")}</b>${failed ? ` (${failed} fallaron)` : ""}.\nYa aparece en tu dashboard 📊`;
 
   // Alertas de presupuesto para las categorías afectadas.
-  const alerts = await budgetAlerts(db, row.user_id, [...touchedCategories]);
+  const alerts = await budgetAlerts(db, draftRow.user_id, [...touchedCategories]);
   if (alerts.length) msg += `\n\n${alerts.join("\n")}`;
 
   await telegram.editMessageText(chatId, messageId, msg);
