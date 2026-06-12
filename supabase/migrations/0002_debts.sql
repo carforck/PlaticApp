@@ -24,3 +24,4 @@ create policy owner_all on debts
 do $$ begin
   alter publication supabase_realtime add table debts;
 exception when duplicate_object then null; end $$;
+

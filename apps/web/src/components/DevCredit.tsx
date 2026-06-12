@@ -55,9 +55,9 @@ export function DevCredit({ className = "", withPhoto = false }: { className?: s
         <img
           src={DEV.photo}
           alt={DEV.name}
-          width={96}
-          height={96}
-          className="h-24 w-24 shrink-0 rounded-full object-cover ring-2 ring-[var(--color-accent)]/30"
+          width={176}
+          height={176}
+          className="h-36 w-36 shrink-0 rounded-full object-cover ring-2 ring-[var(--color-accent)]/30 sm:h-44 sm:w-44"
         />
         <div className="flex flex-col items-center gap-1.5 sm:items-start">
           <div>
