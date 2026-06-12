@@ -5,6 +5,7 @@ import Lottie from "lottie-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DevCredit } from "@/components/DevCredit";
+import { BrandIcon } from "@/components/BrandIcon";
 import anim from "@/app/login-anim.json";
 
 type Status = "idle" | "loading" | "sent" | "error";
@@ -128,7 +129,7 @@ export function LoginCard() {
         {/* Formulario */}
         <div className="flex flex-col justify-center p-6 sm:p-10">
           <div className="mb-3 flex items-center justify-center gap-2.5 sm:justify-start">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-gradient-to-br from-[#0a84ff] to-[#bf5af2] text-[18px] text-white shadow-[0_8px_20px_-8px_rgba(10,132,255,0.8)]">💸</span>
+            <BrandIcon size={40} className="shrink-0 rounded-[28%] shadow-[0_8px_20px_-8px_rgba(10,132,255,0.8)]" />
             <span className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-[26px] font-bold tracking-tight text-transparent sm:text-[28px]">PlaticApp!</span>
           </div>
 

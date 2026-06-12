@@ -7,6 +7,7 @@ import { RotatingWord } from "@/components/RotatingWord";
 import { DevCredit } from "@/components/DevCredit";
 import { LandingShowcase } from "@/components/landing/LandingShowcase";
 import { LandingNews } from "@/components/landing/LandingNews";
+import { BrandIcon } from "@/components/BrandIcon";
 
 const FEATURES = [
   { icon: "💬", title: "Habla y listo", desc: "«gasté 50 mil en el almuerzo» y queda registrado. Sin formularios." },
@@ -30,7 +31,7 @@ export default function Landing() {
       <header className="sticky top-0 z-30">
         <div className="glass mx-auto mt-3 flex max-w-6xl items-center justify-between rounded-[var(--radius-card)] px-4 py-2.5 sm:px-5">
           <span className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-[10px] bg-gradient-to-br from-[#0a84ff] to-[#bf5af2] text-[16px] text-white">💸</span>
+            <BrandIcon size={32} className="rounded-[26%]" />
             <span className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-[18px] font-bold tracking-tight text-transparent">PlaticApp!</span>
           </span>
           <Link href="/login" className="btn-mac px-4 py-2 text-[13px] font-medium">Entrar</Link>

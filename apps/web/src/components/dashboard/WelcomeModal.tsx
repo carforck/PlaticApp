@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BrandIcon } from "@/components/BrandIcon";
 
 /**
  * Modal de bienvenida para usuarios nuevos. Reutiliza la identidad de la landing
@@ -25,9 +26,7 @@ export function WelcomeModal({
       <div className="glass animate-float-in relative w-full max-w-md overflow-hidden rounded-[var(--radius-card)]">
         {/* Encabezado con la identidad de la app */}
         <div className="flex flex-col items-center gap-3 bg-gradient-to-br from-[#0a84ff]/10 to-[#bf5af2]/10 px-6 pb-5 pt-8 text-center">
-          <span className="grid h-16 w-16 place-items-center rounded-[18px] bg-gradient-to-br from-[#0a84ff] to-[#bf5af2] text-[34px] shadow-lg">
-            💸
-          </span>
+          <BrandIcon size={68} className="rounded-[22%] shadow-lg" />
           <div>
             <p className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-[24px] font-bold tracking-tight text-transparent">
               PlaticApp!
