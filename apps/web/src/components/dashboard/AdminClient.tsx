@@ -91,6 +91,8 @@ export function AdminClient() {
         <p className="text-[13px] text-[var(--color-ink-soft)]">{today ? `📅 ${today} · ` : ""}usuarios registrados y su actividad</p>
       </header>
 
+      <SystemHealth />
+
       <PublishAnnouncement onPublished={refresh} />
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -277,6 +279,119 @@ function UserDetailModal({ user, onClose }: { user: AdminUser; onClose: () => vo
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+interface HealthCheck { key: string; label: string; status: "ok" | "warn" | "fail"; detail: string }
+interface HealthData {
+  overall: "ok" | "warn" | "fail";
+  checkedAt: string;
+  metrics: { dbPct: number; storagePct: number; dbSize: number; storageBytes: number; users: number; activeToday: number; transactions: number; receipts: number; pendingDrafts: number; processedUpdates: number };
+  telegram: { url: string; pending: number; lastError: string | null };
+  checks: HealthCheck[];
+}
+
+const HEALTH_COLOR = { ok: "#30d158", warn: "#ff9f0a", fail: "#ff375f" } as const;
+const HEALTH_TEXT = { ok: "Todo en orden", warn: "Requiere atención", fail: "Hay un problema" } as const;
+
+function SystemHealth() {
+  const [h, setH] = useState<HealthData | null>(null);
+  const [err, setErr] = useState("");
+  const [updated, setUpdated] = useState("");
+
+  useEffect(() => {
+    const load = async () => {
+      const r = await fetch("/api/admin/health");
+      if (r.ok) {
+        setH(await r.json());
+        setUpdated(new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      } else setErr("No se pudo cargar la salud del sistema.");
+    };
+    void load();
+    const id = setInterval(load, 30000);
+    const onF = () => { if (document.visibilityState === "visible") void load(); };
+    document.addEventListener("visibilitychange", onF);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onF); };
+  }, []);
+
+  return (
+    <section className="glass rounded-[var(--radius-card)] p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+          🩺 Salud del sistema
+          {h && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+              style={{ background: HEALTH_COLOR[h.overall] }}
+            >
+              {HEALTH_TEXT[h.overall]}
+            </span>
+          )}
+        </h2>
+        <span className="text-[11px] text-[var(--color-ink-soft)]">{updated ? `Actualizado ${updated} · cada 30s` : "Cargando…"}</span>
+      </div>
+
+      {err && !h ? (
+        <p className="text-[13px] text-[#ff375f]">{err}</p>
+      ) : !h ? (
+        <p className="text-[13px] text-[var(--color-ink-soft)]">Revisando…</p>
+      ) : (
+        <>
+          {/* Barras de capacidad (lo que más debes vigilar) */}
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <CapacityBar label="Base de datos" pct={h.metrics.dbPct} sub={`${(h.metrics.dbSize / 1048576).toFixed(1)} MB / 500 MB`} />
+            <CapacityBar label="Recibos (Storage)" pct={h.metrics.storagePct} sub={`${(h.metrics.storageBytes / 1048576).toFixed(1)} MB / 1024 MB`} />
+          </div>
+
+          {/* Chequeos con semáforo */}
+          <ul className="space-y-1.5">
+            {h.checks.map((c) => (
+              <li key={c.key} className="flex items-center justify-between gap-3 text-[13px]">
+                <span className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: HEALTH_COLOR[c.status] }} />
+                  {c.label}
+                </span>
+                <span className="truncate text-right text-[12px] text-[var(--color-ink-soft)]">{c.detail}</span>
+              </li>
+            ))}
+          </ul>
+
+          {/* Pulso de actividad */}
+          <div className="mt-4 grid grid-cols-3 gap-3 border-t border-black/5 pt-3 text-center sm:grid-cols-6">
+            <Pulse label="Usuarios" value={h.metrics.users} />
+            <Pulse label="Activos 24h" value={h.metrics.activeToday} />
+            <Pulse label="Movimientos" value={h.metrics.transactions} />
+            <Pulse label="Recibos" value={h.metrics.receipts} />
+            <Pulse label="En cola TG" value={h.telegram.pending} />
+            <Pulse label="Borradores" value={h.metrics.pendingDrafts} />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function CapacityBar({ label, pct, sub }: { label: string; pct: number; sub: string }) {
+  const color = pct >= 90 ? "#ff375f" : pct >= 70 ? "#ff9f0a" : "#30d158";
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-[12px]">
+        <span className="font-medium">{label}</span>
+        <span className="text-[var(--color-ink-soft)]">{sub} · <b style={{ color }}>{pct}%</b></span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
+        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(2, pct))}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function Pulse({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <p className="text-[17px] font-semibold tracking-tight">{value}</p>
+      <p className="text-[10px] text-[var(--color-ink-soft)]">{label}</p>
     </div>
   );
 }
