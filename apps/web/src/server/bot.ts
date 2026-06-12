@@ -151,8 +151,26 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   if (/^\/start\b/i.test(text)) {
     await telegram.sendMessage(
       chatId,
-      "👋 <b>Hola, soy PlaticApp.</b>\nVincula tu cuenta: abre la app web, genera tu código y mándamelo aquí, o usa el botón «Vincular Telegram».",
+      "👋 <b>Hola, soy PlaticApp.</b>\nVincula tu cuenta: abre la app web, genera tu código y mándamelo aquí, o usa el botón «Vincular Telegram».\n\nEscribe /ayuda para ver todo lo que puedo hacer.",
     );
+    return;
+  }
+
+  if (/^\/(ayuda|help)\b/i.test(text)) {
+    await telegram.sendMessage(chatId, AYUDA_TEXT);
+    return;
+  }
+
+  if (/^\/novedades\b/i.test(text)) {
+    const db = createAdminClient();
+    const { data: anns } = await db
+      .from("announcements")
+      .select("emoji, title, body")
+      .eq("published", true)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    const list = (anns ?? []).map((a) => `${a.emoji} <b>${a.title}</b>\n${a.body}`).join("\n\n");
+    await telegram.sendMessage(chatId, `🔔 <b>Novedades de PlaticApp</b>\n\n${list || "Sin novedades por ahora."}`);
     return;
   }
 
@@ -475,6 +493,25 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   await telegram.editMessageText(chatId, messageId, msg);
   await telegram.answerCallbackQuery(cb.id, "¡Listo!");
 }
+
+const AYUDA_TEXT = `🤖 <b>Esto puedo hacer por ti:</b>
+
+📝 <b>Registrar</b> (escríbeme, mándame audio 🎙️ o foto de un recibo 🖼️):
+• «gasté 50 mil en el almuerzo»
+• «me pagaron el sueldo 1.500.000»
+• «invertí 200 mil»
+• «pasé 100 mil de Nequi a Bancolombia»
+• «Juan me prestó 200 mil»
+• «todos los meses pago arriendo 800 mil el día 5»
+
+❓ <b>Preguntarme</b>:
+• «¿cuánto gasté este mes?»
+• «¿cuánto gasté en comida?»
+• «¿cuánto debo?» · «¿cuánto tengo?»
+• «¿en qué gasto más?» · «mis últimos movimientos»
+
+🔔 /novedades — lo último de PlaticApp
+🌐 Tu panel: https://platicapp-web.vercel.app`;
 
 const titleCase = (s: string) =>
   s.trim().replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());

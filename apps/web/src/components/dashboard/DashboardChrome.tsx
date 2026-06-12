@@ -10,6 +10,7 @@ import { TelegramConnectModal } from "./TelegramConnectModal";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Resumen",
+  "/dashboard/novedades": "Novedades",
   "/dashboard/movimientos": "Movimientos",
   "/dashboard/cuentas": "Cuentas",
   "/dashboard/deudas": "Deudas",
@@ -25,7 +26,10 @@ const TITLES: Record<string, string> = {
 export function DashboardChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile } = useDashboard();
+  const { data, profile } = useDashboard();
+  const unread = data.announcements.filter(
+    (a) => !profile.announcementsSeenAt || new Date(a.created_at) > new Date(profile.announcementsSeenAt),
+  ).length;
   const [open, setOpen] = useState(false);
   const [connect, setConnect] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -74,9 +78,15 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
           <span className="text-[15px] font-semibold tracking-tight">{title}</span>
-          <Link href="/dashboard/perfil" aria-label="Ver perfil">
-            <Avatar url={profile.avatarUrl} name={profile.displayName || profile.email} size={32} />
-          </Link>
+          <span className="flex items-center gap-1.5">
+            <Link href="/dashboard/novedades" aria-label="Novedades" className="relative grid h-9 w-9 place-items-center rounded-[10px] hover:bg-black/5">
+              🔔
+              {unread > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#ff375f]" />}
+            </Link>
+            <Link href="/dashboard/perfil" aria-label="Ver perfil">
+              <Avatar url={profile.avatarUrl} name={profile.displayName || profile.email} size={32} />
+            </Link>
+          </span>
         </div>
 
         {/* Onboarding: conectar Telegram */}

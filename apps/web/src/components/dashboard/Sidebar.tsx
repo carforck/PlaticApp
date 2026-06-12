@@ -12,6 +12,7 @@ import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
   { label: "Resumen", icon: "🏠", href: "/dashboard" },
+  { label: "Novedades", icon: "🔔", href: "/dashboard/novedades" },
   { label: "Movimientos", icon: "💸", href: "/dashboard/movimientos" },
   { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
   { label: "Deudas", icon: "🤝", href: "/dashboard/deudas" },
@@ -28,8 +29,12 @@ const SOON: { label: string; icon: string }[] = [];
 export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile } = useDashboard();
+  const { data, profile } = useDashboard();
   const [link, setLink] = useState<{ code: string; deepLink: string } | null>(null);
+
+  const unread = data.announcements.filter(
+    (a) => !profile.announcementsSeenAt || new Date(a.created_at) > new Date(profile.announcementsSeenAt),
+  ).length;
 
   async function linkTelegram() {
     const res = await fetch("/api/telegram/link-code", { method: "POST" });
@@ -81,6 +86,11 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
             >
               <span className="text-[15px]">{n.icon}</span>
               {n.label}
+              {n.href === "/dashboard/novedades" && unread > 0 && (
+                <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#ff375f] px-1 text-[11px] font-semibold text-white">
+                  {unread}
+                </span>
+              )}
             </Link>
           );
         })}

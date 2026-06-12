@@ -22,7 +22,7 @@ interface AdminUser {
 }
 
 export function AdminClient() {
-  const { profile } = useDashboard();
+  const { profile, refresh } = useDashboard();
   const [data, setData] = useState<{ total: number; linked: number; users: AdminUser[] } | null>(null);
   const [error, setError] = useState("");
 
@@ -53,6 +53,8 @@ export function AdminClient() {
         <h1 className="text-[26px] font-semibold tracking-tight">Admin</h1>
         <p className="text-[13px] text-[var(--color-ink-soft)]">Usuarios registrados y su actividad</p>
       </header>
+
+      <PublishAnnouncement onPublished={refresh} />
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Usuarios" value={`${data?.total ?? "—"}`} />
@@ -107,6 +109,74 @@ export function AdminClient() {
         )}
       </div>
     </main>
+  );
+}
+
+function PublishAnnouncement({ onPublished }: { onPublished: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [emoji, setEmoji] = useState("🚀");
+  const [tag, setTag] = useState("nuevo");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [notify, setNotify] = useState(true);
+  const [status, setStatus] = useState<"idle" | "saving" | "done">("idle");
+  const [msg, setMsg] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus("saving");
+    const res = await fetch("/api/admin/announcements", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ emoji, tag, title, body, notify }),
+    });
+    if (res.ok) {
+      const j = await res.json();
+      setStatus("done");
+      setMsg(`Publicada${notify ? ` · enviada a ${j.notified} usuarios` : ""}.`);
+      setTitle("");
+      setBody("");
+      onPublished();
+      setTimeout(() => setStatus("idle"), 2500);
+    } else {
+      setStatus("idle");
+      setMsg((await res.json().catch(() => ({}))).error ?? "Error");
+    }
+  }
+
+  const field = "w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2";
+
+  return (
+    <div className="glass rounded-[var(--radius-card)] p-5">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between text-[15px] font-semibold">
+        📢 Publicar novedad
+        <span className="text-[var(--color-ink-soft)]">{open ? "−" : "+"}</span>
+      </button>
+      {open && (
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <div className="flex gap-2">
+            <input value={emoji} onChange={(e) => setEmoji(e.target.value)} className={`${field} w-16 text-center`} />
+            <select value={tag} onChange={(e) => setTag(e.target.value)} className={field}>
+              <option value="nuevo">Nuevo</option>
+              <option value="mejora">Mejora</option>
+              <option value="arreglo">Arreglo</option>
+            </select>
+          </div>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Título" className={field} />
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} required placeholder="Mensaje…" rows={3} className={field} />
+          <label className="flex items-center gap-2 text-[13px] text-[var(--color-ink-soft)]">
+            <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+            Notificar a todos por Telegram
+          </label>
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={status === "saving"} className="btn-mac px-4 py-2 text-[14px] font-medium disabled:opacity-70">
+              {status === "saving" ? "Publicando…" : "Publicar"}
+            </button>
+            {msg && <span className="text-[12px] text-[var(--color-ink-soft)]">{msg}</span>}
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 

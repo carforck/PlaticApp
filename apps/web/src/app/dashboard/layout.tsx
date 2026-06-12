@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const [initialData, { data: profile }, { data: link }] = await Promise.all([
     fetchDashboard(supabase),
-    supabase.from("profiles").select("display_name, default_currency, timezone").eq("id", user.id).maybeSingle(),
+    supabase.from("profiles").select("display_name, default_currency, timezone, announcements_seen_at").eq("id", user.id).maybeSingle(),
     supabase.from("telegram_links").select("user_id").eq("user_id", user.id).maybeSingle(),
   ]);
 
@@ -36,6 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         createdAt: user.created_at ?? "",
         emailVerified: !!(meta.email_verified ?? user.email_confirmed_at),
         provider: (user.app_metadata?.provider as string) ?? "email",
+        announcementsSeenAt: profile?.announcements_seen_at ?? null,
       }}
     >
       <DashboardChrome>{children}</DashboardChrome>

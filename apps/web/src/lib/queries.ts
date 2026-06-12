@@ -68,6 +68,15 @@ export interface BudgetRow {
   amount_minor: number;
 }
 
+export interface AnnouncementRow {
+  id: string;
+  title: string;
+  body: string;
+  emoji: string;
+  tag: "nuevo" | "mejora" | "arreglo";
+  created_at: string;
+}
+
 export interface DashboardData {
   accounts: AccountRow[];
   transactions: TxRow[];
@@ -76,11 +85,12 @@ export interface DashboardData {
   recurrences: RecurrenceRow[];
   receipts: ReceiptRow[];
   budgets: BudgetRow[];
+  announcements: AnnouncementRow[];
 }
 
 /** Trae todo lo que el dashboard necesita. Sirve para server y browser client. */
 export async function fetchDashboard(supabase: SupabaseClient): Promise<DashboardData> {
-  const [accounts, transactions, categories, debts, recurrences, receipts, budgets] = await Promise.all([
+  const [accounts, transactions, categories, debts, recurrences, receipts, budgets, announcements] = await Promise.all([
     supabase.from("account_balances").select("*"),
     supabase
       .from("transactions")
@@ -92,6 +102,7 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
     supabase.from("recurrences").select("*").order("next_due", { ascending: true }),
     supabase.from("receipts").select("id, path, caption, created_at").order("created_at", { ascending: false }).limit(60),
     supabase.from("budgets").select("id, category_id, amount_minor"),
+    supabase.from("announcements").select("id, title, body, emoji, tag, created_at").eq("published", true).order("created_at", { ascending: false }).limit(50),
   ]);
 
   return {
@@ -102,5 +113,6 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
     recurrences: (recurrences.data as RecurrenceRow[]) ?? [],
     receipts: (receipts.data as ReceiptRow[]) ?? [],
     budgets: (budgets.data as BudgetRow[]) ?? [],
+    announcements: (announcements.data as AnnouncementRow[]) ?? [],
   };
 }

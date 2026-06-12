@@ -14,6 +14,7 @@ export interface DashboardProfile {
   createdAt: string;
   emailVerified: boolean;
   provider: string;
+  announcementsSeenAt: string | null;
 }
 
 interface DashboardCtx {
@@ -56,6 +57,7 @@ export function DashboardProvider({
       .on("postgres_changes", { event: "*", schema: "public", table: "recurrences" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "receipts" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "budgets" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, refresh)
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
