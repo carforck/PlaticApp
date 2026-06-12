@@ -68,8 +68,14 @@ export function CuentasClient() {
             ) : (
               <>
                 <p className="mt-4 text-[24px] font-semibold tracking-tight">{fmtMoney(a.balance_minor, a.currency)}</p>
-                {a.opening_minor !== a.balance_minor && (
-                  <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">Saldo inicial: {fmtMoney(a.opening_minor, a.currency)}</p>
+                {a.reserved_minor > 0 ? (
+                  <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">
+                    Disponible {fmtMoney(a.balance_minor - a.reserved_minor, a.currency)} · 🐷 Ahorrado {fmtMoney(a.reserved_minor, a.currency)}
+                  </p>
+                ) : (
+                  a.opening_minor !== a.balance_minor && (
+                    <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">Saldo inicial: {fmtMoney(a.opening_minor, a.currency)}</p>
+                  )
                 )}
               </>
             )}

@@ -7,6 +7,8 @@ export interface AccountRow {
   currency: string;
   balance_minor: number;
   opening_minor: number;
+  reserved_minor: number;
+  goal_minor: number | null;
 }
 
 export interface TxRow {

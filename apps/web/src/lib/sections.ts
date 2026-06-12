@@ -8,6 +8,7 @@ export const SECTION_DESC: Record<string, string> = {
   "/dashboard/movimientos": "Todo lo que entra y sale. Aquí buscas, filtras y editas cada gasto o ingreso.",
   "/dashboard/cuentas": "Tus cuentas: bancos, efectivo y billeteras. Tu patrimonio es la suma de sus saldos.",
   "/dashboard/deudas": "Quién te debe y a quién le debes. Márcalas como saldadas cuando se paguen.",
+  "/dashboard/ahorros": "Aparta parte de tus cuentas como ahorro (con metas opcionales). Sigue siendo tuyo, pero no lo cuentas como disponible.",
   "/dashboard/presupuestos": "Pones un límite de gasto por categoría y te avisamos cuando te acercas a él.",
   "/dashboard/recurrentes": "Pagos fijos como arriendo, suscripciones o sueldo. Te recordamos 1 día antes.",
   "/dashboard/recibos": "Las fotos de recibos que le mandas al bot quedan aquí guardadas como respaldo.",

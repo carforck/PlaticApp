@@ -25,6 +25,7 @@ const NAV_GROUPS = [
     items: [
       { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
       { label: "Deudas", icon: "🤝", href: "/dashboard/deudas" },
+      { label: "Ahorros", icon: "🐷", href: "/dashboard/ahorros" },
       { label: "Inversiones", icon: "📈", href: "/dashboard/inversiones" },
       { label: "Presupuestos", icon: "🎯", href: "/dashboard/presupuestos" },
       { label: "Pagos fijos", icon: "🔁", href: "/dashboard/recurrentes" },
