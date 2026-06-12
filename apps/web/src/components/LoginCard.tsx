@@ -39,12 +39,34 @@ export function LoginCard() {
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  async function handlePassword(e: React.FormEvent) {
+  async function handleEmailAuth(e: React.FormEvent) {
     e.preventDefault();
     setStatus("loading");
     setMessage("");
-    const { error } = await createClient().auth.signInWithPassword({ email, password });
+    const supabase = createClient();
+
+    if (mode === "signup") {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) {
+        setStatus("error");
+        setMessage(error.message.includes("already registered") ? "Ese correo ya tiene cuenta. Inicia sesión." : error.message);
+      } else if (data.session) {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        setStatus("sent");
+        setMessage(`¡Cuenta creada! Te enviamos un correo a ${email} para confirmarla ✉️`);
+      }
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setStatus("error");
       setMessage(error.message === "Invalid login credentials" ? "Correo o contraseña incorrectos." : error.message);
@@ -52,6 +74,12 @@ export function LoginCard() {
       router.push("/dashboard");
       router.refresh();
     }
+  }
+
+  function toggleMode() {
+    setMode((m) => (m === "signin" ? "signup" : "signin"));
+    setStatus("idle");
+    setMessage("");
   }
 
   async function handleGoogle() {
@@ -133,10 +161,14 @@ export function LoginCard() {
             <span className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-[26px] font-bold tracking-tight text-transparent sm:text-[28px]">PlaticApp!</span>
           </div>
 
-          <h1 className="text-center text-[22px] font-semibold tracking-tight sm:text-left sm:text-[24px]">Bienvenido</h1>
-          <p className="mt-1 text-center text-[14px] text-[var(--color-ink-soft)] sm:text-left">Ingresa con tu correo y contraseña.</p>
+          <h1 className="text-center text-[22px] font-semibold tracking-tight sm:text-left sm:text-[24px]">
+            {mode === "signup" ? "Crea tu cuenta" : "Bienvenido"}
+          </h1>
+          <p className="mt-1 text-center text-[14px] text-[var(--color-ink-soft)] sm:text-left">
+            {mode === "signup" ? "Regístrate con tu correo y una contraseña." : "Ingresa con tu correo y contraseña."}
+          </p>
 
-          <form onSubmit={handlePassword} className="mt-6 space-y-3">
+          <form onSubmit={handleEmailAuth} className="mt-6 space-y-3">
             <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
               Correo electrónico
               <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" disabled={status === "loading"} className={`mt-1.5 ${inputBase}`} />
@@ -144,16 +176,23 @@ export function LoginCard() {
             <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
               Contraseña
               <div className="relative mt-1.5">
-                <input type={showPassword ? "text" : "password"} required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" disabled={status === "loading"} className={`${inputBase} pr-11`} />
+                <input type={showPassword ? "text" : "password"} required minLength={6} autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" disabled={status === "loading"} className={`${inputBase} pr-11`} />
                 <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"} className="absolute right-2.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-[8px] text-[var(--color-ink-soft)] transition hover:bg-black/5 hover:text-[var(--color-ink)]">
                   <EyeIcon open={showPassword} />
                 </button>
               </div>
             </label>
             <button type="submit" disabled={status === "loading"} className="btn-mac mt-2 w-full py-2.5 text-[15px] font-medium disabled:opacity-70">
-              {status === "loading" ? "Entrando…" : "Entrar"}
+              {status === "loading" ? (mode === "signup" ? "Creando…" : "Entrando…") : mode === "signup" ? "Crear cuenta" : "Entrar"}
             </button>
           </form>
+
+          <p className="mt-3 text-center text-[13px] text-[var(--color-ink-soft)] sm:text-left">
+            {mode === "signin" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
+            <button type="button" onClick={toggleMode} className="font-medium text-[var(--color-accent)] hover:underline">
+              {mode === "signin" ? "Crear una" : "Inicia sesión"}
+            </button>
+          </p>
 
           <div className="my-5 flex items-center gap-3 text-[12px] text-[var(--color-ink-soft)]">
             <span className="h-px flex-1 bg-black/10" />o<span className="h-px flex-1 bg-black/10" />
