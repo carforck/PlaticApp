@@ -151,29 +151,33 @@ body {
 }
 .liquid-blob {
   position: absolute;
-  width: 46vw;
-  height: 46vw;
-  max-width: 720px;
-  max-height: 720px;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
-  will-change: transform;
-  animation: blob-float 22s ease-in-out infinite;
+  width: 48vw;
+  height: 48vw;
+  max-width: 760px;
+  max-height: 760px;
+  border-radius: 42% 58% 60% 40% / 50% 45% 55% 50%;
+  filter: blur(120px);
+  opacity: 0.28;
+  will-change: transform, border-radius;
+  animation: blob-wave 30s ease-in-out infinite;
 }
 .dark .liquid-blob {
-  opacity: 0.4;
+  opacity: 0.2;
 }
-@keyframes blob-float {
+/* Morfa la forma y rota lento → movimiento tipo onda líquida. */
+@keyframes blob-wave {
   0%,
   100% {
-    transform: translate(0, 0) scale(1);
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    border-radius: 42% 58% 60% 40% / 50% 45% 55% 50%;
   }
   33% {
-    transform: translate(6vw, -4vw) scale(1.12);
+    transform: translate(3vw, -2.5vw) rotate(120deg) scale(1.06);
+    border-radius: 60% 40% 35% 65% / 55% 60% 40% 45%;
   }
   66% {
-    transform: translate(-5vw, 5vw) scale(0.92);
+    transform: translate(-2.5vw, 2.5vw) rotate(240deg) scale(0.96);
+    border-radius: 38% 62% 55% 45% / 45% 50% 50% 55%;
   }
 }
 @media (prefers-reduced-motion: reduce) {
