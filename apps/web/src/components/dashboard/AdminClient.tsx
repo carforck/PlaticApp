@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { ADMIN_EMAIL } from "@/lib/admin";
 import { fmtMoney } from "@/lib/format";
@@ -46,15 +46,28 @@ export function AdminClient() {
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [today, setToday] = useState("");
 
+  const load = useCallback(async () => {
+    const res = await fetch("/api/admin/users");
+    if (res.ok) setData(await res.json());
+    else setError("No autorizado.");
+  }, []);
+
   useEffect(() => {
     const f = new Date().toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     setToday(f.charAt(0).toUpperCase() + f.slice(1));
-    void (async () => {
-      const res = await fetch("/api/admin/users");
-      if (res.ok) setData(await res.json());
-      else setError("No autorizado.");
-    })();
-  }, []);
+    void load();
+    // Auto-refresco: el panel de admin no puede usar Realtime (RLS le oculta los
+    // datos de otros usuarios), así que sondeamos cada 20s y al volver a la pestaña.
+    const id = setInterval(() => void load(), 20000);
+    const onFocus = () => { if (document.visibilityState === "visible") void load(); };
+    document.addEventListener("visibilitychange", onFocus);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [load]);
 
   const pg = usePagination(data?.users ?? [], 15);
 
