@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboard } from "@/lib/dashboard-context";
 import { ADMIN_EMAIL } from "@/lib/admin";
+import { SECTION_DESC } from "@/lib/sections";
 import { Avatar } from "./Avatar";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -80,6 +81,7 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
             <Link
               key={n.href}
               href={n.href}
+              title={SECTION_DESC[n.href] ?? n.label}
               className={`flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[14px] transition ${
                 active ? "bg-[var(--color-accent)] text-white shadow-sm" : "hover:bg-black/5"
               }`}

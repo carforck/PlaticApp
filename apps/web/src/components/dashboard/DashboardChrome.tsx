@@ -8,6 +8,7 @@ import { Sidebar } from "./Sidebar";
 import { Avatar } from "./Avatar";
 import { TelegramConnectModal } from "./TelegramConnectModal";
 import { WelcomeModal } from "./WelcomeModal";
+import { SectionDescription } from "./SectionDescription";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Resumen",
@@ -123,6 +124,7 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
+        <SectionDescription />
         {children}
       </div>
 
