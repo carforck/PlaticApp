@@ -253,7 +253,7 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
   const isEdit = !!account;
   const [name, setName] = useState(account?.name ?? "");
   const [type, setType] = useState<string>(account?.type ?? "bank");
-  const credit = isCreditAccount(isEdit ? account!.type : type);
+  const credit = isCreditAccount(type);
   const [opening, setOpening] = useState(
     account ? String(account.type === "credit" ? Math.abs(account.opening_minor) : account.opening_minor) : "",
   );
@@ -268,7 +268,7 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
     const raw = opening === "" ? 0 : Number(opening);
     const openingBalance = credit ? -Math.abs(raw) : raw;
     const res = isEdit
-      ? await fetch("/api/accounts", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: account!.account_id, name, openingBalance }) })
+      ? await fetch("/api/accounts", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: account!.account_id, name, type, openingBalance }) })
       : await fetch("/api/accounts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, type, openingBalance }) });
     setSaving(false);
     if (res.ok) {
@@ -295,16 +295,19 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
             Nombre
             <input autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Bancolombia, Nequi, Efectivo…" className={field} />
           </label>
-          {!isEdit && (
-            <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
-              Tipo
-              <select value={type} onChange={(e) => setType(e.target.value)} className={field}>
-                {TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </label>
-          )}
+          <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+            Tipo
+            <select value={type} onChange={(e) => setType(e.target.value)} className={field}>
+              {TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            {isEdit && credit && account!.type !== "credit" && (
+              <span className="mt-1 block text-[11px] text-[#b86e00]">
+                ⚠️ Al pasarla a crédito, su saldo se tratará como deuda y dejará de sumar al patrimonio.
+              </span>
+            )}
+          </label>
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             {credit ? "¿Cuánto debes ahora? (COP)" : isEdit ? "Saldo inicial (COP)" : "¿Cuánto tienes ahí ahora? (COP)"}
             <input type="number" step="any" min="0" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0" className={field} />

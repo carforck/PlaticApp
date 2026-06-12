@@ -52,6 +52,7 @@ export async function PATCH(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     id?: string;
     name?: string;
+    type?: AccountType;
     archived?: boolean;
     openingBalance?: number;
   };
@@ -59,6 +60,7 @@ export async function PATCH(req: Request) {
 
   const patch: Record<string, unknown> = {};
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
+  if (body.type && TYPES.includes(body.type)) patch.type = body.type;
   if (typeof body.archived === "boolean") patch.archived = body.archived;
   if (body.openingBalance !== undefined && Number.isFinite(Number(body.openingBalance)))
     patch.opening_balance_minor = Math.round(Number(body.openingBalance));
