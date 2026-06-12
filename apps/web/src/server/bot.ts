@@ -113,7 +113,7 @@ async function resolveUserId(chatId: number): Promise<string | null> {
   return data?.user_id ?? null;
 }
 
-async function handleLinkCode(chatId: number, code: string, username?: string): Promise<void> {
+async function handleLinkCode(chatId: number, code: string, username?: string, firstName?: string): Promise<void> {
   const db = createAdminClient();
   const { data: lc } = await db
     .from("link_codes")
@@ -135,12 +135,32 @@ async function handleLinkCode(chatId: number, code: string, username?: string): 
   });
   await db.from("link_codes").update({ used_at: new Date().toISOString() }).eq("code", lc.code);
 
-  await telegram.sendMessage(chatId, WELCOME_TEXT);
+  await telegram.sendMessage(chatId, welcomeText(firstNameOf(firstName)));
 }
 
 const APP_URL = "https://platicapp-web.vercel.app";
 
-const WELCOME_TEXT = `💸 <b>¡Listo, ya estamos conectados!</b> Soy PlaticApp, tu copiloto financiero 🤖
+// Frases cálidas que rotan al saludar (se elige una al azar).
+const WARM_PHRASES = [
+  "Nos encanta tenerte por aquí. 🙌",
+  "Felices de que seas parte de esto. 💜",
+  "Encantados de contar con tu presencia. ✨",
+  "Qué alegría verte por acá. 😄",
+  "Tu plata y tú, en buenas manos. 💪",
+  "Gracias por confiar en PlaticApp. 🤝",
+  "Estamos para hacerte la vida más fácil. 🚀",
+];
+const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
+const firstNameOf = (s?: string) => (s ?? "").trim().split(/\s+/)[0] ?? "";
+/** Saludo personalizado: «¡Hola, Carlos! <frase cálida>» */
+const warmHello = (name?: string) => {
+  const fn = firstNameOf(name);
+  return `👋 <b>¡Hola${fn ? `, ${fn}` : ""}!</b> ${pick(WARM_PHRASES)}`;
+};
+
+const welcomeText = (firstName?: string) => `💸 <b>¡Listo, ya estamos conectados${firstName ? `, ${firstName}` : ""}!</b>
+${pick(WARM_PHRASES)}
+Soy PlaticApp, tu copiloto financiero 🤖
 
 Cuéntame tu plata como le contarías a un amigo — por texto, audio 🎙️ o foto de un recibo 🖼️:
 
@@ -166,19 +186,19 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   const text = msg.text?.trim() ?? "";
 
   const startMatch = text.match(/^\/(?:start|vincular)(?:@\w+)?\s+(\S+)/i);
-  if (startMatch) return handleLinkCode(chatId, startMatch[1]!, msg.from?.username);
+  if (startMatch) return handleLinkCode(chatId, startMatch[1]!, msg.from?.username, msg.from?.first_name);
 
   if (/^\/start\b/i.test(text)) {
     const linked = await resolveUserId(chatId);
     if (linked) {
       await telegram.sendMessage(
         chatId,
-        `👋 <b>¡Hola de nuevo!</b> Aquí sigo, listo para anotar tu plata.\nCuéntame un gasto, mándame un audio 🎙️ o una foto de un recibo 🖼️.\n\n📊 Tus gráficos y métricas: ${APP_URL}\nEscribe /ayuda para ver todo lo que hago. 😉`,
+        `${warmHello(msg.from?.first_name)}\nAquí sigo, listo para anotar tu plata. Cuéntame un gasto, mándame un audio 🎙️ o una foto de un recibo 🖼️.\n\n📊 Tus gráficos y métricas: ${APP_URL}\nEscribe /ayuda para ver todo lo que hago. 😉`,
       );
     } else {
       await telegram.sendMessage(
         chatId,
-        "👋 <b>¡Hola! Soy PlaticApp</b>, tu copiloto financiero 💸\nPara empezar, vincula tu cuenta: abre la app web, genera tu código y mándamelo aquí (o usa el botón «Vincular Telegram»).\n\n¿Aún no tienes cuenta? Créala en " + APP_URL,
+        `${warmHello(msg.from?.first_name)}\nSoy PlaticApp, tu copiloto financiero 💸\nPara empezar, vincula tu cuenta: abre la app web, genera tu código y mándamelo aquí (o usa el botón «Vincular Telegram»).\n\n¿Aún no tienes cuenta? Créala en ${APP_URL}`,
       );
     }
     return;
@@ -205,7 +225,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   const userId = await resolveUserId(chatId);
   if (!userId) {
     const maybeCode = text.replace(/\s+/g, "");
-    if (/^[A-Za-z0-9]{6}$/.test(maybeCode)) return handleLinkCode(chatId, maybeCode, msg.from?.username);
+    if (/^[A-Za-z0-9]{6}$/.test(maybeCode)) return handleLinkCode(chatId, maybeCode, msg.from?.username, msg.from?.first_name);
     await telegram.sendMessage(
       chatId,
       `🔗 Me encantaría ayudarte, pero primero necesito que vinculemos tu cuenta 🙂\nAbre tu panel en ${APP_URL}, genera tu código de 6 dígitos y envíamelo aquí.`,

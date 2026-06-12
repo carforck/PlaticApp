@@ -6,9 +6,9 @@ import { useDashboard } from "@/lib/dashboard-context";
 import { Paginator, usePagination } from "./Paginator";
 
 const TAG = {
-  nuevo: { label: "Nuevo", cls: "bg-[#0a84ff]/12 text-[#0a84ff]" },
-  mejora: { label: "Mejora", cls: "bg-[#30d158]/12 text-[#1d8a3a]" },
-  arreglo: { label: "Arreglo", cls: "bg-[#ff9f0a]/15 text-[#b86e00]" },
+  nuevo: { label: "Nuevo", cls: "bg-[#0a84ff]/12 text-[#0a84ff]", accent: "#0a84ff" },
+  mejora: { label: "Mejora", cls: "bg-[#30d158]/14 text-[#1d8a3a]", accent: "#30d158" },
+  arreglo: { label: "Arreglo", cls: "bg-[#ff9f0a]/15 text-[#b86e00]", accent: "#ff9f0a" },
 } as const;
 
 export function NovedadesClient() {
@@ -26,21 +26,45 @@ export function NovedadesClient() {
 
   return (
     <main className="flex-1 space-y-4">
-      <header>
-        <h1 className="text-[26px] font-semibold tracking-tight">Novedades</h1>
-        <p className="text-[13px] text-[var(--color-ink-soft)]">Todo lo que PlaticApp puede hacer y lo que vamos lanzando</p>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-[26px] font-semibold tracking-tight">Novedades</h1>
+          <p className="text-[13px] text-[var(--color-ink-soft)]">Todo lo que PlaticApp puede hacer y lo que vamos lanzando</p>
+        </div>
+        {data.announcements.length > 0 && (
+          <span className="rounded-full bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] px-3 py-1 text-[12px] font-semibold text-white shadow-sm">
+            {data.announcements.length} {data.announcements.length === 1 ? "novedad" : "novedades"}
+          </span>
+        )}
       </header>
 
-      <div className="relative space-y-3 before:absolute before:bottom-2 before:left-[19px] before:top-2 before:w-px before:bg-black/10">
-        {pg.pageItems.map((a) => {
+      <div className="relative space-y-3 before:absolute before:bottom-3 before:left-[19px] before:top-3 before:w-[2px] before:rounded-full before:bg-gradient-to-b before:from-[#0a84ff]/40 before:via-[#bf5af2]/30 before:to-transparent">
+        {pg.pageItems.map((a, i) => {
           const tag = TAG[a.tag] ?? TAG.nuevo;
           return (
-            <div key={a.id} className="relative flex gap-3">
-              <span className="glass z-10 grid h-10 w-10 shrink-0 place-items-center rounded-full text-[18px]">{a.emoji}</span>
-              <div className="glass flex-1 rounded-[var(--radius-card)] p-4">
+            <div
+              key={a.id}
+              className="animate-float-in relative flex gap-3"
+              style={{ animationDelay: `${i * 70}ms` }}
+            >
+              <span
+                className="glass z-10 grid h-10 w-10 shrink-0 place-items-center rounded-full text-[18px]"
+                style={{ boxShadow: `0 0 0 2px ${tag.accent}55` }}
+              >
+                {a.emoji}
+              </span>
+              <div
+                className="glass flex-1 overflow-hidden rounded-[var(--radius-card)] border-l-[3px] p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
+                style={{ borderLeftColor: tag.accent }}
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-[15px] font-semibold">{a.title}</h3>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${tag.cls}`}>{tag.label}</span>
+                  {i === 0 && pg.page === 1 && (
+                    <span className="rounded-full bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                      Reciente
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-[13px] leading-snug text-[var(--color-ink-soft)]">{a.body}</p>
                 <p className="mt-1.5 text-[11px] text-[var(--color-ink-soft)]">
@@ -51,7 +75,10 @@ export function NovedadesClient() {
           );
         })}
         {data.announcements.length === 0 && (
-          <p className="text-[14px] text-[var(--color-ink-soft)]">Aún no hay novedades.</p>
+          <div className="glass rounded-[var(--radius-card)] p-10 text-center">
+            <p className="text-[32px]">📣</p>
+            <p className="mt-2 text-[14px] text-[var(--color-ink-soft)]">Aún no hay novedades. ¡Pronto verás aquí lo nuevo!</p>
+          </div>
         )}
       </div>
       {pg.needed && (
