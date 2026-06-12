@@ -6,6 +6,7 @@ import { ADMIN_EMAIL } from "@/lib/admin";
 import { fmtMoney } from "@/lib/format";
 import { Avatar } from "./Avatar";
 import { Paginator, usePagination } from "./Paginator";
+import { AdminMetrics } from "./AdminMetrics";
 
 interface AdminUser {
   id: string;
@@ -90,6 +91,8 @@ export function AdminClient() {
         <h1 className="text-[26px] font-semibold tracking-tight">Admin</h1>
         <p className="text-[13px] text-[var(--color-ink-soft)]">{today ? `📅 ${today} · ` : ""}usuarios registrados y su actividad</p>
       </header>
+
+      <AdminMetrics />
 
       <SystemHealth />
 
