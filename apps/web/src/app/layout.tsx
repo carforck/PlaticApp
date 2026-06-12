@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { LiquidBackground } from "@/components/LiquidBackground";
 
 export const metadata: Metadata = {
   title: "PlaticApp — control financiero por Telegram",
@@ -16,7 +17,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="app-wallpaper min-h-screen antialiased">{children}</body>
+      <body className="app-wallpaper min-h-screen antialiased">
+        <LiquidBackground />
+        {children}
+      </body>
     </html>
   );
 }

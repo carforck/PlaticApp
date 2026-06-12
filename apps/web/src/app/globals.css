@@ -138,6 +138,51 @@ body {
 }
 
 /* ──────────────────────────────────────────────────────────────
+   💧 Fondo "liquid glass" — orbes de color que flotan y morfan
+   lentamente detrás del contenido (el backdrop-blur del vidrio
+   los difumina dando el efecto líquido).
+   ────────────────────────────────────────────────────────────── */
+.liquid-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+}
+.liquid-blob {
+  position: absolute;
+  width: 46vw;
+  height: 46vw;
+  max-width: 720px;
+  max-height: 720px;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  will-change: transform;
+  animation: blob-float 22s ease-in-out infinite;
+}
+.dark .liquid-blob {
+  opacity: 0.4;
+}
+@keyframes blob-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(6vw, -4vw) scale(1.12);
+  }
+  66% {
+    transform: translate(-5vw, 5vw) scale(0.92);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .liquid-blob {
+    animation: none;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
    🌙 Dark mode — se activa con la clase .dark en <html>.
    Cambia los tokens base y reajusta las utilidades hardcodeadas
    (bg-white/…, border-black/…, bg-black/…) sin tocar componentes.
