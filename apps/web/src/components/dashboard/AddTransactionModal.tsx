@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { AccountRow, CategoryRow, TxRow } from "@/lib/queries";
+import { Sheet } from "./Sheet";
 
 const KINDS = [
   { value: "expense", label: "Gasto", emoji: "💸" },
@@ -120,23 +121,7 @@ export function AddTransactionModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="glass animate-float-in w-full max-w-md overflow-hidden rounded-[var(--radius-card)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
-          <span className="traffic-light bg-[#ff5f57]" />
-          <span className="traffic-light bg-[#febc2e]" />
-          <span className="traffic-light bg-[#28c840]" />
-          <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">
-            {isEdit ? "Editar movimiento" : "Registrar movimiento"}
-          </span>
-        </div>
-
+    <Sheet title={isEdit ? "Editar movimiento" : "Registrar movimiento"} onClose={onClose}>
         <form onSubmit={submit} className="space-y-4 p-6">
           {/* Segmented control de tipo */}
           <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-black/[0.05] p-1 sm:grid-cols-4">
@@ -294,7 +279,6 @@ export function AddTransactionModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Sheet>
   );
 }

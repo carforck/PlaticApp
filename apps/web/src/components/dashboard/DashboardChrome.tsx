@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useDashboard } from "@/lib/dashboard-context";
@@ -9,6 +9,7 @@ import { Avatar } from "./Avatar";
 import { TelegramConnectModal } from "./TelegramConnectModal";
 import { WelcomeModal } from "./WelcomeModal";
 import { SectionDescription } from "./SectionDescription";
+import { AddTransactionModal } from "./AddTransactionModal";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Resumen",
@@ -28,7 +29,7 @@ const TITLES: Record<string, string> = {
 export function DashboardChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { data, profile } = useDashboard();
+  const { data, profile, refresh } = useDashboard();
   const unread = data.announcements.filter(
     (a) => !profile.announcementsSeenAt || new Date(a.created_at) > new Date(profile.announcementsSeenAt),
   ).length;
@@ -36,6 +37,10 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
   const [connect, setConnect] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [welcome, setWelcome] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [pullPx, setPullPx] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const pullRef = useRef(0);
 
   // Muestra el modal de bienvenida una sola vez para usuarios nuevos.
   useEffect(() => {
@@ -88,10 +93,56 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
     };
   }, [open]);
 
+  // Pull-to-refresh: estando arriba del todo, jalar hacia abajo refresca los datos.
+  useEffect(() => {
+    let sy = 0, active = false;
+    const setP = (v: number) => { pullRef.current = v; setPullPx(v); };
+    const onStart = (e: TouchEvent) => {
+      active = window.scrollY <= 0 && !open;
+      sy = e.touches[0]?.clientY ?? 0;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!active) return;
+      const dy = (e.touches[0]?.clientY ?? 0) - sy;
+      if (dy > 0 && window.scrollY <= 0) setP(Math.min(80, dy * 0.5));
+      else { active = false; setP(0); }
+    };
+    const onEnd = async () => {
+      if (!active) return;
+      active = false;
+      if (pullRef.current > 45) {
+        setRefreshing(true);
+        await refresh();
+        setRefreshing(false);
+      }
+      setP(0);
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, [open, refresh]);
+
   const title = TITLES[pathname] ?? "PlaticApp";
 
   return (
     <div className="flex min-h-screen gap-4 p-3 sm:p-4">
+      {/* Indicador de pull-to-refresh (móvil) */}
+      {(pullPx > 0 || refreshing) && (
+        <div
+          className="pointer-events-none fixed inset-x-0 top-0 z-[55] flex justify-center md:hidden"
+          style={{ transform: `translateY(${refreshing ? 12 : Math.max(0, pullPx - 20)}px)`, opacity: refreshing ? 1 : Math.min(1, pullPx / 45) }}
+        >
+          <span className={`glass grid h-9 w-9 place-items-center rounded-full text-[16px] shadow-md ${refreshing ? "animate-spin" : ""}`}>
+            ↻
+          </span>
+        </div>
+      )}
+
       {/* Sidebar fijo en desktop */}
       <Sidebar />
 
@@ -172,6 +223,25 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
             setConnect(false);
             router.refresh();
           }}
+        />
+      )}
+
+      {/* Botón flotante de registro rápido — solo móvil */}
+      <button
+        onClick={() => setAdding(true)}
+        aria-label="Registrar movimiento"
+        className="btn-mac fixed bottom-[4.6rem] right-4 z-40 grid h-14 w-14 place-items-center rounded-full text-[26px] leading-none shadow-xl md:hidden"
+        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+      >
+        +
+      </button>
+
+      {adding && (
+        <AddTransactionModal
+          accounts={data.accounts}
+          categories={data.categories}
+          onClose={() => setAdding(false)}
+          onSaved={refresh}
         />
       )}
 
