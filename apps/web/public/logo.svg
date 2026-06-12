@@ -11,15 +11,10 @@
   </defs>
   <!-- ícono -->
   <g transform="translate(20,20)">
-    <rect width="280" height="280" rx="64" fill="url(#g)"/>
-    <g transform="rotate(-8 140 140)">
-      <rect x="44" y="97" width="192" height="86" rx="16" fill="#ffffff"/>
-      <circle cx="78" cy="140" r="8" fill="#0a84ff" opacity="0.25"/>
-      <circle cx="202" cy="140" r="8" fill="#bf5af2" opacity="0.3"/>
-      <text x="140" y="144" text-anchor="middle" dominant-baseline="central"
-        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif"
-        font-weight="800" font-size="86" fill="url(#g)">$</text>
-    </g>
+    <rect width="280" height="280" rx="74" fill="url(#g)"/>
+    <text x="140" y="156" text-anchor="middle" dominant-baseline="central"
+      font-family="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif"
+      font-size="150">💸</text>
   </g>
   <!-- wordmark -->
   <text x="330" y="178" dominant-baseline="central"

@@ -1,10 +1,10 @@
 import { ImageResponse } from "next/og";
 
-export const size = { width: 180, height: 180 };
+export const size = { width: 64, height: 64 };
 export const contentType = "image/png";
 
-/** Ícono para la pantalla de inicio en iOS: 💸 sobre el gradiente de la marca. */
-export default function AppleIcon() {
+/** Favicon: 💸 sobre cuadro con gradiente de la marca. */
+export default function Icon() {
   return new ImageResponse(
     (
       <div
@@ -14,7 +14,7 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 104,
+          fontSize: 38,
           background: "linear-gradient(135deg, #0a84ff, #bf5af2)",
         }}
       >

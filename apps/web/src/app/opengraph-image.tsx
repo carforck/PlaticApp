@@ -32,22 +32,10 @@ export default function OpengraphImage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              fontSize: 96,
             }}
           >
-            <div
-              style={{
-                width: 128,
-                height: 80,
-                borderRadius: 18,
-                background: "#ffffff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transform: "rotate(-8deg)",
-              }}
-            >
-              <div style={{ fontSize: 70, fontWeight: 800, color: "#0a84ff" }}>$</div>
-            </div>
+            💸
           </div>
           <div
             style={{
@@ -72,6 +60,6 @@ export default function OpengraphImage() {
         </div>
       </div>
     ),
-    { ...size },
+    { ...size, emoji: "twemoji" },
   );
 }
