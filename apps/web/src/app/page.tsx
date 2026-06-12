@@ -115,10 +115,17 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Quién está detrás */}
+      <section className="mx-auto max-w-6xl px-5 pb-4">
+        <h2 className="mb-4 text-center text-[14px] font-semibold uppercase tracking-[0.15em] text-[var(--color-ink-soft)]">
+          Quién está detrás
+        </h2>
+        <DevCredit withPhoto />
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-black/5 py-8">
-        <DevCredit />
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[12px] text-[var(--color-ink-soft)]">
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[12px] text-[var(--color-ink-soft)]">
           <Link href="/privacidad" className="hover:text-[var(--color-ink)]">Política de Privacidad</Link>
           <span>·</span>
           <Link href="/login" className="hover:text-[var(--color-ink)]">Iniciar sesión</Link>
