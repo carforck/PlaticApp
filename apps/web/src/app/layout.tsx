@@ -24,8 +24,9 @@ export const metadata: Metadata = {
   },
 };
 
-// Aplica el tema guardado antes de pintar (evita parpadeo claro→oscuro).
-const themeScript = `(function(){try{var t=localStorage.getItem('platica-theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})();`;
+// Tema oscuro por defecto; solo claro si el usuario lo eligió con el interruptor.
+// Se aplica antes de pintar para evitar parpadeo.
+const themeScript = `(function(){try{var t=localStorage.getItem('platica-theme');if(t!=='light'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){document.documentElement.classList.add('dark')}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
