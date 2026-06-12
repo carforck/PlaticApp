@@ -11,21 +11,33 @@ import { SECTION_DESC } from "@/lib/sections";
 import { Avatar } from "./Avatar";
 import { ThemeToggle } from "./ThemeToggle";
 
-const NAV = [
-  { label: "Resumen", icon: "🏠", href: "/dashboard" },
-  { label: "Novedades", icon: "🔔", href: "/dashboard/novedades" },
-  { label: "Movimientos", icon: "💸", href: "/dashboard/movimientos" },
-  { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
-  { label: "Deudas", icon: "🤝", href: "/dashboard/deudas" },
-  { label: "Presupuestos", icon: "🎯", href: "/dashboard/presupuestos" },
-  { label: "Recurrentes", icon: "🔁", href: "/dashboard/recurrentes" },
-  { label: "Recibos", icon: "🧾", href: "/dashboard/recibos" },
-  { label: "Inversiones", icon: "📈", href: "/dashboard/inversiones" },
-  { label: "Categorías", icon: "🏷️", href: "/dashboard/categorias" },
-  { label: "Perfil", icon: "👤", href: "/dashboard/perfil" },
+const NAV_GROUPS = [
+  {
+    title: "Principal",
+    items: [
+      { label: "Resumen", icon: "🏠", href: "/dashboard" },
+      { label: "Movimientos", icon: "💸", href: "/dashboard/movimientos" },
+      { label: "Novedades", icon: "🔔", href: "/dashboard/novedades" },
+    ],
+  },
+  {
+    title: "Finanzas",
+    items: [
+      { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
+      { label: "Deudas", icon: "🤝", href: "/dashboard/deudas" },
+      { label: "Inversiones", icon: "📈", href: "/dashboard/inversiones" },
+      { label: "Presupuestos", icon: "🎯", href: "/dashboard/presupuestos" },
+      { label: "Pagos fijos", icon: "🔁", href: "/dashboard/recurrentes" },
+    ],
+  },
+  {
+    title: "Registros",
+    items: [
+      { label: "Recibos", icon: "🧾", href: "/dashboard/recibos" },
+      { label: "Categorías", icon: "🏷️", href: "/dashboard/categorias" },
+    ],
+  },
 ] as const;
-
-const SOON: { label: string; icon: string }[] = [];
 
 export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
   const pathname = usePathname();
@@ -74,49 +86,31 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
         </div>
       </Link>
 
-      <nav className="mt-2 space-y-0.5">
-        {NAV.map((n) => {
-          const active = pathname === n.href;
-          return (
-            <Link
-              key={n.href}
-              href={n.href}
-              title={SECTION_DESC[n.href] ?? n.label}
-              className={`flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[14px] transition ${
-                active ? "bg-[var(--color-accent)] text-white shadow-sm" : "hover:bg-black/5"
-              }`}
-            >
-              <span className="text-[15px]">{n.icon}</span>
-              {n.label}
-              {n.href === "/dashboard/novedades" && unread > 0 && (
-                <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#ff375f] px-1 text-[11px] font-semibold text-white">
-                  {unread}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-        {profile.email === ADMIN_EMAIL && (
-          <Link
-            href="/dashboard/admin"
-            className={`flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[14px] transition ${
-              pathname === "/dashboard/admin" ? "bg-[var(--color-accent)] text-white shadow-sm" : "hover:bg-black/5"
-            }`}
-          >
-            <span className="text-[15px]">🛡️</span>
-            Admin
-          </Link>
-        )}
-        {SOON.map((n) => (
-          <span
-            key={n.label}
-            className="flex w-full cursor-default items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[14px] text-[var(--color-ink-soft)] opacity-50"
-            title="Próximamente"
-          >
-            <span className="text-[15px]">{n.icon}</span>
-            {n.label}
-          </span>
+      <nav className="mt-1 flex-1 overflow-y-auto">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.title} className="mb-1">
+            <p className="px-2.5 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-soft)]/70">
+              {group.title}
+            </p>
+            <div className="space-y-0.5">
+              {group.items.map((n) => (
+                <NavLink key={n.href} href={n.href} icon={n.icon} label={n.label} active={pathname === n.href} badge={n.href === "/dashboard/novedades" ? unread : 0} />
+              ))}
+            </div>
+          </div>
         ))}
+
+        <div className="mb-1">
+          <p className="px-2.5 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-soft)]/70">
+            Cuenta
+          </p>
+          <div className="space-y-0.5">
+            <NavLink href="/dashboard/perfil" icon="👤" label="Perfil" active={pathname === "/dashboard/perfil"} badge={0} />
+            {profile.email === ADMIN_EMAIL && (
+              <NavLink href="/dashboard/admin" icon="🛡️" label="Admin" active={pathname === "/dashboard/admin"} badge={0} />
+            )}
+          </div>
+        </div>
       </nav>
 
       <div className="mt-auto space-y-2">
@@ -156,5 +150,37 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
         </button>
       </div>
     </aside>
+  );
+}
+
+function NavLink({
+  href,
+  icon,
+  label,
+  active,
+  badge,
+}: {
+  href: string;
+  icon: string;
+  label: string;
+  active: boolean;
+  badge: number;
+}) {
+  return (
+    <Link
+      href={href}
+      title={SECTION_DESC[href] ?? label}
+      className={`flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-[14px] transition ${
+        active ? "bg-[var(--color-accent)] text-white shadow-sm" : "hover:bg-black/5"
+      }`}
+    >
+      <span className="text-[15px]">{icon}</span>
+      {label}
+      {badge > 0 && (
+        <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#ff375f] px-1 text-[11px] font-semibold text-white">
+          {badge}
+        </span>
+      )}
+    </Link>
   );
 }
