@@ -67,8 +67,14 @@ export function DashboardClient() {
         <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint="Este mes" />
       </section>
 
-      {/* Pistas del mes: proyección, días restantes y racha */}
-      <section className="grid gap-3 sm:grid-cols-3">
+      {/* Pistas del mes: colchón, proyección, racha y próximo pago */}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <InsightPill
+          icon="🛟"
+          title="Colchón financiero"
+          value={d.runwayLabel}
+          sub="lo que cubrirías sin ingresos, a tu ritmo de gasto"
+        />
         <InsightPill
           icon="📈"
           title="Proyección de gastos"
@@ -470,6 +476,25 @@ function useDerived(data: DashboardData) {
 
     const budgetsAtRisk = budgetsProgress.filter((b) => b.pct >= 80);
 
+    // Colchón financiero (runway): dinero líquido ÷ gasto mensual promedio.
+    // Líquido = banco + efectivo + billetera (no crédito ni inversión).
+    const liquid = data.accounts
+      .filter((a) => a.type === "bank" || a.type === "cash" || a.type === "wallet")
+      .reduce((s, a) => s + a.balance_minor, 0);
+    const outMonths = cashflow.map((c) => c.gastos).filter((g) => g > 0);
+    const avgOut = outMonths.length ? outMonths.reduce((a, b) => a + b, 0) / outMonths.length : expense;
+    const runwayMonths = avgOut > 0 ? liquid / avgOut : null;
+    const runwayLabel =
+      liquid <= 0
+        ? "Sin saldo"
+        : runwayMonths === null
+          ? "Sin gastos aún"
+          : runwayMonths >= 12
+            ? "12+ meses"
+            : runwayMonths >= 1
+              ? `${runwayMonths.toFixed(1)} meses`
+              : `${Math.max(1, Math.round(runwayMonths * 30))} días`;
+
     // Próximo pago fijo (la recurrencia activa con vencimiento más cercano, de hoy en adelante).
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const nextPayment = data.recurrences
@@ -489,6 +514,7 @@ function useDerived(data: DashboardData) {
       spendingByCategory,
       cashflow,
       netWorthSeries,
+      runwayLabel,
       theyOwe,
       iOwe,
       netWorthAdjusted: netWorth + theyOwe - iOwe,
