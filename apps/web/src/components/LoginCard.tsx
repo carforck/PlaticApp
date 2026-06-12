@@ -211,7 +211,7 @@ export function LoginCard() {
             </button>
 
             {/* Telegram, justo debajo de Google */}
-            <TelegramLoginButton onError={(m) => { setStatus("error"); setMessage(m); }} />
+            <TelegramLoginButton disabled={status === "loading"} onError={(m) => { setStatus("error"); setMessage(m); }} />
 
             <button type="button" onClick={handleMagicLink} disabled={status === "loading"} className="w-full rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium text-[var(--color-ink)] transition hover:bg-white/90 disabled:opacity-60">
               ✉️ Enviarme un enlace mágico
