@@ -21,12 +21,24 @@ const tooltipStyle = {
 
 export function AdminMetrics() {
   const [m, setM] = useState<Metrics | null>(null);
+  const [err, setErr] = useState("");
+
+  const load = async () => {
+    try {
+      const r = await fetch("/api/admin/metrics");
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setErr(`Error ${r.status}${j.error ? ` · ${j.error}` : ""}`);
+        return;
+      }
+      setM(await r.json());
+      setErr("");
+    } catch (e) {
+      setErr((e as Error).message || "No se pudo cargar");
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      const r = await fetch("/api/admin/metrics");
-      if (r.ok) setM(await r.json());
-    };
     void load();
     const id = setInterval(load, 60000);
     return () => clearInterval(id);
@@ -36,7 +48,16 @@ export function AdminMetrics() {
     return (
       <section className="glass rounded-[var(--radius-card)] p-5">
         <h2 className="text-[15px] font-semibold">📈 Métricas de usuarios</h2>
-        <p className="mt-2 text-[13px] text-[var(--color-ink-soft)]">Cargando gráficas…</p>
+        {err ? (
+          <div className="mt-2 flex items-center gap-3">
+            <p className="text-[13px] text-[#ff375f]">{err}</p>
+            <button onClick={() => void load()} className="rounded-[8px] border border-black/10 bg-white/60 px-3 py-1 text-[12px] font-medium hover:bg-white/90">
+              Reintentar
+            </button>
+          </div>
+        ) : (
+          <p className="mt-2 text-[13px] text-[var(--color-ink-soft)]">Cargando gráficas…</p>
+        )}
       </section>
     );
   }
