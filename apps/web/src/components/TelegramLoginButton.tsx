@@ -73,5 +73,5 @@ export function TelegramLoginButton({ onError }: { onError?: (msg: string) => vo
     };
   }, [router, onError]);
 
-  return <div ref={ref} className="flex justify-center sm:justify-start" />;
+  return <div ref={ref} className="flex min-h-[44px] items-center justify-center" />;
 }
