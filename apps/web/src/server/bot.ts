@@ -527,11 +527,26 @@ async function saveReceipt(
 ): Promise<void> {
   try {
     const db = createAdminClient();
-    const ext = mimeHint.includes("png") ? "png" : "jpg";
+
+    // Optimiza: redimensiona y convierte a WebP (ahorra ~70-85% de espacio).
+    let data: Buffer = Buffer.from(bytes);
+    let contentType = mimeHint;
+    let ext = mimeHint.includes("png") ? "png" : "jpg";
+    try {
+      const sharp = (await import("sharp")).default;
+      data = await sharp(Buffer.from(bytes))
+        .rotate() // respeta la orientación EXIF
+        .resize({ width: 1280, height: 1280, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 78 })
+        .toBuffer();
+      contentType = "image/webp";
+      ext = "webp";
+    } catch {
+      /* si sharp falla, sube el original */
+    }
+
     const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-    const { error } = await db.storage
-      .from("receipts")
-      .upload(path, Buffer.from(bytes), { contentType: mimeHint, upsert: false });
+    const { error } = await db.storage.from("receipts").upload(path, data, { contentType, upsert: false });
     if (error) return;
     const summary =
       caption ||

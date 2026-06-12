@@ -47,6 +47,14 @@ export function DashboardProvider({
     setData(await fetchDashboard(supabase));
   }, [supabase]);
 
+  // Heartbeat: marca al usuario como "en línea" cada minuto (para el admin).
+  useEffect(() => {
+    const ping = () => void fetch("/api/me/heartbeat", { method: "POST" });
+    ping();
+    const id = setInterval(ping, 60000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     const channel = supabase
       .channel("platica-live")

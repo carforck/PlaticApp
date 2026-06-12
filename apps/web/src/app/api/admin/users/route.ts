@@ -17,14 +17,27 @@ export async function GET() {
   }
 
   const db = createAdminClient();
-  const [{ data: list }, tx, accts, balances, debts, links] = await Promise.all([
+  const [{ data: list }, tx, accts, balances, debts, links, profs] = await Promise.all([
     db.auth.admin.listUsers({ perPage: 1000 }),
     db.from("transactions").select("user_id"),
     db.from("accounts").select("user_id"),
     db.from("account_balances").select("user_id, balance_minor"),
     db.from("debts").select("user_id, status"),
     db.from("telegram_links").select("user_id, telegram_username, linked_at"),
+    db.from("profiles").select("id, last_seen"),
   ]);
+
+  // Espacio en Storage por usuario (carpeta receipts/{user_id}).
+  const storageByUser = new Map<string, number>();
+  await Promise.all(
+    (list?.users ?? []).map(async (u) => {
+      const { data: files } = await db.storage.from("receipts").list(u.id, { limit: 1000 });
+      const bytes = (files ?? []).reduce((s, f) => s + (((f.metadata as { size?: number })?.size) ?? 0), 0);
+      storageByUser.set(u.id, bytes);
+    }),
+  );
+  const lastSeenByUser = new Map((profs.data ?? []).map((p) => [p.id, p.last_seen as string | null]));
+  const ONLINE_MS = 3 * 60 * 1000;
 
   const tally = (rows: { user_id: string }[] | null) => {
     const m = new Map<string, number>();
@@ -57,6 +70,12 @@ export async function GET() {
         accounts: acctByUser.get(u.id) ?? 0,
         netWorth: netByUser.get(u.id) ?? 0,
         openDebts: debtOpenByUser.get(u.id) ?? 0,
+        storageBytes: storageByUser.get(u.id) ?? 0,
+        lastSeen: lastSeenByUser.get(u.id) ?? null,
+        online: (() => {
+          const ls = lastSeenByUser.get(u.id);
+          return ls ? Date.now() - new Date(ls).getTime() < ONLINE_MS : false;
+        })(),
       };
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -64,6 +83,8 @@ export async function GET() {
   return NextResponse.json({
     total: users.length,
     linked: users.filter((u) => u.telegram).length,
+    online: users.filter((u) => u.online).length,
+    storageTotal: users.reduce((s, u) => s + u.storageBytes, 0),
     users,
   });
 }

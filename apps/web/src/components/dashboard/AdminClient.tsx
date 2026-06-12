@@ -14,17 +14,35 @@ interface AdminUser {
   provider: string;
   createdAt: string;
   lastSignIn: string | null;
+  lastSeen: string | null;
+  online: boolean;
   telegram: string | null;
   transactions: number;
   accounts: number;
   netWorth: number;
   openDebts: number;
+  storageBytes: number;
 }
+
+const fmtBytes = (b: number) => {
+  if (b >= 1_000_000) return `${(b / 1_000_000).toFixed(1)} MB`;
+  if (b >= 1000) return `${Math.round(b / 1000)} KB`;
+  return `${b} B`;
+};
+const sinceText = (iso: string | null) => {
+  if (!iso) return "—";
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "ahora";
+  if (m < 60) return `hace ${m} min`;
+  if (m < 1440) return `hace ${Math.floor(m / 60)} h`;
+  return `hace ${Math.floor(m / 1440)} d`;
+};
 
 export function AdminClient() {
   const { profile, refresh } = useDashboard();
-  const [data, setData] = useState<{ total: number; linked: number; users: AdminUser[] } | null>(null);
+  const [data, setData] = useState<{ total: number; linked: number; online: number; storageTotal: number; users: AdminUser[] } | null>(null);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<AdminUser | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -56,10 +74,11 @@ export function AdminClient() {
 
       <PublishAnnouncement onPublished={refresh} />
 
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat label="Usuarios" value={`${data?.total ?? "—"}`} />
         <Stat label="Con Telegram" value={`${data?.linked ?? "—"}`} />
-        <Stat label="Activos hoy" value={`${data?.users.filter((u) => u.lastSignIn && new Date(u.lastSignIn).toDateString() === new Date().toDateString()).length ?? "—"}`} />
+        <Stat label="En línea" value={`${data?.online ?? "—"}`} />
+        <Stat label="Almacenamiento" value={data ? fmtBytes(data.storageTotal) : "—"} />
       </section>
 
       <div className="glass overflow-hidden rounded-[var(--radius-card)]">
@@ -73,33 +92,47 @@ export function AdminClient() {
               <thead>
                 <tr className="border-b border-black/5 text-left text-[12px] text-[var(--color-ink-soft)]">
                   <th className="px-4 py-3 font-medium">Usuario</th>
-                  <th className="px-3 py-3 font-medium">Registro</th>
-                  <th className="hidden px-3 py-3 font-medium sm:table-cell">Acceso</th>
-                  <th className="px-3 py-3 font-medium">Telegram</th>
+                  <th className="px-3 py-3 font-medium">Actividad</th>
+                  <th className="hidden px-3 py-3 font-medium sm:table-cell">Telegram</th>
                   <th className="px-3 py-3 text-right font-medium">Mov.</th>
-                  <th className="hidden px-3 py-3 text-right font-medium sm:table-cell">Cuentas</th>
+                  <th className="px-3 py-3 text-right font-medium">Espacio</th>
                   <th className="px-4 py-3 text-right font-medium">Patrimonio</th>
                 </tr>
               </thead>
               <tbody>
                 {data.users.map((u) => (
-                  <tr key={u.id} className="border-b border-black/5 last:border-0 hover:bg-black/[0.02]">
+                  <tr
+                    key={u.id}
+                    onClick={() => setSelected(u)}
+                    className="cursor-pointer border-b border-black/5 last:border-0 hover:bg-black/[0.03]"
+                  >
                     <td className="px-4 py-2.5">
                       <span className="flex items-center gap-2.5">
-                        <Avatar url={u.avatar} name={u.name || u.email} size={30} />
+                        <span className="relative shrink-0">
+                          <Avatar url={u.avatar} name={u.name || u.email} size={30} />
+                          {u.online && (
+                            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-[#30d158]" title="En línea" />
+                          )}
+                        </span>
                         <span className="min-w-0">
                           <span className="block truncate font-medium">{u.name || "—"}</span>
                           <span className="block truncate text-[11px] text-[var(--color-ink-soft)]">{u.email}</span>
                         </span>
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-[var(--color-ink-soft)]">{fmtDate(u.createdAt)}</td>
-                    <td className="hidden px-3 py-2.5 text-[var(--color-ink-soft)] sm:table-cell">{fmtDate(u.lastSignIn)}</td>
                     <td className="px-3 py-2.5">
+                      {u.online ? (
+                        <span className="font-medium text-[#30d158]">En línea</span>
+                      ) : (
+                        <span className="text-[var(--color-ink-soft)]">{sinceText(u.lastSeen)}</span>
+                      )}
+                      <span className="block text-[11px] text-[var(--color-ink-soft)]">alta {fmtDate(u.createdAt)}</span>
+                    </td>
+                    <td className="hidden px-3 py-2.5 sm:table-cell">
                       {u.telegram ? <span className="text-[#30d158]">✓ {u.telegram}</span> : <span className="text-[var(--color-ink-soft)]">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right">{u.transactions}</td>
-                    <td className="hidden px-3 py-2.5 text-right sm:table-cell">{u.accounts}</td>
+                    <td className="px-3 py-2.5 text-right text-[var(--color-ink-soft)]">{fmtBytes(u.storageBytes)}</td>
                     <td className="px-4 py-2.5 text-right font-semibold">{fmtMoney(u.netWorth)}</td>
                   </tr>
                 ))}
@@ -108,7 +141,123 @@ export function AdminClient() {
           </div>
         )}
       </div>
+
+      {selected && <UserDetailModal user={selected} onClose={() => setSelected(null)} />}
     </main>
+  );
+}
+
+interface UserDetail {
+  netWorth: number;
+  accounts: { name: string; type: string; balance_minor: number }[];
+  recent: { kind: string; amount: number; description: string | null; category: string | null; emoji: string | null; when: string }[];
+  debtOwe: number;
+  debtOwed: number;
+}
+
+function UserDetailModal({ user, onClose }: { user: AdminUser; onClose: () => void }) {
+  const [detail, setDetail] = useState<UserDetail | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch(`/api/admin/user?id=${user.id}`);
+      if (res.ok) setDetail(await res.json());
+      else setError("No se pudo cargar el detalle.");
+    })();
+  }, [user.id]);
+
+  const kindColor = (k: string) =>
+    k === "income" ? "text-[#30d158]" : k === "expense" ? "text-[#ff375f]" : "text-[var(--color-ink-soft)]";
+  const kindSign = (k: string) => (k === "income" ? "+" : k === "expense" ? "−" : "");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="glass relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius-card)] p-6"
+      >
+        <button onClick={onClose} className="absolute right-4 top-4 text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">✕</button>
+
+        <div className="flex items-center gap-3">
+          <span className="relative shrink-0">
+            <Avatar url={user.avatar} name={user.name || user.email} size={48} />
+            {user.online && <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#30d158]" />}
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-[18px] font-semibold">{user.name || "Sin nombre"}</h2>
+            <p className="truncate text-[12px] text-[var(--color-ink-soft)]">{user.email}</p>
+            <p className="text-[11px] text-[var(--color-ink-soft)]">
+              {user.online ? "En línea ahora" : `Última actividad ${sinceText(user.lastSeen)}`} · {fmtBytes(user.storageBytes)} en recibos
+            </p>
+          </div>
+        </div>
+
+        {error ? (
+          <p className="mt-6 text-center text-[13px] text-[#ff375f]">{error}</p>
+        ) : !detail ? (
+          <p className="mt-6 text-center text-[13px] text-[var(--color-ink-soft)]">Cargando…</p>
+        ) : (
+          <>
+            <div className="mt-5 grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-[var(--radius-control)] bg-black/[0.03] p-3">
+                <p className="text-[11px] text-[var(--color-ink-soft)]">Patrimonio</p>
+                <p className="mt-0.5 text-[15px] font-semibold">{fmtMoney(detail.netWorth)}</p>
+              </div>
+              <div className="rounded-[var(--radius-control)] bg-black/[0.03] p-3">
+                <p className="text-[11px] text-[var(--color-ink-soft)]">Debo</p>
+                <p className="mt-0.5 text-[15px] font-semibold text-[#ff375f]">{fmtMoney(detail.debtOwe)}</p>
+              </div>
+              <div className="rounded-[var(--radius-control)] bg-black/[0.03] p-3">
+                <p className="text-[11px] text-[var(--color-ink-soft)]">Me deben</p>
+                <p className="mt-0.5 text-[15px] font-semibold text-[#30d158]">{fmtMoney(detail.debtOwed)}</p>
+              </div>
+            </div>
+
+            {detail.accounts.length > 0 && (
+              <div className="mt-5">
+                <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Cuentas</h3>
+                <div className="space-y-1.5">
+                  {detail.accounts.map((a, i) => (
+                    <div key={i} className="flex items-center justify-between text-[13px]">
+                      <span className="truncate">{a.name}</span>
+                      <span className="font-medium">{fmtMoney(a.balance_minor)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-5">
+              <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Movimientos recientes</h3>
+              {detail.recent.length === 0 ? (
+                <p className="text-[13px] text-[var(--color-ink-soft)]">Sin movimientos aún.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {detail.recent.map((t, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 text-[13px]">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span>{t.emoji ?? "•"}</span>
+                        <span className="min-w-0">
+                          <span className="block truncate">{t.description || t.category || "Movimiento"}</span>
+                          <span className="block text-[11px] text-[var(--color-ink-soft)]">
+                            {new Date(t.when).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}
+                          </span>
+                        </span>
+                      </span>
+                      <span className={`shrink-0 font-medium ${kindColor(t.kind)}`}>
+                        {kindSign(t.kind)}{fmtMoney(t.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
