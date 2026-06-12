@@ -356,9 +356,17 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
         `${single.description ? ` · ${single.description}` : ""}`;
       const note = unknownHint ? `\n🔎 No encontré «${single.accountHint}» entre tus cuentas.` : "";
 
-      const accBtns = accounts.slice(0, 8).map((a) => ({
+      // El callback_data de Telegram está limitado a 64 bytes: referenciamos la
+      // cuenta por índice y guardamos las opciones en el borrador.
+      const choices = accounts.slice(0, 8);
+      await db
+        .from("pending_drafts")
+        .update({ draft: { items, debts, recurrences, accountChoices: choices.map((a) => a.id) } })
+        .eq("id", data.id);
+
+      const accBtns = choices.map((a, i) => ({
         text: `${ACCOUNT_EMOJI[a.type] ?? "💼"} ${a.name}`,
-        callback_data: `selacc:${data.id}:${a.id}`,
+        callback_data: `selacc:${data.id}:${i}`,
       }));
       const rows: { text: string; callback_data: string }[][] = [];
       for (let i = 0; i < accBtns.length; i += 2) rows.push(accBtns.slice(i, i + 2));
@@ -490,7 +498,8 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   // así el caso de uso la resuelve sin crear nada). «newacc» deja el hint tal cual,
   // para que se cree la cuenta mencionada.
   if (action === "selacc") {
-    const accountId = seg[2];
+    const idx = Number(seg[2]);
+    const accountId = ((row.draft?.accountChoices ?? []) as string[])[idx];
     const { data: acc } = await db
       .from("accounts")
       .select("name, type")
