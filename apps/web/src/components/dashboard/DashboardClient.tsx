@@ -16,16 +16,15 @@ export function DashboardClient() {
   const d = useDerived(data);
   const firstName = (profile.displayName || "").trim().split(/\s+/)[0];
 
-  // Fecha de hoy (se fija tras montar para evitar desajustes de hidratación).
+  // Fecha de hoy y saludo (se fijan tras montar para evitar desajustes de hidratación).
   const [today, setToday] = useState("");
+  const [greeting, setGreeting] = useState("Hola");
   useEffect(() => {
-    const fmt = new Date().toLocaleDateString("es-CO", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    const now = new Date();
+    const fmt = now.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     setToday(fmt.charAt(0).toUpperCase() + fmt.slice(1));
+    const h = now.getHours();
+    setGreeting(h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches");
   }, []);
 
   return (
@@ -33,7 +32,7 @@ export function DashboardClient() {
       <header className="flex items-center justify-between">
         <div>
           <p className="text-[13px] font-medium text-[var(--color-ink-soft)]">
-            👋 Hola{firstName ? `, ${firstName}` : ""}
+            👋 {greeting}{firstName ? `, ${firstName}` : ""}
           </p>
           <h1 className="text-[26px] font-semibold tracking-tight">Resumen</h1>
           <p className="text-[12px] text-[var(--color-ink-soft)]">
@@ -54,8 +53,8 @@ export function DashboardClient() {
           accent="text-[var(--color-ink)]"
           hint={d.theyOwe || d.iOwe ? `Con deudas: ${fmtMoney(d.netWorthAdjusted)}` : "Saldo total"}
         />
-        <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint="Este mes" />
-        <StatCard label="Gastos" amount={d.expense} format={fmtMoney} accent="text-[#ff375f]" hint="Este mes" />
+        <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint={trendHint(d.incomeChange)} />
+        <StatCard label="Gastos" amount={d.expense} format={fmtMoney} accent="text-[#ff375f]" hint={trendHint(d.expenseChange)} />
         <StatCard
           label="Balance del mes"
           amount={d.balance}
@@ -66,6 +65,50 @@ export function DashboardClient() {
         <StatCard label="Tasa de ahorro" amount={d.savingsRate} format={(n) => `${n}%`} accent="text-[#0a84ff]" hint="Del ingreso" />
         <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint="Este mes" />
       </section>
+
+      {/* Pistas del mes: proyección, días restantes y racha */}
+      <section className="grid gap-3 sm:grid-cols-3">
+        <InsightPill
+          icon="📈"
+          title="Proyección de gastos"
+          value={fmtMoney(d.projectedExpense)}
+          sub={`A este ritmo cerrarías el mes así · faltan ${d.daysLeft} días`}
+        />
+        <InsightPill
+          icon="🔥"
+          title="Racha de registro"
+          value={d.streak > 0 ? `${d.streak} ${d.streak === 1 ? "día" : "días"}` : "Sin racha"}
+          sub={d.streak > 0 ? "días seguidos registrando · ¡no la rompas!" : "registra hoy para empezar una"}
+        />
+        {d.nextPayment ? (
+          <InsightPill
+            icon="🔔"
+            title="Próximo pago fijo"
+            value={fmtMoney(d.nextPayment.amount_minor, d.nextPayment.currency)}
+            sub={`${d.nextPayment.name} · ${dueText(d.nextPayment.due)}`}
+            href="/dashboard/recurrentes"
+          />
+        ) : (
+          <InsightPill icon="🔁" title="Pagos fijos" value="Ninguno" sub="agrega tus pagos recurrentes" href="/dashboard/recurrentes" />
+        )}
+      </section>
+
+      {d.budgetsAtRisk.length > 0 && (
+        <Link
+          href="/dashboard/presupuestos"
+          className="flex items-center justify-between rounded-[var(--radius-card)] border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 p-4 transition hover:brightness-[1.02]"
+        >
+          <span className="text-[13px] font-medium text-[#b86e00]">
+            ⚠️ {d.budgetsAtRisk.length} {d.budgetsAtRisk.length === 1 ? "presupuesto" : "presupuestos"} en riesgo este mes
+          </span>
+          <span className="flex items-center gap-3 text-[13px] text-[#b86e00]">
+            {d.budgetsAtRisk.slice(0, 2).map((b) => (
+              <span key={b.id}>{b.emoji} {b.name} {b.pct}%</span>
+            ))}
+            <span>→</span>
+          </span>
+        </Link>
+      )}
 
       {(d.theyOwe > 0 || d.iOwe > 0) && (
         <Link
@@ -247,6 +290,47 @@ export function DashboardClient() {
   );
 }
 
+function trendHint(change: number | null): string {
+  if (change === null) return "Este mes";
+  if (change === 0) return "Igual que el mes pasado";
+  return `${change > 0 ? "▲" : "▼"} ${Math.abs(change)}% vs. mes anterior`;
+}
+
+function dueText(due: Date): string {
+  const now = new Date();
+  const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const b = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const days = Math.round((b.getTime() - a.getTime()) / 86_400_000);
+  if (days <= 0) return "vence hoy";
+  if (days === 1) return "vence mañana";
+  return `vence en ${days} días`;
+}
+
+function InsightPill({
+  icon,
+  title,
+  value,
+  sub,
+  href,
+}: {
+  icon: string;
+  title: string;
+  value: string;
+  sub: string;
+  href?: string;
+}) {
+  const inner = (
+    <div className="glass h-full rounded-[var(--radius-card)] p-4 transition hover:brightness-[1.02]">
+      <p className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--color-ink-soft)]">
+        <span>{icon}</span> {title}
+      </p>
+      <p className="mt-1 text-[18px] font-semibold tracking-tight">{value}</p>
+      <p className="mt-0.5 text-[11px] leading-snug text-[var(--color-ink-soft)]">{sub}</p>
+    </div>
+  );
+  return href ? <Link href={href}>{inner}</Link> : inner;
+}
+
 function StatCard({
   label,
   amount,
@@ -279,29 +363,60 @@ function useDerived(data: DashboardData) {
 
     const now = new Date();
     const monthKey = (dt: Date) => `${dt.getFullYear()}-${dt.getMonth()}`;
+    const dayKeyOf = (dt: Date) => `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
     const thisKey = monthKey(now);
+    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevKey = monthKey(prevDate);
 
     let income = 0;
     let expense = 0;
     let invested = 0;
+    let prevIncome = 0;
+    let prevExpense = 0;
     const byCat = new Map<string, number>();
+    const daysWithTx = new Set<string>();
     // Acumuladores por mes para la serie de flujo.
     const monthAgg = new Map<string, { ingresos: number; gastos: number }>();
 
     for (const t of data.transactions) {
       const dt = new Date(t.occurred_at);
       const k = monthKey(dt);
+      daysWithTx.add(dayKeyOf(dt));
       const agg = monthAgg.get(k) ?? { ingresos: 0, gastos: 0 };
       if (t.kind === "income") agg.ingresos += t.amount_minor;
       else agg.gastos += t.amount_minor; // gasto/inversión/transfer cuentan como salida
       monthAgg.set(k, agg);
 
+      if (k === prevKey) {
+        if (t.kind === "income") prevIncome += t.amount_minor;
+        else if (t.kind === "expense") prevExpense += t.amount_minor;
+      }
       if (k !== thisKey) continue;
       if (t.kind === "income") income += t.amount_minor;
       else if (t.kind === "expense") {
         expense += t.amount_minor;
         byCat.set(t.category_id ?? "otros", (byCat.get(t.category_id ?? "otros") ?? 0) + t.amount_minor);
       } else if (t.kind === "investment") invested += t.amount_minor;
+    }
+
+    // Variación vs. mes anterior (porcentaje).
+    const pctChange = (cur: number, prev: number) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null);
+    const incomeChange = pctChange(income, prevIncome);
+    const expenseChange = pctChange(expense, prevExpense);
+
+    // Ritmo de gasto del mes y proyección al cierre.
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysLeft = daysInMonth - dayOfMonth;
+    const projectedExpense = dayOfMonth > 0 ? Math.round((expense / dayOfMonth) * daysInMonth) : expense;
+
+    // Racha de días consecutivos registrando (termina hoy o ayer).
+    let streak = 0;
+    const cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (!daysWithTx.has(dayKeyOf(cursor))) cursor.setDate(cursor.getDate() - 1);
+    while (daysWithTx.has(dayKeyOf(cursor))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
     }
 
     const spendingByCategory = [...byCat.entries()]
@@ -350,8 +465,17 @@ function useDerived(data: DashboardData) {
           pct: Math.round((spent / b.amount_minor) * 100),
         };
       })
-      .sort((a, b) => b.pct - a.pct)
-      .slice(0, 4);
+      .sort((a, b) => b.pct - a.pct);
+
+    const budgetsAtRisk = budgetsProgress.filter((b) => b.pct >= 80);
+
+    // Próximo pago fijo (la recurrencia activa con vencimiento más cercano, de hoy en adelante).
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const nextPayment = data.recurrences
+      .filter((r) => r.active && r.next_due)
+      .map((r) => ({ ...r, due: new Date(`${r.next_due}T12:00:00`) }))
+      .filter((r) => r.due >= startOfToday)
+      .sort((a, b) => a.due.getTime() - b.due.getTime())[0] ?? null;
 
     return {
       catById,
@@ -367,7 +491,14 @@ function useDerived(data: DashboardData) {
       theyOwe,
       iOwe,
       netWorthAdjusted: netWorth + theyOwe - iOwe,
-      budgetsProgress,
+      budgetsProgress: budgetsProgress.slice(0, 4),
+      incomeChange,
+      expenseChange,
+      daysLeft,
+      projectedExpense,
+      streak,
+      budgetsAtRisk,
+      nextPayment,
     };
   }, [data]);
 }

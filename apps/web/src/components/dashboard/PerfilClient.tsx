@@ -10,13 +10,14 @@ import { DevCredit } from "@/components/DevCredit";
 
 export function PerfilClient() {
   const router = useRouter();
-  const { data, profile } = useDashboard();
+  const { data, profile, refresh } = useDashboard();
 
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [defaultCurrency, setDefaultCurrency] = useState(profile.defaultCurrency);
   const [timezone, setTimezone] = useState(profile.timezone);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [link, setLink] = useState<{ code: string; deepLink: string } | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const netWorth = data.accounts.reduce((s, a) => s + a.balance_minor, 0);
   const openDebts = data.debts.filter((d) => d.status === "open").length;
@@ -42,6 +43,9 @@ export function PerfilClient() {
   async function logout() {
     await createClient().auth.signOut();
     router.push("/");
+  }
+  function exportData() {
+    window.location.href = "/api/me/export";
   }
 
   const field =
@@ -145,12 +149,36 @@ export function PerfilClient() {
         </div>
       </div>
 
+      {/* Zona de datos */}
+      <section className="glass rounded-[var(--radius-card)] p-6">
+        <h2 className="text-[15px] font-semibold">🗂️ Tus datos</h2>
+        <p className="mt-1 text-[13px] text-[var(--color-ink-soft)]">
+          Descarga una copia de todo lo que has registrado, o empieza de cero conservando tu cuenta.
+        </p>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={exportData}
+            className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
+          >
+            ⬇️ Exportar mis datos (JSON)
+          </button>
+          <button
+            onClick={() => setResetting(true)}
+            className="rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[14px] font-medium text-[#ff375f] transition hover:bg-[#ff375f]/20"
+          >
+            🧹 Empezar de nuevo
+          </button>
+        </div>
+      </section>
+
       <button
         onClick={logout}
-        className="rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[14px] font-medium text-[#ff375f] transition hover:bg-[#ff375f]/20"
+        className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
       >
         Cerrar sesión
       </button>
+
+      {resetting && <ResetDataModal onClose={() => setResetting(false)} onDone={refresh} accounts={data.accounts.length} transactions={data.transactions.length} />}
 
       <DevCredit className="pt-4" />
     </main>
@@ -171,6 +199,95 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="glass rounded-[var(--radius-card)] p-4">
       <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">{label}</p>
       <p className="mt-1 text-[20px] font-semibold tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+const CONFIRM_PHRASE = "EMPEZAR DE NUEVO";
+
+function ResetDataModal({
+  onClose,
+  onDone,
+  accounts,
+  transactions,
+}: {
+  onClose: () => void;
+  onDone: () => void | Promise<void>;
+  accounts: number;
+  transactions: number;
+}) {
+  const [text, setText] = useState("");
+  const [status, setStatus] = useState<"idle" | "working" | "done">("idle");
+  const [error, setError] = useState("");
+  const ok = text.trim().toUpperCase() === CONFIRM_PHRASE;
+
+  async function confirm() {
+    if (!ok) return;
+    setStatus("working");
+    setError("");
+    const res = await fetch("/api/me/reset", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirm: CONFIRM_PHRASE }),
+    });
+    if (res.ok) {
+      setStatus("done");
+      await onDone();
+      setTimeout(onClose, 1200);
+    } else {
+      setStatus("idle");
+      setError((await res.json().catch(() => ({}))).error ?? "No se pudo completar.");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass animate-float-in w-full max-w-md overflow-hidden rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
+          <span className="traffic-light bg-[#ff5f57]" />
+          <span className="traffic-light bg-[#febc2e]" />
+          <span className="traffic-light bg-[#28c840]" />
+          <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Empezar de nuevo</span>
+        </div>
+        <div className="space-y-4 p-6">
+          {status === "done" ? (
+            <p className="py-4 text-center text-[15px] font-medium text-[#1d8a3a]">✓ Listo, tu cuenta quedó en blanco.</p>
+          ) : (
+            <>
+              <p className="text-[14px] text-[var(--color-ink)]">
+                Esto borra <b>para siempre</b> todos tus movimientos, cuentas, categorías, deudas, pagos fijos,
+                presupuestos y recibos. Tu usuario y el vínculo de Telegram se conservan.
+              </p>
+              <div className="rounded-[12px] bg-[#ff375f]/8 px-3 py-2.5 text-[13px] text-[#ff375f]">
+                Se eliminarán {transactions} movimientos y {accounts} cuentas, entre otros datos. Esta acción no se puede deshacer.
+              </div>
+              <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+                Escribe <b className="text-[var(--color-ink)]">{CONFIRM_PHRASE}</b> para confirmar
+                <input
+                  autoFocus
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder={CONFIRM_PHRASE}
+                  className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] outline-none ring-[#ff375f] focus:ring-2"
+                />
+              </label>
+              {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
+              <div className="flex gap-2 pt-1">
+                <button onClick={onClose} className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90">
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirm}
+                  disabled={!ok || status === "working"}
+                  className="flex-1 rounded-[var(--radius-control)] bg-[#ff375f] py-2.5 text-[14px] font-medium text-white transition hover:brightness-110 disabled:opacity-40"
+                >
+                  {status === "working" ? "Borrando…" : "Borrar todo"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
