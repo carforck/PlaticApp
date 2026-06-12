@@ -15,17 +15,19 @@ export function AddTransactionModal({
   accounts,
   categories,
   editTx,
+  initialKind,
   onClose,
   onSaved,
 }: {
   accounts: AccountRow[];
   categories: CategoryRow[];
   editTx?: TxRow | null;
+  initialKind?: Kind;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const isEdit = !!editTx;
-  const [kind, setKind] = useState<Kind>(editTx ? (editTx.kind as Kind) : "expense");
+  const [kind, setKind] = useState<Kind>(editTx ? (editTx.kind as Kind) : initialKind ?? "expense");
   const [amount, setAmount] = useState(editTx ? String(editTx.amount_minor) : "");
   const [accountId, setAccountId] = useState(editTx?.account_id ?? accounts[0]?.account_id ?? "");
   const [transferAccountId, setTransferAccountId] = useState(editTx?.transfer_account_id ?? "");

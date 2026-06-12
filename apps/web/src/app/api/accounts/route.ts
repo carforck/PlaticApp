@@ -70,3 +70,33 @@ export async function PATCH(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+
+/**
+ * Elimina una cuenta. Solo si no tiene movimientos (ni de origen ni como destino
+ * de transferencias); si los tiene, hay que archivarla para no romper el historial.
+ */
+export async function DELETE(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "no auth" }, { status: 401 });
+
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "falta id" }, { status: 400 });
+
+  const [{ count: asSource }, { count: asTarget }] = await Promise.all([
+    supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("account_id", id),
+    supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("transfer_account_id", id),
+  ]);
+  if ((asSource ?? 0) > 0 || (asTarget ?? 0) > 0) {
+    return NextResponse.json(
+      { error: "Esta cuenta tiene movimientos. Archívala para conservar el historial." },
+      { status: 409 },
+    );
+  }
+
+  const { error } = await supabase.from("accounts").delete().eq("id", id).eq("user_id", user.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}

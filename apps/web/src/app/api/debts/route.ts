@@ -47,15 +47,44 @@ export async function PATCH(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "no auth" }, { status: 401 });
 
-  const b = (await req.json().catch(() => ({}))) as { id?: string; status?: "open" | "settled" };
-  if (!b.id || (b.status !== "open" && b.status !== "settled"))
-    return NextResponse.json({ error: "datos inválidos" }, { status: 400 });
+  const b = (await req.json().catch(() => ({}))) as {
+    id?: string;
+    status?: "open" | "settled";
+    counterparty?: string;
+    direction?: (typeof DIRECTIONS)[number];
+    amount?: number;
+    description?: string;
+  };
+  if (!b.id) return NextResponse.json({ error: "falta id" }, { status: 400 });
 
-  const { error } = await supabase
-    .from("debts")
-    .update({ status: b.status })
-    .eq("id", b.id)
-    .eq("user_id", user.id);
+  const patch: Record<string, unknown> = {};
+  if (b.status === "open" || b.status === "settled") patch.status = b.status;
+  if (typeof b.counterparty === "string" && b.counterparty.trim()) patch.counterparty = b.counterparty.trim();
+  if (b.direction && DIRECTIONS.includes(b.direction)) patch.direction = b.direction;
+  if (b.amount !== undefined) {
+    const amount = Number(b.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "monto inválido" }, { status: 400 });
+    patch.amount_minor = Math.round(amount);
+  }
+  if (b.description !== undefined) patch.description = b.description?.trim() || null;
+  if (Object.keys(patch).length === 0) return NextResponse.json({ error: "nada que actualizar" }, { status: 400 });
+
+  const { error } = await supabase.from("debts").update(patch).eq("id", b.id).eq("user_id", user.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
+/** Elimina una deuda. */
+export async function DELETE(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "no auth" }, { status: 401 });
+
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "falta id" }, { status: 400 });
+  const { error } = await supabase.from("debts").delete().eq("id", id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

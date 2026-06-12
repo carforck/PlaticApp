@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
 import { KIND_EMOJI } from "@/lib/labels";
+import type { RecurrenceRow } from "@/lib/queries";
 import { MonthCalendar, dayKey } from "./MonthCalendar";
 import { Paginator, usePagination } from "./Paginator";
 
@@ -17,6 +18,7 @@ const FREQ_LABEL: Record<string, string> = {
 export function RecurrentesClient() {
   const { data, refresh } = useDashboard();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<RecurrenceRow | null>(null);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [month, setMonth] = useState(() => {
     const n = new Date();
@@ -123,7 +125,11 @@ export function RecurrentesClient() {
         ) : (
           <ul className="divide-y divide-black/5">
             {pg.pageItems.map((r) => (
-              <li key={r.id} className={`flex items-center justify-between px-5 py-3 ${r.active ? "" : "opacity-50"}`}>
+              <li
+                key={r.id}
+                onClick={() => setEditing(r)}
+                className={`flex cursor-pointer items-center justify-between px-5 py-3 hover:bg-black/[0.03] ${r.active ? "" : "opacity-50"}`}
+              >
                 <span className="flex items-center gap-3">
                   <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
                     {KIND_EMOJI[r.kind] ?? "🔁"}
@@ -142,12 +148,12 @@ export function RecurrentesClient() {
                     {fmtMoney(r.amount_minor, r.currency)}
                   </span>
                   <button
-                    onClick={() => toggle(r.id, !r.active)}
+                    onClick={(e) => { e.stopPropagation(); toggle(r.id, !r.active); }}
                     className="rounded-[8px] border border-black/10 bg-white/60 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
                   >
                     {r.active ? "Pausar" : "Activar"}
                   </button>
-                  <button onClick={() => remove(r.id)} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-[#ff375f]/10" title="Eliminar">
+                  <button onClick={(e) => { e.stopPropagation(); remove(r.id); }} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-[#ff375f]/10" title="Eliminar">
                     🗑️
                   </button>
                 </span>
@@ -159,7 +165,16 @@ export function RecurrentesClient() {
       </div>
       )}
 
-      {creating && <NewRecurrenceModal onClose={() => setCreating(false)} onSaved={refresh} />}
+      {(creating || editing) && (
+        <RecurrenceModal
+          rec={editing}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSaved={refresh}
+        />
+      )}
     </main>
   );
 }
@@ -171,15 +186,16 @@ function monthlyEquivalent(minor: number, freq: string): number {
   return minor;
 }
 
-function NewRecurrenceModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+function RecurrenceModal({ rec, onClose, onSaved }: { rec: RecurrenceRow | null; onClose: () => void; onSaved: () => void }) {
   const { data } = useDashboard();
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<"expense" | "income">("expense");
-  const [amount, setAmount] = useState("");
-  const [frequency, setFrequency] = useState("monthly");
-  const [dayOfMonth, setDayOfMonth] = useState("");
-  const [accountId, setAccountId] = useState(data.accounts[0]?.account_id ?? "");
-  const [categoryId, setCategoryId] = useState("");
+  const isEdit = !!rec;
+  const [name, setName] = useState(rec?.name ?? "");
+  const [kind, setKind] = useState<"expense" | "income" | "investment">(rec?.kind === "transfer" ? "expense" : rec?.kind ?? "expense");
+  const [amount, setAmount] = useState(rec ? String(rec.amount_minor) : "");
+  const [frequency, setFrequency] = useState<string>(rec?.frequency ?? "monthly");
+  const [dayOfMonth, setDayOfMonth] = useState(rec?.day_of_month ? String(rec.day_of_month) : "");
+  const [accountId, setAccountId] = useState(rec?.account_id ?? data.accounts[0]?.account_id ?? "");
+  const [categoryId, setCategoryId] = useState(rec?.category_id ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -187,25 +203,26 @@ function NewRecurrenceModal({ onClose, onSaved }: { onClose: () => void; onSaved
     e.preventDefault();
     setSaving(true);
     setError("");
+    const payload = {
+      name,
+      kind,
+      amount: Number(amount),
+      frequency,
+      dayOfMonth: dayOfMonth ? Number(dayOfMonth) : null,
+      accountId: accountId || null,
+      categoryId: categoryId || null,
+    };
     const res = await fetch("/api/recurrences", {
-      method: "POST",
+      method: isEdit ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name,
-        kind,
-        amount: Number(amount),
-        frequency,
-        dayOfMonth: dayOfMonth ? Number(dayOfMonth) : null,
-        accountId: accountId || null,
-        categoryId: categoryId || null,
-      }),
+      body: JSON.stringify(isEdit ? { id: rec!.id, ...payload } : payload),
     });
     setSaving(false);
     if (res.ok) {
       onSaved();
       onClose();
     } else {
-      setError((await res.json().catch(() => ({}))).error ?? "No se pudo crear");
+      setError((await res.json().catch(() => ({}))).error ?? "No se pudo guardar");
     }
   }
 
@@ -219,7 +236,7 @@ function NewRecurrenceModal({ onClose, onSaved }: { onClose: () => void; onSaved
           <span className="traffic-light bg-[#ff5f57]" />
           <span className="traffic-light bg-[#febc2e]" />
           <span className="traffic-light bg-[#28c840]" />
-          <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Nuevo pago fijo</span>
+          <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">{isEdit ? "Editar pago fijo" : "Nuevo pago fijo"}</span>
         </div>
         <form onSubmit={submit} className="space-y-3 p-6">
           <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-black/[0.05] p-1">
@@ -278,7 +295,7 @@ function NewRecurrenceModal({ onClose, onSaved }: { onClose: () => void; onSaved
               Cancelar
             </button>
             <button type="submit" disabled={saving} className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70">
-              {saving ? "Guardando…" : "Crear"}
+              {saving ? "Guardando…" : isEdit ? "Guardar" : "Crear"}
             </button>
           </div>
         </form>
