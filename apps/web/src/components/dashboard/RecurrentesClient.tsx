@@ -5,6 +5,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
 import { KIND_EMOJI } from "@/lib/labels";
 import { MonthCalendar, dayKey } from "./MonthCalendar";
+import { Paginator, usePagination } from "./Paginator";
 
 const FREQ_LABEL: Record<string, string> = {
   weekly: "Semanal",
@@ -23,6 +24,7 @@ export function RecurrentesClient() {
   });
 
   const recs = data.recurrences;
+  const pg = usePagination(recs, 15);
 
   // Pagos por día del mes visible.
   const byDay = useMemo(() => {
@@ -120,7 +122,7 @@ export function RecurrentesClient() {
           </p>
         ) : (
           <ul className="divide-y divide-black/5">
-            {recs.map((r) => (
+            {pg.pageItems.map((r) => (
               <li key={r.id} className={`flex items-center justify-between px-5 py-3 ${r.active ? "" : "opacity-50"}`}>
                 <span className="flex items-center gap-3">
                   <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
@@ -153,6 +155,7 @@ export function RecurrentesClient() {
             ))}
           </ul>
         )}
+        <Paginator page={pg.page} pageCount={pg.pageCount} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} noun="pagos fijos" />
       </div>
       )}
 

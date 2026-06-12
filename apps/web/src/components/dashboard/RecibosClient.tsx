@@ -4,17 +4,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { createClient } from "@/lib/supabase/client";
+import { Paginator, usePagination } from "./Paginator";
 
 export function RecibosClient() {
   const { data } = useDashboard();
   const supabase = useMemo(() => createClient(), []);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [zoom, setZoom] = useState<string | null>(null);
+  const pg = usePagination(data.receipts, 12);
 
-  // Genera URLs firmadas (el bucket es privado; RLS permite solo lo propio).
+  // Genera URLs firmadas solo para la página visible (bucket privado, RLS propio).
+  const pagePaths = pg.pageItems.map((r) => r.path).join("|");
   useEffect(() => {
     let cancelled = false;
-    const paths = data.receipts.map((r) => r.path);
+    const paths = pagePaths ? pagePaths.split("|") : [];
     if (paths.length === 0) {
       setUrls({});
       return;
@@ -31,7 +34,7 @@ export function RecibosClient() {
     return () => {
       cancelled = true;
     };
-  }, [data.receipts, supabase]);
+  }, [pagePaths, supabase]);
 
   return (
     <main className="flex-1 space-y-4">
@@ -48,8 +51,9 @@ export function RecibosClient() {
           detectó.
         </div>
       ) : (
+        <>
         <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {data.receipts.map((r) => (
+          {pg.pageItems.map((r) => (
             <button
               key={r.id}
               onClick={() => urls[r.path] && setZoom(urls[r.path]!)}
@@ -75,6 +79,12 @@ export function RecibosClient() {
             </button>
           ))}
         </section>
+        {pg.needed && (
+          <div className="glass overflow-hidden rounded-[var(--radius-card)]">
+            <Paginator page={pg.page} pageCount={pg.pageCount} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} noun="recibos" />
+          </div>
+        )}
+        </>
       )}
 
       {zoom && (

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { type CategoryRow } from "@/lib/queries";
+import { Paginator, usePagination } from "./Paginator";
 
 const APPLIES_LABEL: Record<string, string> = { expense: "Gasto", income: "Ingreso" };
 const EMOJIS = ["🍽️", "🚕", "🏠", "🎬", "🩺", "💰", "🛒", "✈️", "🎁", "📚", "👕", "🐶", "💡", "📱", "🏷️", "🍻"];
@@ -19,6 +20,7 @@ export function CategoriasClient() {
   }
 
   const cats = [...data.categories].sort((a, b) => a.name.localeCompare(b.name));
+  const pg = usePagination(cats, 18);
 
   return (
     <main className="flex-1 space-y-4">
@@ -33,7 +35,7 @@ export function CategoriasClient() {
         </header>
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {cats.map((c) => (
+          {pg.pageItems.map((c) => (
             <div key={c.id} className="glass group relative flex items-center gap-3 rounded-[var(--radius-card)] p-4">
               <span
                 className="grid h-11 w-11 place-items-center rounded-[12px] text-[20px]"
@@ -58,6 +60,11 @@ export function CategoriasClient() {
             </div>
           ))}
         </section>
+        {pg.needed && (
+          <div className="glass overflow-hidden rounded-[var(--radius-card)]">
+            <Paginator page={pg.page} pageCount={pg.pageCount} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} noun="categorías" />
+          </div>
+        )}
 
       {(creating || editing) && (
         <CategoryModal

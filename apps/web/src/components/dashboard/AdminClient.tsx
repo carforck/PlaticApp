@@ -5,6 +5,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import { ADMIN_EMAIL } from "@/lib/admin";
 import { fmtMoney } from "@/lib/format";
 import { Avatar } from "./Avatar";
+import { Paginator, usePagination } from "./Paginator";
 
 interface AdminUser {
   id: string;
@@ -43,14 +44,19 @@ export function AdminClient() {
   const [data, setData] = useState<{ total: number; linked: number; online: number; storageTotal: number; users: AdminUser[] } | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<AdminUser | null>(null);
+  const [today, setToday] = useState("");
 
   useEffect(() => {
+    const f = new Date().toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    setToday(f.charAt(0).toUpperCase() + f.slice(1));
     void (async () => {
       const res = await fetch("/api/admin/users");
       if (res.ok) setData(await res.json());
       else setError("No autorizado.");
     })();
   }, []);
+
+  const pg = usePagination(data?.users ?? [], 15);
 
   if (profile.email !== ADMIN_EMAIL) {
     return (
@@ -69,7 +75,7 @@ export function AdminClient() {
     <main className="flex-1 space-y-4">
       <header>
         <h1 className="text-[26px] font-semibold tracking-tight">Admin</h1>
-        <p className="text-[13px] text-[var(--color-ink-soft)]">Usuarios registrados y su actividad</p>
+        <p className="text-[13px] text-[var(--color-ink-soft)]">{today ? `📅 ${today} · ` : ""}usuarios registrados y su actividad</p>
       </header>
 
       <PublishAnnouncement onPublished={refresh} />
@@ -100,7 +106,7 @@ export function AdminClient() {
                 </tr>
               </thead>
               <tbody>
-                {data.users.map((u) => (
+                {pg.pageItems.map((u) => (
                   <tr
                     key={u.id}
                     onClick={() => setSelected(u)}
@@ -138,6 +144,7 @@ export function AdminClient() {
                 ))}
               </tbody>
             </table>
+            <Paginator page={pg.page} pageCount={pg.pageCount} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} noun="usuarios" />
           </div>
         )}
       </div>

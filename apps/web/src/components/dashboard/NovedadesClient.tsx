@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useDashboard } from "@/lib/dashboard-context";
+import { Paginator, usePagination } from "./Paginator";
 
 const TAG = {
   nuevo: { label: "Nuevo", cls: "bg-[#0a84ff]/12 text-[#0a84ff]" },
@@ -13,6 +14,7 @@ const TAG = {
 export function NovedadesClient() {
   const router = useRouter();
   const { data } = useDashboard();
+  const pg = usePagination(data.announcements, 10);
 
   // Al abrir, marca todo como visto y refresca para limpiar el badge.
   useEffect(() => {
@@ -30,7 +32,7 @@ export function NovedadesClient() {
       </header>
 
       <div className="relative space-y-3 before:absolute before:bottom-2 before:left-[19px] before:top-2 before:w-px before:bg-black/10">
-        {data.announcements.map((a) => {
+        {pg.pageItems.map((a) => {
           const tag = TAG[a.tag] ?? TAG.nuevo;
           return (
             <div key={a.id} className="relative flex gap-3">
@@ -52,6 +54,11 @@ export function NovedadesClient() {
           <p className="text-[14px] text-[var(--color-ink-soft)]">Aún no hay novedades.</p>
         )}
       </div>
+      {pg.needed && (
+        <div className="glass overflow-hidden rounded-[var(--radius-card)]">
+          <Paginator page={pg.page} pageCount={pg.pageCount} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} noun="novedades" />
+        </div>
+      )}
     </main>
   );
 }

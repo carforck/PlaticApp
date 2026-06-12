@@ -7,6 +7,7 @@ import { fmtMoney } from "@/lib/format";
 import { KIND_EMOJI, KIND_LABEL, SOURCE_EMOJI } from "@/lib/labels";
 import { AddTransactionModal } from "./AddTransactionModal";
 import { MonthCalendar, dayKey } from "./MonthCalendar";
+import { Paginator, usePagination } from "./Paginator";
 
 const compact = (n: number) => {
   const a = Math.abs(n);
@@ -64,6 +65,8 @@ export function MovimientosClient() {
   }, [rows]);
 
   const dayRows = selectedDay ? rows.filter((t) => dayKey(new Date(t.occurred_at)) === selectedDay) : [];
+
+  const pg = usePagination(rows, 20);
 
   return (
     <main className="flex-1 space-y-4">
@@ -187,7 +190,7 @@ export function MovimientosClient() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((t) => {
+              {pg.pageItems.map((t) => {
                 const cat = catById.get(t.category_id ?? "");
                 const acc = accById.get(t.account_id);
                 const signed = t.kind === "income" ? t.amount_minor : -t.amount_minor;
@@ -222,6 +225,7 @@ export function MovimientosClient() {
           </table>
           </div>
         )}
+        <Paginator page={pg.page} pageCount={pg.pageCount} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} noun="movimientos" />
       </div>
       )}
 

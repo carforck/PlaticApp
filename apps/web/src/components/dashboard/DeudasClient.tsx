@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { type DebtRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
+import { Paginator, usePagination } from "./Paginator";
 
 export function DeudasClient() {
   const { data, refresh } = useDashboard();
   const [creating, setCreating] = useState(false);
 
   const debts = data.debts;
+  const pg = usePagination(debts, 15);
   const open = debts.filter((d) => d.status === "open");
   const theyOwe = open.filter((d) => d.direction === "they_owe").reduce((s, d) => s + d.amount_minor, 0);
   const iOwe = open.filter((d) => d.direction === "i_owe").reduce((s, d) => s + d.amount_minor, 0);
@@ -53,11 +55,12 @@ export function DeudasClient() {
             </p>
           ) : (
             <ul className="divide-y divide-black/5">
-              {debts.map((d) => (
+              {pg.pageItems.map((d) => (
                 <DebtRowItem key={d.id} d={d} onSettle={setStatus} />
               ))}
             </ul>
           )}
+          <Paginator page={pg.page} pageCount={pg.pageCount} from={pg.from} to={pg.to} total={pg.total} onPage={pg.setPage} noun="deudas" />
         </div>
 
       {creating && <NewDebtModal onClose={() => setCreating(false)} onSaved={refresh} />}
