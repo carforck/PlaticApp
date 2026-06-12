@@ -5,6 +5,8 @@ import Link from "next/link";
 import anim from "@/app/login-anim.json";
 import { RotatingWord } from "@/components/RotatingWord";
 import { DevCredit } from "@/components/DevCredit";
+import { LandingShowcase } from "@/components/landing/LandingShowcase";
+import { LandingNews } from "@/components/landing/LandingNews";
 
 const FEATURES = [
   { icon: "💬", title: "Habla y listo", desc: "«gasté 50 mil en el almuerzo» y queda registrado. Sin formularios." },
@@ -62,6 +64,9 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Showcase dinámico (gráficas + chat) */}
+      <LandingShowcase />
+
       {/* Funcionalidades */}
       <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-10">
         <h2 className="text-center text-[26px] font-semibold tracking-tight">Todo tu dinero, en una conversación</h2>
@@ -92,6 +97,9 @@ export default function Landing() {
           ))}
         </div>
       </section>
+
+      {/* Lo último (novedades reales) */}
+      <LandingNews />
 
       {/* CTA final */}
       <section className="mx-auto max-w-3xl px-5 py-12">
