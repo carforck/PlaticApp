@@ -6,6 +6,7 @@ export interface AccountRow {
   type: string;
   currency: string;
   balance_minor: number;
+  opening_minor: number;
 }
 
 export interface TxRow {

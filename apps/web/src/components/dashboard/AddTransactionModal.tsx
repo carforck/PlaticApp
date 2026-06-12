@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { AccountRow, CategoryRow } from "@/lib/queries";
+import type { AccountRow, CategoryRow, TxRow } from "@/lib/queries";
 
 const KINDS = [
   { value: "expense", label: "Gasto", emoji: "💸" },
@@ -13,21 +13,37 @@ type Kind = (typeof KINDS)[number]["value"];
 export function AddTransactionModal({
   accounts,
   categories,
+  editTx,
   onClose,
   onSaved,
 }: {
   accounts: AccountRow[];
   categories: CategoryRow[];
+  editTx?: TxRow | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [kind, setKind] = useState<Kind>("expense");
-  const [amount, setAmount] = useState("");
-  const [accountId, setAccountId] = useState(accounts[0]?.account_id ?? "");
-  const [categoryId, setCategoryId] = useState("");
-  const [description, setDescription] = useState("");
+  const isEdit = !!editTx;
+  const [kind, setKind] = useState<Kind>(
+    editTx && editTx.kind !== "transfer" ? (editTx.kind as Kind) : "expense",
+  );
+  const [amount, setAmount] = useState(editTx ? String(editTx.amount_minor) : "");
+  const [accountId, setAccountId] = useState(editTx?.account_id ?? accounts[0]?.account_id ?? "");
+  const [categoryId, setCategoryId] = useState(editTx?.category_id ?? "");
+  const [description, setDescription] = useState(editTx?.description ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  async function remove() {
+    if (!editTx) return;
+    setSaving(true);
+    const res = await fetch(`/api/transactions?id=${editTx.id}`, { method: "DELETE" });
+    setSaving(false);
+    if (res.ok) {
+      onSaved();
+      onClose();
+    } else setError("No se pudo eliminar");
+  }
 
   // Categorías aplicables al tipo elegido (income/expense; investment no filtra).
   const cats = useMemo(
@@ -43,16 +59,17 @@ export function AddTransactionModal({
     e.preventDefault();
     setError("");
     setSaving(true);
+    const payload = {
+      kind,
+      amount: Number(amount),
+      accountId,
+      categoryId: categoryId || null,
+      description: description || null,
+    };
     const res = await fetch("/api/transactions", {
-      method: "POST",
+      method: isEdit ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        kind,
-        amount: Number(amount),
-        accountId,
-        categoryId: categoryId || null,
-        description: description || null,
-      }),
+      body: JSON.stringify(isEdit ? { id: editTx!.id, ...payload } : payload),
     });
     setSaving(false);
     if (res.ok) {
@@ -78,7 +95,7 @@ export function AddTransactionModal({
           <span className="traffic-light bg-[#febc2e]" />
           <span className="traffic-light bg-[#28c840]" />
           <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">
-            Registrar movimiento
+            {isEdit ? "Editar movimiento" : "Registrar movimiento"}
           </span>
         </div>
 
@@ -165,19 +182,31 @@ export function AddTransactionModal({
           )}
 
           <div className="flex gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
-            >
-              Cancelar
-            </button>
+            {isEdit ? (
+              <button
+                type="button"
+                onClick={remove}
+                disabled={saving}
+                className="rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[14px] font-medium text-[#ff375f] transition hover:bg-[#ff375f]/20"
+                title="Eliminar"
+              >
+                🗑️
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
+              >
+                Cancelar
+              </button>
+            )}
             <button
               type="submit"
               disabled={saving || !accountId}
               className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70"
             >
-              {saving ? "Guardando…" : "Registrar"}
+              {saving ? "Guardando…" : isEdit ? "Guardar cambios" : "Registrar"}
             </button>
           </div>
         </form>

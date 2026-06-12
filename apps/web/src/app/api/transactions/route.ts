@@ -63,3 +63,51 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: data.id });
 }
+
+/** Edita un movimiento existente. */
+export async function PATCH(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "no auth" }, { status: 401 });
+
+  const b = (await req.json().catch(() => ({}))) as Partial<Body> & { id?: string };
+  if (!b.id) return NextResponse.json({ error: "falta id" }, { status: 400 });
+
+  const patch: Record<string, unknown> = {};
+  if (b.kind && KINDS.includes(b.kind)) patch.kind = b.kind;
+  if (b.amount !== undefined) {
+    const amt = Number(b.amount);
+    if (!Number.isFinite(amt) || amt <= 0) return NextResponse.json({ error: "monto inválido" }, { status: 400 });
+    patch.amount_minor = Math.round(amt);
+  }
+  if (b.categoryId !== undefined) patch.category_id = b.categoryId || null;
+  if (b.description !== undefined) patch.description = b.description?.trim() || null;
+  if (b.occurredAt) patch.occurred_at = b.occurredAt;
+  if (b.accountId) {
+    const { data: acc } = await supabase.from("accounts").select("id, currency").eq("id", b.accountId).maybeSingle();
+    if (!acc) return NextResponse.json({ error: "cuenta no encontrada" }, { status: 404 });
+    patch.account_id = acc.id;
+    patch.currency = acc.currency;
+  }
+  if (Object.keys(patch).length === 0) return NextResponse.json({ error: "nada que actualizar" }, { status: 400 });
+
+  const { error } = await supabase.from("transactions").update(patch).eq("id", b.id).eq("user_id", user.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
+/** Elimina un movimiento. */
+export async function DELETE(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "no auth" }, { status: 401 });
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "falta id" }, { status: 400 });
+  const { error } = await supabase.from("transactions").delete().eq("id", id).eq("user_id", user.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}

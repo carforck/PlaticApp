@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
+import type { TxRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { KIND_EMOJI, KIND_LABEL, SOURCE_EMOJI } from "@/lib/labels";
 import { AddTransactionModal } from "./AddTransactionModal";
@@ -27,6 +28,7 @@ export function MovimientosClient() {
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
+  const [editTx, setEditTx] = useState<TxRow | null>(null);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [month, setMonth] = useState(() => {
     const n = new Date();
@@ -148,7 +150,7 @@ export function MovimientosClient() {
                     const cat = catById.get(t.category_id ?? "");
                     const signed = t.kind === "income" ? t.amount_minor : -t.amount_minor;
                     return (
-                      <li key={t.id} className="flex items-center justify-between py-2">
+                      <li key={t.id} onClick={() => setEditTx(t)} className="flex cursor-pointer items-center justify-between rounded-[8px] py-2 hover:bg-black/[0.03]">
                         <span className="flex items-center gap-2.5">
                           <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-black/[0.05] text-[15px]">
                             {cat?.emoji ?? KIND_EMOJI[t.kind] ?? "🧾"}
@@ -190,7 +192,7 @@ export function MovimientosClient() {
                 const acc = accById.get(t.account_id);
                 const signed = t.kind === "income" ? t.amount_minor : -t.amount_minor;
                 return (
-                  <tr key={t.id} className="border-b border-black/5 last:border-0 hover:bg-black/[0.02]">
+                  <tr key={t.id} onClick={() => setEditTx(t)} className="cursor-pointer border-b border-black/5 last:border-0 hover:bg-black/[0.03]">
                     <td className="px-4 py-3 sm:px-5">
                       <span className="flex items-center gap-3">
                         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
@@ -223,11 +225,15 @@ export function MovimientosClient() {
       </div>
       )}
 
-      {adding && (
+      {(adding || editTx) && (
         <AddTransactionModal
           accounts={data.accounts}
           categories={data.categories}
-          onClose={() => setAdding(false)}
+          editTx={editTx}
+          onClose={() => {
+            setAdding(false);
+            setEditTx(null);
+          }}
           onSaved={refresh}
         />
       )}

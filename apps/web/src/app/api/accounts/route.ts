@@ -18,15 +18,23 @@ export async function POST(req: Request) {
     name?: string;
     type?: AccountType;
     currency?: string;
+    openingBalance?: number;
   };
   const name = body.name?.trim();
   if (!name) return NextResponse.json({ error: "falta el nombre" }, { status: 400 });
   if (!body.type || !TYPES.includes(body.type))
     return NextResponse.json({ error: "tipo inválido" }, { status: 400 });
+  const opening = Number(body.openingBalance);
 
   const { data, error } = await supabase
     .from("accounts")
-    .insert({ user_id: user.id, name, type: body.type, currency: body.currency || "COP" })
+    .insert({
+      user_id: user.id,
+      name,
+      type: body.type,
+      currency: body.currency || "COP",
+      opening_balance_minor: Number.isFinite(opening) ? Math.round(opening) : 0,
+    })
     .select("id")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -45,12 +53,15 @@ export async function PATCH(req: Request) {
     id?: string;
     name?: string;
     archived?: boolean;
+    openingBalance?: number;
   };
   if (!body.id) return NextResponse.json({ error: "falta id" }, { status: 400 });
 
   const patch: Record<string, unknown> = {};
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
   if (typeof body.archived === "boolean") patch.archived = body.archived;
+  if (body.openingBalance !== undefined && Number.isFinite(Number(body.openingBalance)))
+    patch.opening_balance_minor = Math.round(Number(body.openingBalance));
   if (Object.keys(patch).length === 0)
     return NextResponse.json({ error: "nada que actualizar" }, { status: 400 });
 
