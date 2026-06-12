@@ -60,6 +60,34 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
     };
   }, [open]);
 
+  // Gestos táctiles: deslizar desde el borde izquierdo abre el menú; deslizar a la
+  // izquierda lo cierra. Solo afecta al táctil (móvil); el desktop no se toca.
+  useEffect(() => {
+    let sx = 0, sy = 0, fromEdge = false;
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      sx = t.clientX;
+      sy = t.clientY;
+      fromEdge = t.clientX < 24;
+    };
+    const onEnd = (e: TouchEvent) => {
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return; // ignora scroll vertical
+      if (!open && fromEdge && dx > 0) setOpen(true);
+      else if (open && dx < 0) setOpen(false);
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, [open]);
+
   const title = TITLES[pathname] ?? "PlaticApp";
 
   return (
@@ -78,7 +106,7 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Contenido */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         {/* Top bar solo en móvil */}
         <div className="glass mb-3 flex items-center justify-between rounded-[var(--radius-card)] px-3 py-2.5 md:hidden">
           <button
@@ -146,6 +174,43 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
           }}
         />
       )}
+
+      {/* Navegación inferior — solo móvil, al alcance del pulgar */}
+      <nav
+        className="glass fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-white/15 px-1 pt-1 md:hidden"
+        style={{ paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))" }}
+      >
+        {[
+          { label: "Inicio", icon: "🏠", href: "/dashboard" },
+          { label: "Movs", icon: "💸", href: "/dashboard/movimientos" },
+          { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
+          { label: "Novedades", icon: "🔔", href: "/dashboard/novedades" },
+        ].map((it) => {
+          const active = pathname === it.href;
+          return (
+            <Link
+              key={it.href}
+              href={it.href}
+              className={`relative flex flex-1 flex-col items-center gap-0.5 rounded-[10px] py-1.5 text-[10px] font-medium transition ${
+                active ? "text-[var(--color-accent)]" : "text-[var(--color-ink-soft)]"
+              }`}
+            >
+              <span className="text-[19px] leading-none">{it.icon}</span>
+              {it.label}
+              {it.href === "/dashboard/novedades" && unread > 0 && (
+                <span className="absolute right-[24%] top-1 h-2 w-2 rounded-full bg-[#ff375f]" />
+              )}
+            </Link>
+          );
+        })}
+        <button
+          onClick={() => setOpen(true)}
+          className="flex flex-1 flex-col items-center gap-0.5 rounded-[10px] py-1.5 text-[10px] font-medium text-[var(--color-ink-soft)]"
+        >
+          <span className="text-[19px] leading-none">☰</span>
+          Más
+        </button>
+      </nav>
     </div>
   );
 }
