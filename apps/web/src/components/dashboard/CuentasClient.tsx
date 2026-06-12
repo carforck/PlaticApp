@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import type { AccountRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
+import { accountFinance, isCreditAccount } from "@/lib/finance";
 import { ACCOUNT_EMOJI, ACCOUNT_TYPE_LABEL } from "@/lib/labels";
 
 const TYPES = [
@@ -11,7 +12,7 @@ const TYPES = [
   { value: "cash", label: "Efectivo" },
   { value: "wallet", label: "Billetera" },
   { value: "investment", label: "Inversión" },
-  { value: "credit", label: "Crédito" },
+  { value: "credit", label: "Tarjeta de crédito / Crédito" },
 ] as const;
 
 export function CuentasClient() {
@@ -20,7 +21,7 @@ export function CuentasClient() {
   const [editing, setEditing] = useState<AccountRow | null>(null);
   const [detail, setDetail] = useState<AccountRow | null>(null);
 
-  const total = data.accounts.reduce((s, a) => s + a.balance_minor, 0);
+  const { assets, creditDebt, netWorth } = accountFinance(data.accounts);
 
   return (
     <main className="flex-1 space-y-4">
@@ -28,7 +29,10 @@ export function CuentasClient() {
         <div>
           <h1 className="text-[26px] font-semibold tracking-tight">Cuentas</h1>
           <p className="text-[13px] text-[var(--color-ink-soft)]">
-            Patrimonio total: <span className="font-semibold text-[var(--color-ink)]">{fmtMoney(total)}</span>
+            Patrimonio: <span className="font-semibold text-[var(--color-ink)]">{fmtMoney(netWorth)}</span>
+            {creditDebt > 0 && (
+              <span className="text-[var(--color-ink-soft)]"> · activos {fmtMoney(assets)} − deuda de crédito {fmtMoney(creditDebt)}</span>
+            )}
           </p>
         </div>
         <button onClick={() => setCreating(true)} className="btn-mac px-4 py-2 text-[13px] font-medium">
@@ -54,9 +58,20 @@ export function CuentasClient() {
                 </p>
               </div>
             </div>
-            <p className="mt-4 text-[24px] font-semibold tracking-tight">{fmtMoney(a.balance_minor, a.currency)}</p>
-            {a.opening_minor !== a.balance_minor && (
-              <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">Saldo inicial: {fmtMoney(a.opening_minor, a.currency)}</p>
+            {isCreditAccount(a.type) ? (
+              <>
+                <p className="mt-4 text-[24px] font-semibold tracking-tight text-[#ff375f]">
+                  {a.balance_minor < 0 ? `Debes ${fmtMoney(-a.balance_minor, a.currency)}` : fmtMoney(a.balance_minor, a.currency)}
+                </p>
+                <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">Deuda · no suma al patrimonio</p>
+              </>
+            ) : (
+              <>
+                <p className="mt-4 text-[24px] font-semibold tracking-tight">{fmtMoney(a.balance_minor, a.currency)}</p>
+                {a.opening_minor !== a.balance_minor && (
+                  <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">Saldo inicial: {fmtMoney(a.opening_minor, a.currency)}</p>
+                )}
+              </>
             )}
           </button>
         ))}
@@ -238,7 +253,10 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
   const isEdit = !!account;
   const [name, setName] = useState(account?.name ?? "");
   const [type, setType] = useState<string>(account?.type ?? "bank");
-  const [opening, setOpening] = useState(account ? String(account.opening_minor) : "");
+  const credit = isCreditAccount(isEdit ? account!.type : type);
+  const [opening, setOpening] = useState(
+    account ? String(account.type === "credit" ? Math.abs(account.opening_minor) : account.opening_minor) : "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -246,7 +264,9 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
     e.preventDefault();
     setSaving(true);
     setError("");
-    const openingBalance = opening === "" ? 0 : Number(opening);
+    // En crédito el saldo de arranque es una DEUDA: se guarda en negativo.
+    const raw = opening === "" ? 0 : Number(opening);
+    const openingBalance = credit ? -Math.abs(raw) : raw;
     const res = isEdit
       ? await fetch("/api/accounts", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: account!.account_id, name, openingBalance }) })
       : await fetch("/api/accounts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, type, openingBalance }) });
@@ -286,9 +306,13 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
             </label>
           )}
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
-            {isEdit ? "Saldo inicial (COP)" : "¿Cuánto tienes ahí ahora? (COP)"}
-            <input type="number" step="any" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0" className={field} />
-            <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">Es tu saldo de arranque, no cuenta como ingreso.</span>
+            {credit ? "¿Cuánto debes ahora? (COP)" : isEdit ? "Saldo inicial (COP)" : "¿Cuánto tienes ahí ahora? (COP)"}
+            <input type="number" step="any" min="0" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0" className={field} />
+            <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">
+              {credit
+                ? "Es tu deuda actual de la tarjeta/crédito. Cuenta como pasivo: resta del patrimonio, no suma."
+                : "Es tu saldo de arranque, no cuenta como ingreso."}
+            </span>
           </label>
           {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
           <div className="flex gap-2 pt-1">

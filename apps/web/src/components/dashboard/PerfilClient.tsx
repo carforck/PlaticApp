@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
+import { accountFinance } from "@/lib/finance";
 import { Avatar } from "./Avatar";
 import { DevCredit } from "@/components/DevCredit";
 
@@ -19,7 +20,7 @@ export function PerfilClient() {
   const [link, setLink] = useState<{ code: string; deepLink: string } | null>(null);
   const [resetting, setResetting] = useState(false);
 
-  const netWorth = data.accounts.reduce((s, a) => s + a.balance_minor, 0);
+  const netWorth = accountFinance(data.accounts).netWorth;
   const openDebts = data.debts.filter((d) => d.status === "open").length;
   const memberSince = profile.createdAt
     ? new Date(profile.createdAt).toLocaleDateString("es-CO", { month: "long", year: "numeric" })

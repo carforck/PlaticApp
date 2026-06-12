@@ -823,10 +823,24 @@ async function answerQuery(userId: string, q: QueryIntent): Promise<string> {
 
   try {
     if (q.type === "balance") {
-      const { data } = await db.from("account_balances").select("name, balance_minor").eq("user_id", userId);
-      const total = (data ?? []).reduce((s, a) => s + a.balance_minor, 0);
-      const lines = (data ?? []).map((a) => `• ${a.name}: ${pesos(a.balance_minor)}`).join("\n");
-      return `💰 <b>Tu patrimonio:</b> ${pesos(total)}\n${lines}`;
+      const { data } = await db.from("account_balances").select("name, type, balance_minor").eq("user_id", userId);
+      const rows = data ?? [];
+      let assets = 0;
+      let creditDebt = 0;
+      for (const a of rows) {
+        if (a.type === "credit") creditDebt += Math.max(0, -a.balance_minor);
+        else assets += a.balance_minor;
+      }
+      const net = assets - creditDebt;
+      const lines = rows
+        .map((a) =>
+          a.type === "credit"
+            ? `• ${a.name}: debes ${pesos(Math.max(0, -a.balance_minor))} 💳`
+            : `• ${a.name}: ${pesos(a.balance_minor)}`,
+        )
+        .join("\n");
+      const note = creditDebt > 0 ? `\n<i>(El crédito es deuda y no suma al patrimonio.)</i>` : "";
+      return `💰 <b>Tu patrimonio:</b> ${pesos(net)}\n${lines}${note}`;
     }
 
     if (q.type === "debts") {

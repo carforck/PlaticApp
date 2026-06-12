@@ -21,7 +21,7 @@ export async function GET() {
     db.auth.admin.listUsers({ perPage: 1000 }),
     db.from("transactions").select("user_id"),
     db.from("accounts").select("user_id"),
-    db.from("account_balances").select("user_id, balance_minor"),
+    db.from("account_balances").select("user_id, type, balance_minor"),
     db.from("debts").select("user_id, status"),
     db.from("telegram_links").select("user_id, telegram_username, linked_at"),
     db.from("profiles").select("id, last_seen"),
@@ -46,8 +46,12 @@ export async function GET() {
   };
   const txByUser = tally(tx.data);
   const acctByUser = tally(accts.data);
+  // Patrimonio: el crédito (deuda) no suma; resta.
   const netByUser = new Map<string, number>();
-  for (const b of balances.data ?? []) netByUser.set(b.user_id, (netByUser.get(b.user_id) ?? 0) + b.balance_minor);
+  for (const b of balances.data ?? []) {
+    const delta = b.type === "credit" ? -Math.max(0, -b.balance_minor) : b.balance_minor;
+    netByUser.set(b.user_id, (netByUser.get(b.user_id) ?? 0) + delta);
+  }
   const debtOpenByUser = new Map<string, number>();
   for (const d of debts.data ?? []) if (d.status === "open") debtOpenByUser.set(d.user_id, (debtOpenByUser.get(d.user_id) ?? 0) + 1);
   const linkByUser = new Map((links.data ?? []).map((l) => [l.user_id, l]));

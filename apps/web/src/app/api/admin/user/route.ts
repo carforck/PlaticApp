@@ -37,7 +37,10 @@ export async function GET(req: Request) {
   const open = (debts.data ?? []).filter((d) => d.status === "open");
 
   return NextResponse.json({
-    netWorth: (accounts.data ?? []).reduce((s, a) => s + a.balance_minor, 0),
+    netWorth: (accounts.data ?? []).reduce(
+      (s, a) => s + (a.type === "credit" ? -Math.max(0, -a.balance_minor) : a.balance_minor),
+      0,
+    ),
     accounts: accounts.data ?? [],
     recent,
     debtOwe: open.filter((d) => d.direction === "i_owe").reduce((s, d) => s + d.amount_minor, 0),

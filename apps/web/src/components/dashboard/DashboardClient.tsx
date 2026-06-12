@@ -6,6 +6,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import type { DashboardData } from "@/lib/queries";
 import { fmtMoney, monthLabel } from "@/lib/format";
 import { ACCOUNT_EMOJI, SOURCE_EMOJI } from "@/lib/labels";
+import { accountFinance } from "@/lib/finance";
 import { CashflowChart, NetWorthChart, SpendingDonut } from "./Charts";
 import { AddTransactionModal } from "./AddTransactionModal";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -359,7 +360,7 @@ function StatCard({
 function useDerived(data: DashboardData) {
   return useMemo(() => {
     const catById = new Map(data.categories.map((c) => [c.id, c]));
-    const netWorth = data.accounts.reduce((s, a) => s + a.balance_minor, 0);
+    const netWorth = accountFinance(data.accounts).netWorth;
 
     const now = new Date();
     const monthKey = (dt: Date) => `${dt.getFullYear()}-${dt.getMonth()}`;
