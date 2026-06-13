@@ -53,6 +53,14 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
     void fetch("/api/me/welcomed", { method: "POST" });
   }
 
+  // Badge en el ícono de la app instalada (PWA): número de novedades sin leer.
+  useEffect(() => {
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (typeof nav.setAppBadge !== "function") return;
+    if (unread > 0) void nav.setAppBadge(unread).catch(() => {});
+    else void nav.clearAppBadge?.().catch(() => {});
+  }, [unread]);
+
   // Cierra el drawer al navegar.
   useEffect(() => {
     setOpen(false);

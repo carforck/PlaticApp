@@ -7,6 +7,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
 import { accountFinance } from "@/lib/finance";
 import { Avatar } from "./Avatar";
+import { InstallPrompt } from "./InstallPrompt";
 import { DevCredit } from "@/components/DevCredit";
 
 export function PerfilClient() {
@@ -149,6 +150,8 @@ export function PerfilClient() {
           )}
         </div>
       </div>
+
+      <InstallPrompt />
 
       {/* Zona de datos */}
       <section className="glass rounded-[var(--radius-card)] p-6">

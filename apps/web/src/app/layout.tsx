@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { LiquidBackground } from "@/components/LiquidBackground";
+import { RegisterSW } from "@/components/RegisterSW";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://platicapp-web.vercel.app"),
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="app-wallpaper min-h-screen antialiased">
         <LiquidBackground />
+        <RegisterSW />
         {children}
       </body>
     </html>

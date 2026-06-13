@@ -14,6 +14,7 @@ interface AdminUser {
   name: string;
   avatar: string | null;
   provider: string;
+  loginMethod: string;
   createdAt: string;
   lastSignIn: string | null;
   lastSeen: string | null;
@@ -24,6 +25,24 @@ interface AdminUser {
   netWorth: number;
   openDebts: number;
   storageBytes: number;
+}
+
+const METHOD_BADGE: Record<string, string> = {
+  Google: "🔵 Google",
+  Telegram: "✈️ Telegram",
+  Correo: "✉️ Correo",
+};
+
+const fmtDateShort = (s: string | null) =>
+  s ? new Date(s).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "2-digit" }) : "—";
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] uppercase tracking-wide text-[var(--color-ink-soft)]">{label}</p>
+      <p className="truncate text-[13px] font-medium">{value}</p>
+    </div>
+  );
 }
 
 const fmtBytes = (b: number) => {
@@ -141,6 +160,7 @@ export function AdminClient() {
                         <span className="min-w-0">
                           <span className="block truncate font-medium">{u.name || "—"}</span>
                           <span className="block truncate text-[11px] text-[var(--color-ink-soft)]">{u.email}</span>
+                          <span className="block text-[10px] text-[var(--color-ink-soft)]">{METHOD_BADGE[u.loginMethod] ?? u.loginMethod}</span>
                         </span>
                       </span>
                     </td>
@@ -214,9 +234,22 @@ function UserDetailModal({ user, onClose }: { user: AdminUser; onClose: () => vo
             <h2 className="truncate text-[18px] font-semibold">{user.name || "Sin nombre"}</h2>
             <p className="truncate text-[12px] text-[var(--color-ink-soft)]">{user.email}</p>
             <p className="text-[11px] text-[var(--color-ink-soft)]">
-              {user.online ? "En línea ahora" : `Última actividad ${sinceText(user.lastSeen)}`} · {fmtBytes(user.storageBytes)} en recibos
+              {user.online ? "🟢 En línea ahora" : `Última actividad ${sinceText(user.lastSeen)}`}
             </p>
           </div>
+        </div>
+
+        {/* Ficha consolidada */}
+        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-[var(--radius-control)] bg-black/[0.03] p-3.5 sm:grid-cols-3">
+          <Field label="Ingresó por" value={METHOD_BADGE[user.loginMethod] ?? user.loginMethod} />
+          <Field label="Telegram" value={user.telegram ? `✓ ${user.telegram}` : "Sin vincular"} />
+          <Field label="Recibos" value={fmtBytes(user.storageBytes)} />
+          <Field label="Se unió" value={fmtDateShort(user.createdAt)} />
+          <Field label="Último acceso" value={fmtDateShort(user.lastSignIn)} />
+          <Field label="Movimientos" value={String(user.transactions)} />
+          <Field label="Cuentas" value={String(user.accounts)} />
+          <Field label="Deudas abiertas" value={String(user.openDebts)} />
+          <Field label="Patrimonio" value={fmtMoney(user.netWorth)} />
         </div>
 
         {error ? (

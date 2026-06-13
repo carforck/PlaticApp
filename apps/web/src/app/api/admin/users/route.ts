@@ -60,12 +60,21 @@ export async function GET() {
     .map((u) => {
       const meta = u.user_metadata ?? {};
       const link = linkByUser.get(u.id);
+      // Método de login legible.
+      const rawProvider = (u.app_metadata?.provider as string) ?? "email";
+      const loginMethod =
+        meta.provider === "telegram" || (u.email ?? "").endsWith("@telegram.platicapp.app")
+          ? "Telegram"
+          : rawProvider === "google"
+            ? "Google"
+            : "Correo";
       return {
         id: u.id,
         email: u.email ?? "",
         name: (meta.full_name as string) ?? (meta.name as string) ?? "",
         avatar: (meta.avatar_url as string) ?? (meta.picture as string) ?? null,
-        provider: (u.app_metadata?.provider as string) ?? "email",
+        provider: rawProvider,
+        loginMethod,
         createdAt: u.created_at,
         lastSignIn: u.last_sign_in_at ?? null,
         confirmed: !!u.email_confirmed_at,
