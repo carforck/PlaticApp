@@ -50,6 +50,7 @@ export interface QueryIntent {
 /** Acción de ahorro: apartar, fijar meta o consultar. */
 export interface SavingsIntent {
   action: "save" | "goal" | "query";
+  name?: string; // título del ahorro (ej. «Casa», «Celular»)
   accountHint?: string;
   fromAccountHint?: string;
   amount?: number; // unidad mayor (pesos)

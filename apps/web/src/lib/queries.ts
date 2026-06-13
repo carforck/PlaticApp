@@ -8,6 +8,13 @@ export interface AccountRow {
   balance_minor: number;
   opening_minor: number;
   reserved_minor: number;
+}
+
+export interface SavingRow {
+  id: string;
+  account_id: string;
+  name: string;
+  reserved_minor: number;
   goal_minor: number | null;
 }
 
@@ -88,11 +95,12 @@ export interface DashboardData {
   receipts: ReceiptRow[];
   budgets: BudgetRow[];
   announcements: AnnouncementRow[];
+  savings: SavingRow[];
 }
 
 /** Trae todo lo que el dashboard necesita. Sirve para server y browser client. */
 export async function fetchDashboard(supabase: SupabaseClient): Promise<DashboardData> {
-  const [accounts, transactions, categories, debts, recurrences, receipts, budgets, announcements] = await Promise.all([
+  const [accounts, transactions, categories, debts, recurrences, receipts, budgets, announcements, savings] = await Promise.all([
     supabase.from("account_balances").select("*"),
     supabase
       .from("transactions")
@@ -105,6 +113,7 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
     supabase.from("receipts").select("id, path, caption, created_at").order("created_at", { ascending: false }).limit(60),
     supabase.from("budgets").select("id, category_id, amount_minor"),
     supabase.from("announcements").select("id, title, body, emoji, tag, created_at").eq("published", true).order("created_at", { ascending: false }).limit(50),
+    supabase.from("savings").select("id, account_id, name, reserved_minor, goal_minor").order("created_at", { ascending: true }),
   ]);
 
   return {
@@ -116,5 +125,6 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
     receipts: (receipts.data as ReceiptRow[]) ?? [],
     budgets: (budgets.data as BudgetRow[]) ?? [],
     announcements: (announcements.data as AnnouncementRow[]) ?? [],
+    savings: (savings.data as SavingRow[]) ?? [],
   };
 }

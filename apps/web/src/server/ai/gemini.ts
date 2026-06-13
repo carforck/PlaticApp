@@ -63,6 +63,7 @@ const responseSchema = {
         "Si el usuario habla de AHORRO: apartar/guardar plata, mover al ahorro, fijar una meta de ahorro, o preguntar cuánto tiene ahorrado. NO uses 'items' en ese caso.",
       properties: {
         action: { type: "string", enum: ["save", "goal", "query"], description: "save=apartar/guardar/mover al ahorro; goal=fijar meta; query=cuánto tengo ahorrado" },
+        name: { type: "string", description: "Título del ahorro si lo menciona (ej. «para la casa» → Casa, «celular», «ropa», «regalo»)" },
         account: { type: "string", description: "Cuenta donde se ahorra o de la meta (ej. Bancolombia)" },
         fromAccount: { type: "string", description: "Cuenta de DONDE sale la plata, si la menciona (ej. «desde Nequi»)" },
         amount: { type: "number", description: "Monto a apartar/ahorrar" },
@@ -97,7 +98,7 @@ function buildPrompt(ctx: InterpretContext): string {
       : "",
     "Si no hay ningún movimiento ni deuda, devuelve items vacío.",
     "Si el usuario PREGUNTA por sus finanzas (ej. «¿cuánto debo?», «¿cuánto gasté en comida este mes?», «¿cuánto tengo?», «¿en qué gasto más?», «mis últimos movimientos»), NO registres nada: llena 'query' con type (balance=cuánto tengo, expenses=gastos, income=ingresos, debts=deudas, top_categories=en qué gasto más, recent=últimos), 'category' si menciona una, y 'period' (this_month por defecto, last_month, all).",
-    "Si el usuario habla de AHORRO (ej. «aparta 200 mil en Bancolombia», «guarda 100 mil para el ahorro», «mueve 50 mil al ahorro desde Nequi», «mi meta de ahorro es 5 millones», «¿cuánto tengo ahorrado?»), llena 'savings' (action save/goal/query, account, fromAccount si lo dice, amount, goal) y NO uses items. 'save'=apartar o mover al ahorro; 'goal'=fijar meta; 'query'=consultar lo ahorrado.",
+    "Si el usuario habla de AHORRO (ej. «aparta 200 mil para la casa en Bancolombia», «guarda 100 mil para el celular», «mueve 50 mil al ahorro de ropa desde Nequi», «la meta del ahorro de viaje es 5 millones», «¿cuánto tengo ahorrado?»), llena 'savings' (action save/goal/query, name=título del ahorro si lo dice, account, fromAccount si lo dice, amount, goal) y NO uses items. 'save'=apartar/abonar o mover al ahorro; 'goal'=fijar meta; 'query'=consultar lo ahorrado.",
     "Si el usuario SOLO conversa o saluda (ej. «hola», «gracias», «¿cómo estás?», «¿qué puedes hacer?», «buenos días») y NO hay nada que registrar ni consultar, deja items vacío y responde en 'reply' de forma humana y breve, recordándole con naturalidad que puede contarte un gasto/ingreso o preguntarte por sus finanzas, y que en la app web ve sus gráficos y métricas. No inventes cifras.",
   ]
     .filter(Boolean)
@@ -110,6 +111,7 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
 interface RawSavings {
   action?: "save" | "goal" | "query";
+  name?: string;
   account?: string;
   fromAccount?: string;
   amount?: number;
@@ -243,6 +245,7 @@ function split(
     savingsRaw && savingsRaw.action && transactions.length === 0
       ? {
           action: savingsRaw.action,
+          name: savingsRaw.name || undefined,
           accountHint: savingsRaw.account || undefined,
           fromAccountHint: savingsRaw.fromAccount || undefined,
           amount: typeof savingsRaw.amount === "number" ? savingsRaw.amount : undefined,

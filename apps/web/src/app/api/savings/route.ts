@@ -3,11 +3,20 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Apartar al ahorro. Si llega `fromAccountId`, primero transfiere el dinero a la
- * cuenta de ahorro (mover plata) y luego lo marca como apartado. Si no, solo
- * aparta de la misma cuenta. El apartado nunca supera el saldo de la cuenta.
- */
+type SB = Awaited<ReturnType<typeof createClient>>;
+
+/** Cuánto se puede apartar más en una cuenta (saldo − ya apartado en otros sobres). */
+async function roomToReserve(supabase: SB, userId: string, accountId: string, excludeSavingId?: string): Promise<number> {
+  const { data: bal } = await supabase.from("account_balances").select("balance_minor").eq("account_id", accountId).maybeSingle();
+  const balance = bal?.balance_minor ?? 0;
+  let q = supabase.from("savings").select("reserved_minor").eq("user_id", userId).eq("account_id", accountId);
+  if (excludeSavingId) q = q.neq("id", excludeSavingId);
+  const { data: others } = await q;
+  const otherReserved = (others ?? []).reduce((s, r) => s + (r.reserved_minor ?? 0), 0);
+  return Math.max(0, balance - otherReserved);
+}
+
+/** Crea un ahorro nuevo (con título) o abona a uno existente. Mueve plata si llega fromAccountId. */
 export async function POST(req: Request) {
   const supabase = await createClient();
   const {
@@ -15,16 +24,31 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "no auth" }, { status: 401 });
 
-  const b = (await req.json().catch(() => ({}))) as { toAccountId?: string; amount?: number; fromAccountId?: string | null };
+  const b = (await req.json().catch(() => ({}))) as {
+    savingId?: string;
+    accountId?: string;
+    name?: string;
+    amount?: number;
+    goal?: number | null;
+    fromAccountId?: string | null;
+  };
   const amount = Math.round(Number(b.amount));
-  if (!b.toAccountId) return NextResponse.json({ error: "falta la cuenta de ahorro" }, { status: 400 });
   if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "monto inválido" }, { status: 400 });
 
-  const { data: acc } = await supabase.from("accounts").select("id, currency, reserved_minor").eq("id", b.toAccountId).maybeSingle();
-  if (!acc) return NextResponse.json({ error: "cuenta no encontrada" }, { status: 404 });
+  // Determinar la cuenta destino del ahorro.
+  let accountId = b.accountId;
+  let existing: { id: string; reserved_minor: number; account_id: string } | null = null;
+  if (b.savingId) {
+    const { data } = await supabase.from("savings").select("id, reserved_minor, account_id").eq("id", b.savingId).maybeSingle();
+    if (!data) return NextResponse.json({ error: "ahorro no encontrado" }, { status: 404 });
+    existing = data;
+    accountId = data.account_id;
+  }
+  if (!accountId) return NextResponse.json({ error: "falta la cuenta" }, { status: 400 });
+  if (!existing && !b.name?.trim()) return NextResponse.json({ error: "falta el título del ahorro" }, { status: 400 });
 
   // Mover plata desde otra cuenta (transferencia) antes de apartar.
-  if (b.fromAccountId && b.fromAccountId !== b.toAccountId) {
+  if (b.fromAccountId && b.fromAccountId !== accountId) {
     const { data: from } = await supabase.from("accounts").select("id, currency").eq("id", b.fromAccountId).maybeSingle();
     if (!from) return NextResponse.json({ error: "cuenta origen no encontrada" }, { status: 404 });
     const { error: tErr } = await supabase.from("transactions").insert({
@@ -33,7 +57,7 @@ export async function POST(req: Request) {
       amount_minor: amount,
       currency: from.currency,
       account_id: from.id,
-      transfer_account_id: acc.id,
+      transfer_account_id: accountId,
       description: "Movido al ahorro",
       occurred_at: new Date().toISOString(),
       source: "web",
@@ -41,17 +65,21 @@ export async function POST(req: Request) {
     if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
   }
 
-  // El apartado no puede superar el saldo actual de la cuenta.
-  const { data: bal } = await supabase.from("account_balances").select("balance_minor").eq("account_id", acc.id).maybeSingle();
-  const balance = bal?.balance_minor ?? 0;
-  const newReserved = Math.min((acc.reserved_minor ?? 0) + amount, balance);
+  const room = await roomToReserve(supabase, user.id, accountId, existing?.id);
+  const add = Math.min(amount, room);
 
-  const { error } = await supabase.from("accounts").update({ reserved_minor: newReserved }).eq("id", acc.id).eq("user_id", user.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, reserved: newReserved });
+  if (existing) {
+    const { error } = await supabase.from("savings").update({ reserved_minor: existing.reserved_minor + add }).eq("id", existing.id).eq("user_id", user.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  } else {
+    const goal = b.goal != null && Number(b.goal) > 0 ? Math.round(Number(b.goal)) : null;
+    const { error } = await supabase.from("savings").insert({ user_id: user.id, account_id: accountId, name: b.name!.trim(), reserved_minor: add, goal_minor: goal });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true, reserved: add });
 }
 
-/** Ajusta el apartado (liberar/fijar) o la meta de ahorro de una cuenta. */
+/** Edita un ahorro: renombrar, ajustar lo apartado o la meta. */
 export async function PATCH(req: Request) {
   const supabase = await createClient();
   const {
@@ -59,26 +87,45 @@ export async function PATCH(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "no auth" }, { status: 401 });
 
-  const b = (await req.json().catch(() => ({}))) as { accountId?: string; reserved?: number; goal?: number | null };
-  if (!b.accountId) return NextResponse.json({ error: "falta la cuenta" }, { status: 400 });
+  const b = (await req.json().catch(() => ({}))) as { savingId?: string; name?: string; reserved?: number; goal?: number | null };
+  if (!b.savingId) return NextResponse.json({ error: "falta el ahorro" }, { status: 400 });
+
+  const { data: pot } = await supabase.from("savings").select("id, account_id").eq("id", b.savingId).maybeSingle();
+  if (!pot) return NextResponse.json({ error: "ahorro no encontrado" }, { status: 404 });
 
   const patch: Record<string, unknown> = {};
+  if (typeof b.name === "string" && b.name.trim()) patch.name = b.name.trim();
   if (b.reserved !== undefined) {
     const r = Math.round(Number(b.reserved));
-    if (!Number.isFinite(r) || r < 0) return NextResponse.json({ error: "apartado inválido" }, { status: 400 });
-    patch.reserved_minor = r;
+    if (!Number.isFinite(r) || r < 0) return NextResponse.json({ error: "monto inválido" }, { status: 400 });
+    const room = await roomToReserve(supabase, user.id, pot.account_id, pot.id);
+    patch.reserved_minor = Math.min(r, room);
   }
   if (b.goal !== undefined) {
-    if (b.goal === null) patch.savings_goal_minor = null;
+    if (b.goal === null) patch.goal_minor = null;
     else {
       const g = Math.round(Number(b.goal));
       if (!Number.isFinite(g) || g <= 0) return NextResponse.json({ error: "meta inválida" }, { status: 400 });
-      patch.savings_goal_minor = g;
+      patch.goal_minor = g;
     }
   }
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: "nada que actualizar" }, { status: 400 });
 
-  const { error } = await supabase.from("accounts").update(patch).eq("id", b.accountId).eq("user_id", user.id);
+  const { error } = await supabase.from("savings").update(patch).eq("id", b.savingId).eq("user_id", user.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
+/** Elimina un ahorro (libera lo apartado). */
+export async function DELETE(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "no auth" }, { status: 401 });
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "falta id" }, { status: 400 });
+  const { error } = await supabase.from("savings").delete().eq("id", id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

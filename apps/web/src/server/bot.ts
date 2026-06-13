@@ -827,46 +827,69 @@ async function budgetAlerts(
 }
 
 /** Responde una pregunta del usuario calculando desde la base de datos. */
-/** Maneja acciones de ahorro desde el bot: apartar, mover, fijar meta o consultar. */
+/** Espacio disponible para apartar en una cuenta (saldo − apartado en otros sobres). */
+async function savingsRoom(db: ReturnType<typeof createAdminClient>, userId: string, accountId: string, excludeId?: string): Promise<number> {
+  const { data: bal } = await db.from("account_balances").select("balance_minor").eq("account_id", accountId).maybeSingle();
+  const balance = bal?.balance_minor ?? 0;
+  let q = db.from("savings").select("reserved_minor").eq("user_id", userId).eq("account_id", accountId);
+  if (excludeId) q = q.neq("id", excludeId);
+  const { data: others } = await q;
+  const used = (others ?? []).reduce((s, r) => s + (r.reserved_minor ?? 0), 0);
+  return Math.max(0, balance - used);
+}
+
+/** Maneja acciones de ahorro desde el bot: apartar, abonar, fijar meta o consultar. */
 async function handleSavings(chatId: number, userId: string, s: SavingsIntent): Promise<void> {
   const db = createAdminClient();
 
   if (s.action === "query") {
-    const { data: bals } = await db.from("account_balances").select("name, reserved_minor, savings_goal_minor").eq("user_id", userId);
-    const rows = (bals ?? []).filter((b) => (b.reserved_minor ?? 0) > 0 || b.savings_goal_minor);
-    const total = (bals ?? []).reduce((a, b) => a + (b.reserved_minor ?? 0), 0);
+    const { data: pots } = await db.from("savings").select("name, reserved_minor, goal_minor").eq("user_id", userId).order("created_at");
+    const rows = pots ?? [];
+    const total = rows.reduce((a, b) => a + (b.reserved_minor ?? 0), 0);
     if (!rows.length) {
-      await telegram.sendMessage(chatId, "🐷 Aún no apartas ahorros. Dime algo como «aparta 100 mil en Bancolombia».");
+      await telegram.sendMessage(chatId, "🐷 Aún no tienes ahorros. Dime algo como «aparta 100 mil para la casa en Bancolombia».");
       return;
     }
     const lines = rows
-      .map((b) => `• ${b.name}: ${pesos(b.reserved_minor ?? 0)}${b.savings_goal_minor ? ` / meta ${pesos(b.savings_goal_minor)}` : ""}`)
+      .map((b) => `• ${b.name}: ${pesos(b.reserved_minor ?? 0)}${b.goal_minor ? ` / meta ${pesos(b.goal_minor)}` : ""}`)
       .join("\n");
-    await telegram.sendMessage(chatId, `🐷 <b>Tu ahorro:</b> ${pesos(total)}\n${lines}`);
+    await telegram.sendMessage(chatId, `🐷 <b>Tus ahorros:</b> ${pesos(total)}\n${lines}`);
     return;
   }
 
   const acct = s.accountHint ? await accountRepo(db).findByNameHint(userId, s.accountHint) : null;
   if (!acct) {
-    await telegram.sendMessage(chatId, "¿En qué cuenta? Dime por ejemplo «aparta 100 mil en Bancolombia». 🐷");
+    await telegram.sendMessage(chatId, "¿En qué cuenta? Dime por ejemplo «aparta 100 mil para la casa en Bancolombia». 🐷");
     return;
   }
+
+  // Buscar el sobre por título (dentro de esa cuenta). Si no hay título, el primero de la cuenta.
+  const { data: potRows } = await db.from("savings").select("id, name, reserved_minor, goal_minor").eq("user_id", userId).eq("account_id", acct.id);
+  const pots = potRows ?? [];
+  const match = s.name
+    ? pots.find((p) => (p.name as string).toLowerCase().includes(s.name!.toLowerCase()) || s.name!.toLowerCase().includes((p.name as string).toLowerCase()))
+    : pots[0];
 
   if (s.action === "goal") {
     const goalMinor = s.goal ? Money.of(Math.round(s.goal), "COP").minorUnits : 0;
     if (goalMinor <= 0) {
-      await telegram.sendMessage(chatId, "¿De cuánto sería la meta? Ej. «mi meta de ahorro en " + acct.name + " es 5 millones».");
+      await telegram.sendMessage(chatId, "¿De cuánto la meta? Ej. «la meta del ahorro de viaje es 5 millones».");
       return;
     }
-    await db.from("accounts").update({ savings_goal_minor: goalMinor }).eq("id", acct.id).eq("user_id", userId);
-    await telegram.sendMessage(chatId, `🎯 Meta de ahorro en <b>${acct.name}</b>: ${pesos(goalMinor)}. ¡A por ella!`);
+    if (match) {
+      await db.from("savings").update({ goal_minor: goalMinor }).eq("id", match.id).eq("user_id", userId);
+      await telegram.sendMessage(chatId, `🎯 Meta de <b>${match.name}</b>: ${pesos(goalMinor)}. ¡A por ella!`);
+    } else {
+      await db.from("savings").insert({ user_id: userId, account_id: acct.id, name: titleCase(s.name || "Ahorro"), reserved_minor: 0, goal_minor: goalMinor });
+      await telegram.sendMessage(chatId, `🎯 Creé el ahorro <b>${titleCase(s.name || "Ahorro")}</b> con meta de ${pesos(goalMinor)}.`);
+    }
     return;
   }
 
-  // action === "save"
+  // action === "save" (apartar / abonar)
   const amountMinor = s.amount ? Money.of(Math.round(s.amount), "COP").minorUnits : 0;
   if (amountMinor <= 0) {
-    await telegram.sendMessage(chatId, "¿Cuánto quieres apartar? Ej. «aparta 100 mil en " + acct.name + "».");
+    await telegram.sendMessage(chatId, "¿Cuánto quieres apartar? Ej. «aparta 100 mil para la casa en " + acct.name + "».");
     return;
   }
 
@@ -888,18 +911,21 @@ async function handleSavings(chatId: number, userId: string, s: SavingsIntent): 
     }
   }
 
-  const { data: bal } = await db.from("account_balances").select("balance_minor, reserved_minor, savings_goal_minor").eq("account_id", acct.id).maybeSingle();
-  const balance = bal?.balance_minor ?? 0;
-  const newReserved = Math.min((bal?.reserved_minor ?? 0) + amountMinor, balance);
-  await db.from("accounts").update({ reserved_minor: newReserved }).eq("id", acct.id).eq("user_id", userId);
+  const room = await savingsRoom(db, userId, acct.id, match?.id);
+  const add = Math.min(amountMinor, room);
+  const potName = titleCase(s.name || match?.name || "Ahorro");
 
-  const goalNote = bal?.savings_goal_minor
-    ? `\n🎯 Vas en ${pesos(newReserved)} de ${pesos(bal.savings_goal_minor)} (${Math.round((newReserved / bal.savings_goal_minor) * 100)}%).`
-    : "";
-  await telegram.sendMessage(
-    chatId,
-    `🐷 Aparté <b>${pesos(amountMinor)}</b> al ahorro en <b>${acct.name}</b>.\nAhorro en esa cuenta: ${pesos(newReserved)}.${goalNote}`,
-  );
+  if (match) {
+    const newReserved = (match.reserved_minor ?? 0) + add;
+    await db.from("savings").update({ reserved_minor: newReserved }).eq("id", match.id).eq("user_id", userId);
+    const goalNote = match.goal_minor
+      ? `\n🎯 Vas en ${pesos(newReserved)} de ${pesos(match.goal_minor)} (${Math.round((newReserved / match.goal_minor) * 100)}%).`
+      : "";
+    await telegram.sendMessage(chatId, `🐷 Aboné <b>${pesos(add)}</b> a <b>${match.name}</b> (en ${acct.name}). Total: ${pesos(newReserved)}.${goalNote}`);
+  } else {
+    await db.from("savings").insert({ user_id: userId, account_id: acct.id, name: potName, reserved_minor: add, goal_minor: null });
+    await telegram.sendMessage(chatId, `🐷 Creé el ahorro <b>${potName}</b> en ${acct.name} con ${pesos(add)}.`);
+  }
 }
 
 async function answerQuery(userId: string, q: QueryIntent): Promise<string> {
