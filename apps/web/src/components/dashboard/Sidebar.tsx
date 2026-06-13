@@ -65,7 +65,7 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
       className={
         inDrawer
           ? "glass flex h-full w-[82vw] max-w-[18rem] shrink-0 flex-col rounded-[var(--radius-card)] p-3"
-          : "glass animate-float-in hidden w-60 shrink-0 flex-col rounded-[var(--radius-card)] p-3 md:flex"
+          : "glass animate-float-in hidden w-60 shrink-0 flex-col rounded-[var(--radius-card)] p-3 md:flex md:sticky md:top-4 md:max-h-[calc(100vh-2rem)]"
       }
     >
       <div className="flex items-center gap-2 px-2 py-2">
