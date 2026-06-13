@@ -69,9 +69,15 @@ export interface ExtractResult {
   reply: string | null;
 }
 
+/** Un turno previo de la conversación (para dar contexto al hilo). */
+export interface ConversationTurn {
+  role: "user" | "model";
+  text: string;
+}
+
 /** Convierte texto libre en transacciones y/o deudas. (Adaptador: Gemini) */
 export interface TextInterpreter {
-  interpret(text: string, ctx: InterpretContext): Promise<ExtractResult>;
+  interpret(text: string, ctx: InterpretContext, history?: ConversationTurn[]): Promise<ExtractResult>;
 }
 
 /** Transcribe audio a texto. (Adaptador: Groq Whisper) */

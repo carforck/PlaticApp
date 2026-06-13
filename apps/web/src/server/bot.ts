@@ -1,6 +1,7 @@
 import { Money, RegisterTransaction, firstDueDate, nextOccurrence } from "@platica/core";
 import type {
   AccountType,
+  ConversationTurn,
   ExtractResult,
   Frequency,
   InterpretContext,
@@ -235,15 +236,19 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   }
 
   try {
+    const db = createAdminClient();
     const ctx = await buildContext(userId);
+    const history = await loadHistory(db, chatId); // hilo reciente para dar contexto
     let result: ExtractResult;
+    let userText = "";
 
     if (msg.voice || msg.audio) {
       const fileId = (msg.voice ?? msg.audio)!.file_id;
       const { bytes, mimeHint } = await telegram.downloadFile(fileId);
       const transcript = await groqAudio.transcribe(bytes, mimeHint);
       await telegram.sendMessage(chatId, `🎙️ Te entendí: <i>«${transcript}»</i>`);
-      result = await geminiText.interpret(transcript, ctx);
+      userText = transcript;
+      result = await geminiText.interpret(transcript, ctx, history);
       result.transactions = result.transactions.map((d) => ({ ...d, source: "telegram_audio" as const }));
     } else if (msg.photo?.length) {
       const largest = msg.photo[msg.photo.length - 1]!;
@@ -252,10 +257,13 @@ async function handleMessage(msg: TgMessage): Promise<void> {
       if (msg.caption && result.transactions[0]) result.transactions[0].description ??= msg.caption;
       await saveReceipt(userId, bytes, mimeHint, result, msg.caption); // guarda la foto en la galería
     } else if (text) {
-      result = await geminiText.interpret(text, ctx);
+      userText = text;
+      result = await geminiText.interpret(text, ctx, history);
     } else {
       return;
     }
+
+    if (userText) await remember(db, chatId, "user", userText);
 
     const nothingToRegister =
       result.transactions.length === 0 && result.debts.length === 0 && result.recurrences.length === 0;
@@ -263,18 +271,22 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     // Acción de ahorro (apartar / meta / consulta).
     if (result.savings) {
       await handleSavings(chatId, userId, result.savings);
+      await remember(db, chatId, "model", "(gestioné una acción de ahorro)");
       return;
     }
 
     // Si es una pregunta, la respondemos en vez de registrar.
     if (nothingToRegister && result.query) {
-      await telegram.sendMessage(chatId, await answerQuery(userId, result.query));
+      const ans = await answerQuery(userId, result.query);
+      await telegram.sendMessage(chatId, ans);
+      await remember(db, chatId, "model", ans.replace(/<[^>]+>/g, "").slice(0, 220));
       return;
     }
 
     // Conversación: el usuario solo charla/saluda. Respondemos humano.
     if (nothingToRegister && result.reply) {
       await telegram.sendMessage(chatId, result.reply);
+      await remember(db, chatId, "model", result.reply);
       return;
     }
 
@@ -287,6 +299,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     }
 
     await proposeDrafts(chatId, userId, result);
+    await remember(db, chatId, "model", "(te mostré un borrador y te pedí confirmar el registro)");
   } catch (err) {
     const m = (err as Error).message;
     const friendly = m.includes("SATURADO")
@@ -836,6 +849,27 @@ async function savingsRoom(db: ReturnType<typeof createAdminClient>, userId: str
   const { data: others } = await q;
   const used = (others ?? []).reduce((s, r) => s + (r.reserved_minor ?? 0), 0);
   return Math.max(0, balance - used);
+}
+
+// ── Memoria de corto plazo (hilo de conversación) ──────────────
+/** Últimos turnos del chat (≤6, de los últimos 30 min) para dar contexto al hilo. */
+async function loadHistory(db: ReturnType<typeof createAdminClient>, chatId: number): Promise<ConversationTurn[]> {
+  const { data } = await db
+    .from("bot_messages")
+    .select("role, content, created_at")
+    .eq("chat_id", chatId)
+    .gt("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(6);
+  return (data ?? [])
+    .reverse()
+    .map((m) => ({ role: m.role as "user" | "model", text: m.content as string }));
+}
+
+/** Guarda un turno y purga lo viejo del chat (mantiene el hilo corto). */
+async function remember(db: ReturnType<typeof createAdminClient>, chatId: number, role: "user" | "model", content: string): Promise<void> {
+  await db.from("bot_messages").insert({ chat_id: chatId, role, content: content.slice(0, 500) });
+  await db.from("bot_messages").delete().eq("chat_id", chatId).lt("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString());
 }
 
 /** Maneja acciones de ahorro desde el bot: apartar, abonar, fijar meta o consultar. */

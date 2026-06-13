@@ -98,6 +98,7 @@ function buildPrompt(ctx: InterpretContext): string {
       : "",
     "Si no hay ningún movimiento ni deuda, devuelve items vacío.",
     "Si el usuario PREGUNTA por sus finanzas (ej. «¿cuánto debo?», «¿cuánto gasté en comida este mes?», «¿cuánto tengo?», «¿en qué gasto más?», «mis últimos movimientos»), NO registres nada: llena 'query' con type (balance=cuánto tengo, expenses=gastos, income=ingresos, debts=deudas, top_categories=en qué gasto más, recent=últimos), 'category' si menciona una, y 'period' (this_month por defecto, last_month, all).",
+    "Puede venir un «Contexto reciente» con los últimos turnos de la charla. Úsalo SOLO para entender referencias y seguimientos del «Mensaje actual» (ej. «y otros 20 en taxi», «no, eran 30 mil», «con Nequi», «¿y el mes pasado?»). Registra o consulta ÚNICAMENTE lo del mensaje actual; NO repitas lo que ya estaba en el contexto.",
     "Si el usuario habla de AHORRO (ej. «aparta 200 mil para la casa en Bancolombia», «guarda 100 mil para el celular», «mueve 50 mil al ahorro de ropa desde Nequi», «la meta del ahorro de viaje es 5 millones», «¿cuánto tengo ahorrado?»), llena 'savings' (action save/goal/query, name=título del ahorro si lo dice, account, fromAccount si lo dice, amount, goal) y NO uses items. 'save'=apartar/abonar o mover al ahorro; 'goal'=fijar meta; 'query'=consultar lo ahorrado.",
     "Si el usuario SOLO conversa o saluda (ej. «hola», «gracias», «¿cómo estás?», «¿qué puedes hacer?», «buenos días») y NO hay nada que registrar ni consultar, deja items vacío y responde en 'reply' de forma humana y breve, recordándole con naturalidad que puede contarte un gasto/ingreso o preguntarte por sus finanzas, y que en la app web ve sus gráficos y métricas. No inventes cifras.",
   ]
@@ -291,9 +292,13 @@ export async function summarize(prompt: string): Promise<string> {
 }
 
 export const geminiText: TextInterpreter = {
-  async interpret(text, ctx) {
+  async interpret(text, ctx, history) {
+    const ctxBlock =
+      history && history.length
+        ? `Contexto reciente:\n${history.map((h) => `${h.role === "user" ? "Usuario" : "PlaticApp"}: ${h.text}`).join("\n")}\n\n`
+        : "";
     const { items, query, savings, reply } = await generate({
-      contents: [{ role: "user", parts: [{ text: `${buildPrompt(ctx)}\n\nUsuario: ${text}` }] }],
+      contents: [{ role: "user", parts: [{ text: `${buildPrompt(ctx)}\n\n${ctxBlock}Mensaje actual del usuario: ${text}` }] }],
     });
     return split(items, query, savings, reply, ctx, "telegram_text");
   },
