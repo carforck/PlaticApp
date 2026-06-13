@@ -31,22 +31,22 @@ interpreta el mensaje, pide confirmación y lo guarda. Todo se refleja al instan
 
 ---
 
-## 📊 Estado del proyecto (auditoría · 2026-06-12)
+## 📊 Estado del proyecto (auditoría · 2026-06-13)
 
 | Área | Estado |
 |---|---|
 | Typecheck (core + web) | ✅ sin errores |
 | Build de producción | ✅ compila |
 | Deploy en Vercel | ✅ READY |
-| RLS en todas las tablas | ✅ activo (13/13) |
-| Endpoints protegidos (cron/admin/me) | ✅ 401/403 sin auth |
+| RLS en todas las tablas | ✅ activo (todas) |
+| Endpoints protegidos (cron/admin/me/hooks) | ✅ 401/403 sin auth |
 | Bucket de recibos | ✅ privado |
 | Webhook de Telegram | ✅ sano (0 pendientes, sin errores) |
-| Variables de entorno en Vercel | ✅ 12/12 |
+| Doctor de salud (Admin) | ✅ en tiempo real |
 | Secretos fuera del repo | ✅ solo `.env.example` versionado |
 
-**Uso actual** (≈1% de los límites del plan gratis): 9 usuarios · 35 movimientos ·
-12,3 MB de DB · 0,25 MB de recibos.
+**Uso actual** (≈1% de los límites del plan gratis): 16 usuarios · ~25 movimientos ·
+~12,5 MB de DB · ~0,2 MB de recibos.
 
 ---
 
@@ -54,24 +54,40 @@ interpreta el mensaje, pide confirmación y lo guarda. Todo se refleja al instan
 
 **Registro por el bot**
 - Gastos, ingresos, inversiones, transferencias entre cuentas propias.
-- Deudas («Juan me prestó 200 mil»).
-- Pagos fijos / recurrentes con recordatorio 1 día antes.
-- Texto, **audio** (transcrito con Groq Whisper) e **imagen** de recibos (Gemini Vision).
-- Confirmación antes de guardar; aviso de posibles duplicados o gastos inusuales.
-- Conversa de forma humana (saludos, «¿qué puedes hacer?») y responde preguntas
-  («¿cuánto gasté en comida este mes?»).
+- Deudas («Juan me prestó 200 mil»); pagos fijos con recordatorio 1 día antes.
+- Texto, **audio** (Groq Whisper) e **imagen** de recibos (Gemini Vision).
+- **Pregunta la cuenta cuando hace falta**: si no dices el medio (y tienes 2+ cuentas) o
+  mencionas una que no existe, te ofrece elegir entre las tuyas o crear una.
+- **Memoria de conversación** (hilo de los últimos ~30 min): entiende seguimientos
+  («y otros 20 en taxi»), correcciones («no, eran 30 mil») y referencias.
+- Conversa humano (personalidad cálida, saludo por nombre con frases que rotan) y
+  responde preguntas («¿cuánto gasté en comida este mes?», «¿cuánto tengo ahorrado?»).
+- **Ahorros por chat**: «aparta 100 mil para la casa en Bancolombia», metas y consulta.
+- Confirmación antes de guardar; avisos de duplicados, gastos altos y «toca tu ahorro».
 
 **Dashboard web**
 - Resumen con KPIs, comparativo vs. mes anterior, proyección de gasto, racha de
-  registro, próximo pago fijo y alertas de presupuesto.
-- Vistas: Movimientos (lista + calendario), Cuentas, Deudas, Inversiones, Categorías,
-  Presupuestos, Pagos fijos, Recibos (galería), Novedades.
-- Saldos iniciales por cuenta, editar/eliminar movimientos.
-- Paginación en todas las listas largas.
+  registro, próximo pago fijo, alertas de presupuesto y **colchón financiero** (runway).
+- Vistas: Movimientos (lista + calendario), Cuentas, Deudas, Inversiones, **Ahorros**,
+  Categorías, Presupuestos, Pagos fijos, Recibos (galería), Novedades.
+- **CRUD completo** en todo (crear/editar/eliminar) con detalle por ítem.
+- **Cuentas**: saldo inicial, cambiar tipo, y **tarjetas de crédito como pasivo** (no
+  suman al patrimonio); **ahorros** muestran «disponible vs. ahorrado».
+- **Ahorros con título** («Casa», «Celular»…): varios sobres por cuenta, con meta y progreso.
+- **Montos con separadores de miles** al escribir (1.500.000) para confirmar antes de guardar.
+- Modo oscuro por defecto; **menú agrupado** por secciones; descripción de cada vista.
+- **Móvil-first**: barra inferior, gestos (deslizar para abrir el menú), botón flotante
+  «Registrar», modales como *bottom sheets*; **PWA instalable** con badge de novedades en el ícono.
 - Centro de Novedades (changelog) con publicación desde Admin + broadcast por Telegram.
-- Perfil: vinculación de Telegram, **exportar datos (JSON)** y **empezar de nuevo**.
-- **Admin** (solo el dueño): usuarios, espacio por usuario, estado «en línea»,
-  detalle de movimientos por usuario.
+- Perfil: 5 formas de login, **exportar datos (JSON)**, **empezar de nuevo** y accesos directos.
+
+**Login** (5 vías): Google, **correo + contraseña (con registro)**, **Telegram** (gratis,
+vincula el bot al instante), enlace mágico.
+
+**Admin** (solo el dueño): usuarios con **método de login**, espacio por usuario, estado
+«en línea», **ficha consolidada** + movimientos por usuario, **gráficas de métricas**
+(crecimiento, registros/semana), **doctor de salud del sistema** en tiempo real, y
+**aviso por Telegram solo al admin** cuando alguien nuevo se registra.
 
 ---
 
@@ -92,7 +108,7 @@ PlaticApp/
 │  ├─ src/components/      # UI (dashboard, landing, marca)
 │  └─ src/lib/             # Cliente Supabase, queries, contexto, formato
 │
-└─ supabase/migrations/    # Esquema SQL versionado (0001 … 0008)
+└─ supabase/migrations/    # Esquema SQL versionado (0001 … 0015)
 ```
 
 **Principio**: `packages/core` no sabe nada de Supabase ni Telegram; define **puertos**
@@ -107,7 +123,8 @@ PlaticApp/
 | Frontend | Next.js 15 (App Router), React 19, Tailwind v4, TypeScript strict |
 | Backend | Route Handlers de Next (runtime nodejs) |
 | Base de datos | Supabase Postgres + RLS + Realtime |
-| Auth | Supabase Auth (Google OAuth, magic link, email/clave) |
+| Auth | Supabase Auth (Google, email/clave con registro, enlace mágico) + **Login con Telegram** (widget oficial, verificación HMAC) |
+| PWA | Manifest + service worker + Badging API (instalable, badge en el ícono) |
 | Archivos | Supabase Storage (bucket `receipts` privado, imágenes en WebP) |
 | IA texto/visión | Google Gemini 2.5 Flash (con cadena de fallback) |
 | IA audio | Groq Whisper `large-v3-turbo` |
@@ -122,15 +139,22 @@ PlaticApp/
 Tablas en `public` (todas con **RLS por `user_id`**, salvo donde se indica):
 
 `profiles` · `accounts` · `categories` · `transactions` · `debts` · `recurrences` ·
-`budgets` · `receipts` · `announcements` · `telegram_links` · `link_codes` ·
-`pending_drafts` · `processed_updates` (idempotencia, sin policy → solo service-role).
+`budgets` · `receipts` · `announcements` · `savings` (sobres con título) ·
+`telegram_links` · `link_codes` · `pending_drafts` · `processed_updates` ·
+`bot_messages` (memoria de conversación, se purga >30 min) — estas dos sin policy
+(solo service-role).
 
-- Vista **`account_balances`** = `opening_balance_minor` + suma de movimientos
-  (los `transfer`/`investment` acreditan la cuenta destino, preservando el patrimonio).
+- Vista **`account_balances`** = `opening_balance_minor` + suma de movimientos, y expone
+  `reserved_minor` = suma de los **ahorros** de la cuenta (las `transfer`/`investment`
+  acreditan la cuenta destino, preservando el patrimonio).
+- **Tarjetas de crédito** (`type='credit'`) se tratan como pasivo: restan del patrimonio.
 - Montos en **unidades menores** (enteros) para evitar errores de coma flotante.
+- Función `platica_health()` (SECURITY DEFINER) para el doctor del Admin; trigger
+  `notify_new_user` (pg_net) avisa al admin de cada registro.
 
-Migraciones: `supabase/migrations/0001_init` → `0008_announcements` (+ columnas
-ad-hoc `profiles.last_seen` y `profiles.welcomed_at`).
+Migraciones: `supabase/migrations/0001_init` → `0015_bot_memory` (incluye deudas,
+recurrencias, recibos, presupuestos, saldos iniciales, transfers/inversiones, novedades,
+cuentas archivadas, Realtime de categorías, función de salud, aviso de registro, ahorros).
 
 ---
 
@@ -153,13 +177,17 @@ La IA usa **cadena de modelos con reintentos** (`gemini-2.5-flash` →
 ```
 api/telegram/webhook      # entrada del bot (POST, secret token)
 api/telegram/link-code    # genera código de vinculación
-api/telegram/status       # estado de vinculación
-api/transactions  accounts  categories  debts  recurrences  budgets  profile
+api/auth/telegram          # login con Telegram (verifica firma HMAC del widget)
+api/transactions  accounts  categories  debts  recurrences  budgets  savings  profile
 api/announcements/seen     # marca novedades como vistas
-api/admin/users  admin/user  admin/announcements   # solo dueño (403 si no)
-api/me/export  me/reset  me/heartbeat  me/welcomed  # datos del usuario
-api/cron/keepalive  cron/reminders  cron/monthly    # crons (Bearer CRON_SECRET)
+api/admin/users  admin/user  admin/metrics  admin/health  admin/announcements  # solo dueño (403)
+api/me/export  me/reset  me/heartbeat  me/welcomed     # datos del usuario
+api/hooks/new-user         # aviso de registro al admin (Bearer secret, lo llama la DB)
+api/cron/keepalive  cron/reminders  cron/monthly        # crons (Bearer CRON_SECRET)
 ```
+
+Rutas de assets generadas: `icon` (favicon), `apple-icon`, `opengraph-image`,
+`manifest.webmanifest` (PWA). El service worker es `public/sw.js`.
 
 ---
 
@@ -177,7 +205,7 @@ Protegidos con `CRON_SECRET` (Vercel envía el header automáticamente).
 
 ## 🔐 Variables de entorno
 
-Ver `.env.example`. En producción están las 12 configuradas en Vercel:
+Ver `.env.example`. En producción están configuradas en Vercel:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL          GEMINI_API_KEY
@@ -186,6 +214,7 @@ SUPABASE_SECRET_KEY               GROQ_API_KEY
 TELEGRAM_BOT_TOKEN                GROQ_WHISPER_MODEL
 TELEGRAM_WEBHOOK_SECRET           APP_DEFAULT_CURRENCY
 CRON_SECRET                       APP_TIMEZONE
+NEW_USER_HOOK_SECRET              (aviso de registro al admin)
 ```
 
 > `SUPABASE_SECRET_KEY` (service role) **solo** se usa en el servidor
@@ -234,13 +263,25 @@ Realtime → decenas de miles de usuarios.
 
 ---
 
+## 📲 Móvil & PWA
+
+- Instalable en pantalla de inicio (Android: 1 toque; iPhone: guía Compartir → Añadir).
+- Ícono = logo (gradiente + 💸); **splash** y cabecera con el lockup completo «PlaticApp!».
+- **Badge** con nº de novedades sin leer en el ícono (apps instaladas que soporten la API).
+- Botón flotante «Registrar», barra inferior, gestos y *bottom sheets*.
+
+> **Setup externo necesario** para el Login con Telegram: en BotFather → `/setdomain`
+> apuntando a `platicapp-web.vercel.app` (si cambias de dominio, repetirlo).
+
+---
+
 ## 🗺️ Próximos pasos (ideas)
 
 - [ ] Panel «uso vs. límites» en Admin para vigilar capacidad.
-- [ ] Favicon / apple-icon con el billete de Apple (hoy usan Twemoji).
 - [ ] Exportar datos también en CSV; borrado selectivo / papelera recuperable.
-- [ ] Más insights y metas de ahorro.
+- [ ] Login por teléfono (SMS/WhatsApp OTP) — requiere proveedor de pago (Twilio).
 - [ ] Limpieza/compresión automática de recibos antiguos.
+- [ ] Sugerencias de título para ahorros (chips: Casa 🏠, Viaje ✈️, Emergencia 🚨).
 
 ---
 
