@@ -7,6 +7,7 @@ import { KIND_EMOJI } from "@/lib/labels";
 import type { RecurrenceRow } from "@/lib/queries";
 import { MonthCalendar, dayKey } from "./MonthCalendar";
 import { Paginator, usePagination } from "./Paginator";
+import { MoneyInput } from "./MoneyInput";
 
 const FREQ_LABEL: Record<string, string> = {
   weekly: "Semanal",
@@ -254,7 +255,7 @@ function RecurrenceModal({ rec, onClose, onSaved }: { rec: RecurrenceRow | null;
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
               Monto (COP)
-              <input type="number" min="0" step="any" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="1000000" className={field} />
+              <MoneyInput required value={amount} onChange={setAmount} placeholder="1.000.000" className={field} />
             </label>
             <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
               Día del mes

@@ -5,6 +5,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import type { AccountRow, SavingRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { Sheet } from "./Sheet";
+import { MoneyInput } from "./MoneyInput";
 
 export function AhorrosClient() {
   const { data, refresh } = useDashboard();
@@ -135,11 +136,11 @@ function SavingModal({ accounts, onClose, onSaved }: { accounts: AccountRow[]; o
         </label>
         <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
           Monto inicial (COP)
-          <input type="number" min="0" step="any" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="200000" className={`${field} font-semibold`} />
+          <MoneyInput required value={amount} onChange={setAmount} placeholder="200.000" className={`${field} font-semibold`} />
         </label>
         <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
           Meta (opcional)
-          <input type="number" min="0" step="any" value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Ej. 2000000" className={field} />
+          <MoneyInput value={goal} onChange={setGoal} placeholder="Ej. 2.000.000" className={field} />
         </label>
         <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
           ¿De dónde sale?
@@ -186,7 +187,7 @@ function AddModal({ saving, accounts, onClose, onSaved }: { saving: SavingRow; a
       <form onSubmit={submit} className="space-y-4 p-6">
         <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
           Monto (COP)
-          <input type="number" min="0" step="any" required autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="100000" className={`${field} font-semibold`} />
+          <MoneyInput required autoFocus value={amount} onChange={setAmount} placeholder="100.000" className={`${field} font-semibold`} />
         </label>
         <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
           ¿De dónde sale?
@@ -248,12 +249,12 @@ function EditModal({ saving, onClose, onSaved }: { saving: SavingRow; onClose: (
         </label>
         <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
           Monto apartado (COP)
-          <input type="number" min="0" step="any" value={reserved} onChange={(e) => setReserved(e.target.value)} className={`${field} font-semibold`} />
+          <MoneyInput value={reserved} onChange={setReserved} className={`${field} font-semibold`} />
           <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">Bájalo para liberar parte de este ahorro.</span>
         </label>
         <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
           Meta (opcional)
-          <input type="number" min="0" step="any" value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Sin meta" className={field} />
+          <MoneyInput value={goal} onChange={setGoal} placeholder="Sin meta" className={field} />
         </label>
         {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
         <div className="flex gap-2 pt-1">

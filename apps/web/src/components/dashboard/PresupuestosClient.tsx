@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
+import { MoneyInput } from "./MoneyInput";
 
 interface Row {
   id: string | null;
@@ -187,7 +188,7 @@ function BudgetModal({
           )}
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Límite mensual (COP)
-            <input type="number" min="0" step="any" required autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="600000" className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[17px] font-semibold outline-none ring-[var(--color-accent)] focus:ring-2" />
+            <MoneyInput required autoFocus value={amount} onChange={setAmount} placeholder="600.000" className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[17px] font-semibold outline-none ring-[var(--color-accent)] focus:ring-2" />
           </label>
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose} className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90">Cancelar</button>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { AccountRow, CategoryRow, TxRow } from "@/lib/queries";
 import { Sheet } from "./Sheet";
+import { MoneyInput } from "./MoneyInput";
 
 const KINDS = [
   { value: "expense", label: "Gasto", emoji: "💸" },
@@ -150,16 +151,12 @@ export function AddTransactionModal({
 
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Monto (COP)
-            <input
-              type="number"
-              inputMode="numeric"
-              min="0"
-              step="any"
+            <MoneyInput
               required
               autoFocus
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="50000"
+              onChange={setAmount}
+              placeholder="50.000"
               className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[17px] font-semibold text-[var(--color-ink)] outline-none ring-[var(--color-accent)] transition focus:ring-2"
             />
           </label>

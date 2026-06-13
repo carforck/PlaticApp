@@ -6,6 +6,7 @@ import type { AccountRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { accountFinance, isCreditAccount } from "@/lib/finance";
 import { ACCOUNT_EMOJI, ACCOUNT_TYPE_LABEL } from "@/lib/labels";
+import { MoneyInput } from "./MoneyInput";
 
 const TYPES = [
   { value: "bank", label: "Banco" },
@@ -316,7 +317,7 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
           </label>
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             {credit ? "¿Cuánto debes ahora? (COP)" : isEdit ? "Saldo inicial (COP)" : "¿Cuánto tienes ahí ahora? (COP)"}
-            <input type="number" step="any" min="0" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0" className={field} />
+            <MoneyInput value={opening} onChange={setOpening} placeholder="0" className={field} />
             <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">
               {credit
                 ? "Es tu deuda actual de la tarjeta/crédito. Cuenta como pasivo: resta del patrimonio, no suma."

@@ -5,6 +5,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import { type DebtRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { Paginator, usePagination } from "./Paginator";
+import { MoneyInput } from "./MoneyInput";
 
 export function DeudasClient() {
   const { data, refresh } = useDashboard();
@@ -191,7 +192,7 @@ function DebtModal({ debt, onClose, onSaved }: { debt: DebtRow | null; onClose: 
           </label>
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Monto (COP)
-            <input type="number" min="0" step="any" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="200000" className={`${field} font-semibold`} />
+            <MoneyInput required value={amount} onChange={setAmount} placeholder="200.000" className={`${field} font-semibold`} />
           </label>
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Nota (opcional)
