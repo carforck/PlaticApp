@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useDashboard } from "@/lib/dashboard-context";
 import { ADMIN_EMAIL } from "@/lib/admin";
 import { SECTION_DESC } from "@/lib/sections";
+import { BrandLockup } from "@/components/BrandIcon";
 import { Avatar } from "./Avatar";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -68,10 +69,13 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
           : "glass animate-float-in hidden w-60 shrink-0 flex-col rounded-[var(--radius-card)] p-3 md:flex md:sticky md:top-4 md:max-h-[calc(100vh-2rem)]"
       }
     >
-      <div className="flex items-center gap-2 px-2 py-2">
-        <span className="traffic-light bg-[#ff5f57]" />
-        <span className="traffic-light bg-[#febc2e]" />
-        <span className="traffic-light bg-[#28c840]" />
+      <div className="flex items-center justify-between gap-2 px-2 py-2">
+        <span className="flex items-center gap-1.5">
+          <span className="traffic-light bg-[#ff5f57]" />
+          <span className="traffic-light bg-[#febc2e]" />
+          <span className="traffic-light bg-[#28c840]" />
+        </span>
+        <BrandLockup size={20} />
       </div>
       <Link
         href="/dashboard/perfil"
