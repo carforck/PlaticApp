@@ -47,12 +47,23 @@ export interface QueryIntent {
   period?: "this_month" | "last_month" | "all";
 }
 
+/** Acción de ahorro: apartar, fijar meta o consultar. */
+export interface SavingsIntent {
+  action: "save" | "goal" | "query";
+  accountHint?: string;
+  fromAccountHint?: string;
+  amount?: number; // unidad mayor (pesos)
+  goal?: number; // unidad mayor (pesos)
+}
+
 /** Resultado de interpretar un mensaje: movimientos, deudas, recurrencias y/o una consulta. */
 export interface ExtractResult {
   transactions: TransactionDraft[];
   debts: DebtDraft[];
   recurrences: RecurrenceDraft[];
   query: QueryIntent | null;
+  /** Acción de ahorro (apartar/meta/consulta). */
+  savings: SavingsIntent | null;
   /** Respuesta conversacional cuando el usuario solo charla/saluda/pregunta qué puede hacer. */
   reply: string | null;
 }

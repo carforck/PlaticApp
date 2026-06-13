@@ -50,6 +50,15 @@ export function AddTransactionModal({
   const [newAccType, setNewAccType] = useState<string>("bank");
   const creatingAccount = accountId === NEW;
 
+  // Aviso si el gasto dejaría la cuenta por debajo de su ahorro apartado.
+  const selAcc = accounts.find((a) => a.account_id === accountId);
+  const touchesSavings =
+    kind === "expense" &&
+    !!selAcc &&
+    selAcc.reserved_minor > 0 &&
+    !!amount &&
+    selAcc.balance_minor - Number(amount) < selAcc.reserved_minor;
+
   async function remove() {
     if (!editTx) return;
     setSaving(true);
@@ -245,6 +254,12 @@ export function AddTransactionModal({
               className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
             />
           </label>
+
+          {touchesSavings && (
+            <p className="rounded-[10px] bg-[#ff9f0a]/12 px-3 py-2 text-[13px] text-[#b86e00]">
+              🐷 Este gasto reduce tu ahorro apartado en {selAcc!.name}.
+            </p>
+          )}
 
           {error && (
             <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>

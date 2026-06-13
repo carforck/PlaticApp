@@ -57,6 +57,18 @@ const responseSchema = {
         period: { type: "string", enum: ["this_month", "last_month", "all"] },
       },
     },
+    savings: {
+      type: "object",
+      description:
+        "Si el usuario habla de AHORRO: apartar/guardar plata, mover al ahorro, fijar una meta de ahorro, o preguntar cuánto tiene ahorrado. NO uses 'items' en ese caso.",
+      properties: {
+        action: { type: "string", enum: ["save", "goal", "query"], description: "save=apartar/guardar/mover al ahorro; goal=fijar meta; query=cuánto tengo ahorrado" },
+        account: { type: "string", description: "Cuenta donde se ahorra o de la meta (ej. Bancolombia)" },
+        fromAccount: { type: "string", description: "Cuenta de DONDE sale la plata, si la menciona (ej. «desde Nequi»)" },
+        amount: { type: "number", description: "Monto a apartar/ahorrar" },
+        goal: { type: "number", description: "Monto objetivo de la meta" },
+      },
+    },
     reply: {
       type: "string",
       description:
@@ -85,6 +97,7 @@ function buildPrompt(ctx: InterpretContext): string {
       : "",
     "Si no hay ningún movimiento ni deuda, devuelve items vacío.",
     "Si el usuario PREGUNTA por sus finanzas (ej. «¿cuánto debo?», «¿cuánto gasté en comida este mes?», «¿cuánto tengo?», «¿en qué gasto más?», «mis últimos movimientos»), NO registres nada: llena 'query' con type (balance=cuánto tengo, expenses=gastos, income=ingresos, debts=deudas, top_categories=en qué gasto más, recent=últimos), 'category' si menciona una, y 'period' (this_month por defecto, last_month, all).",
+    "Si el usuario habla de AHORRO (ej. «aparta 200 mil en Bancolombia», «guarda 100 mil para el ahorro», «mueve 50 mil al ahorro desde Nequi», «mi meta de ahorro es 5 millones», «¿cuánto tengo ahorrado?»), llena 'savings' (action save/goal/query, account, fromAccount si lo dice, amount, goal) y NO uses items. 'save'=apartar o mover al ahorro; 'goal'=fijar meta; 'query'=consultar lo ahorrado.",
     "Si el usuario SOLO conversa o saluda (ej. «hola», «gracias», «¿cómo estás?», «¿qué puedes hacer?», «buenos días») y NO hay nada que registrar ni consultar, deja items vacío y responde en 'reply' de forma humana y breve, recordándole con naturalidad que puede contarte un gasto/ingreso o preguntarte por sus finanzas, y que en la app web ve sus gráficos y métricas. No inventes cifras.",
   ]
     .filter(Boolean)
@@ -95,9 +108,18 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
+interface RawSavings {
+  action?: "save" | "goal" | "query";
+  account?: string;
+  fromAccount?: string;
+  amount?: number;
+  goal?: number;
+}
+
 interface GenResult {
   items: RawItem[];
   query: QueryIntent | null;
+  savings: RawSavings | null;
   reply: string | null;
 }
 
@@ -126,10 +148,11 @@ async function generate(body: Record<string, unknown>): Promise<GenResult> {
           const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
           const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
-            const parsed = JSON.parse(text) as { items?: RawItem[]; query?: QueryIntent; reply?: string };
+            const parsed = JSON.parse(text) as { items?: RawItem[]; query?: QueryIntent; savings?: RawSavings; reply?: string };
             const query = parsed.query && parsed.query.type ? parsed.query : null;
+            const savings = parsed.savings && parsed.savings.action ? parsed.savings : null;
             const reply = parsed.reply?.trim() ? parsed.reply.trim() : null;
-            return { items: parsed.items ?? [], query, reply };
+            return { items: parsed.items ?? [], query, savings, reply };
           }
           lastErr = "vacío";
         } else {
@@ -167,6 +190,7 @@ interface RawItem {
 function split(
   raws: RawItem[],
   query: QueryIntent | null,
+  savingsRaw: RawSavings | null,
   reply: string | null,
   ctx: InterpretContext,
   source: TransactionDraft["source"],
@@ -214,9 +238,22 @@ function split(
       });
     }
   }
-  // Si hay algo que registrar o consultar, ignoramos la charla.
-  const finalReply = transactions.length || debts.length || recurrences.length || query ? null : reply;
-  return { transactions, debts, recurrences, query, reply: finalReply };
+  // Ahorro solo si no hay movimientos que registrar (evita doble interpretación).
+  const savings =
+    savingsRaw && savingsRaw.action && transactions.length === 0
+      ? {
+          action: savingsRaw.action,
+          accountHint: savingsRaw.account || undefined,
+          fromAccountHint: savingsRaw.fromAccount || undefined,
+          amount: typeof savingsRaw.amount === "number" ? savingsRaw.amount : undefined,
+          goal: typeof savingsRaw.goal === "number" ? savingsRaw.goal : undefined,
+        }
+      : null;
+
+  // Si hay algo que registrar/consultar/ahorrar, ignoramos la charla.
+  const finalReply =
+    transactions.length || debts.length || recurrences.length || query || savings ? null : reply;
+  return { transactions, debts, recurrences, query, savings, reply: finalReply };
 }
 
 /** Genera texto libre (sin esquema), con la misma cadena de modelos y reintentos. */
@@ -252,17 +289,17 @@ export async function summarize(prompt: string): Promise<string> {
 
 export const geminiText: TextInterpreter = {
   async interpret(text, ctx) {
-    const { items, query, reply } = await generate({
+    const { items, query, savings, reply } = await generate({
       contents: [{ role: "user", parts: [{ text: `${buildPrompt(ctx)}\n\nUsuario: ${text}` }] }],
     });
-    return split(items, query, reply, ctx, "telegram_text");
+    return split(items, query, savings, reply, ctx, "telegram_text");
   },
 };
 
 export const geminiImage: ImageInterpreter = {
   async interpret(image, mimeType, ctx) {
     const base64 = Buffer.from(image).toString("base64");
-    const { items, query, reply } = await generate({
+    const { items, query, savings, reply } = await generate({
       contents: [
         {
           role: "user",
@@ -273,6 +310,6 @@ export const geminiImage: ImageInterpreter = {
         },
       ],
     });
-    return split(items, query, reply, ctx, "telegram_image");
+    return split(items, query, savings, reply, ctx, "telegram_image");
   },
 };

@@ -5,6 +5,7 @@ import type {
   Frequency,
   InterpretContext,
   QueryIntent,
+  SavingsIntent,
   TransactionDraft,
   TransactionKind,
 } from "@platica/core";
@@ -259,6 +260,12 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     const nothingToRegister =
       result.transactions.length === 0 && result.debts.length === 0 && result.recurrences.length === 0;
 
+    // Acción de ahorro (apartar / meta / consulta).
+    if (result.savings) {
+      await handleSavings(chatId, userId, result.savings);
+      return;
+    }
+
     // Si es una pregunta, la respondemos en vez de registrar.
     if (nothingToRegister && result.query) {
       await telegram.sendMessage(chatId, await answerQuery(userId, result.query));
@@ -458,6 +465,24 @@ async function detectWarnings(
   const expenses = drafts.filter((d) => d.kind === "expense");
   if (expenses.length === 0) return [];
 
+  const warningsSavings: string[] = [];
+  // Aviso si un gasto dejaría la cuenta por debajo de su ahorro apartado.
+  const { data: balRows } = await db
+    .from("account_balances")
+    .select("account_id, name, balance_minor, reserved_minor")
+    .eq("user_id", userId);
+  const balById = new Map((balRows ?? []).map((b) => [b.account_id, b]));
+  if ((balRows ?? []).some((b) => (b.reserved_minor ?? 0) > 0)) {
+    for (const d of expenses) {
+      if (!d.accountHint) continue;
+      const acc = await accountRepo(db).findByNameHint(userId, d.accountHint);
+      const b = acc ? balById.get(acc.id) : null;
+      if (b && (b.reserved_minor ?? 0) > 0 && b.balance_minor - d.amount.minorUnits < b.reserved_minor) {
+        warningsSavings.push(`🐷 Ojo: este gasto reduce tu ahorro apartado en ${b.name}.`);
+      }
+    }
+  }
+
   const { data: recent } = await db
     .from("transactions")
     .select("amount_minor, occurred_at")
@@ -466,7 +491,7 @@ async function detectWarnings(
     .order("occurred_at", { ascending: false })
     .limit(40);
   const rows = recent ?? [];
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return [...new Set(warningsSavings)];
 
   const avg = rows.reduce((s, t) => s + t.amount_minor, 0) / rows.length;
   const dayAgo = Date.now() - 24 * 3600 * 1000;
@@ -481,7 +506,7 @@ async function detectWarnings(
       warnings.push(`📈 ${fmt(d.amount)} es inusualmente alto (tu promedio es ~${pesos(Math.round(avg))}).`);
     }
   }
-  return [...new Set(warnings)];
+  return [...new Set([...warningsSavings, ...warnings])];
 }
 
 // ── Confirmación ───────────────────────────────────────────────
@@ -622,6 +647,12 @@ const AYUDA_TEXT = `🤖 <b>Soy PlaticApp y esto es lo que hago por ti:</b>
 • «pasé 100 mil de Nequi a Bancolombia»
 • «Juan me prestó 200 mil»
 • «todos los meses pago arriendo 800 mil el día 5»
+
+🐷 <b>Ahorrar</b>:
+• «aparta 100 mil en Bancolombia»
+• «mueve 50 mil al ahorro desde Nequi»
+• «mi meta de ahorro en Bancolombia es 5 millones»
+• «¿cuánto tengo ahorrado?»
 
 ❓ <b>Preguntarme</b>:
 • «¿cuánto gasté este mes?»
@@ -796,6 +827,81 @@ async function budgetAlerts(
 }
 
 /** Responde una pregunta del usuario calculando desde la base de datos. */
+/** Maneja acciones de ahorro desde el bot: apartar, mover, fijar meta o consultar. */
+async function handleSavings(chatId: number, userId: string, s: SavingsIntent): Promise<void> {
+  const db = createAdminClient();
+
+  if (s.action === "query") {
+    const { data: bals } = await db.from("account_balances").select("name, reserved_minor, savings_goal_minor").eq("user_id", userId);
+    const rows = (bals ?? []).filter((b) => (b.reserved_minor ?? 0) > 0 || b.savings_goal_minor);
+    const total = (bals ?? []).reduce((a, b) => a + (b.reserved_minor ?? 0), 0);
+    if (!rows.length) {
+      await telegram.sendMessage(chatId, "🐷 Aún no apartas ahorros. Dime algo como «aparta 100 mil en Bancolombia».");
+      return;
+    }
+    const lines = rows
+      .map((b) => `• ${b.name}: ${pesos(b.reserved_minor ?? 0)}${b.savings_goal_minor ? ` / meta ${pesos(b.savings_goal_minor)}` : ""}`)
+      .join("\n");
+    await telegram.sendMessage(chatId, `🐷 <b>Tu ahorro:</b> ${pesos(total)}\n${lines}`);
+    return;
+  }
+
+  const acct = s.accountHint ? await accountRepo(db).findByNameHint(userId, s.accountHint) : null;
+  if (!acct) {
+    await telegram.sendMessage(chatId, "¿En qué cuenta? Dime por ejemplo «aparta 100 mil en Bancolombia». 🐷");
+    return;
+  }
+
+  if (s.action === "goal") {
+    const goalMinor = s.goal ? Money.of(Math.round(s.goal), "COP").minorUnits : 0;
+    if (goalMinor <= 0) {
+      await telegram.sendMessage(chatId, "¿De cuánto sería la meta? Ej. «mi meta de ahorro en " + acct.name + " es 5 millones».");
+      return;
+    }
+    await db.from("accounts").update({ savings_goal_minor: goalMinor }).eq("id", acct.id).eq("user_id", userId);
+    await telegram.sendMessage(chatId, `🎯 Meta de ahorro en <b>${acct.name}</b>: ${pesos(goalMinor)}. ¡A por ella!`);
+    return;
+  }
+
+  // action === "save"
+  const amountMinor = s.amount ? Money.of(Math.round(s.amount), "COP").minorUnits : 0;
+  if (amountMinor <= 0) {
+    await telegram.sendMessage(chatId, "¿Cuánto quieres apartar? Ej. «aparta 100 mil en " + acct.name + "».");
+    return;
+  }
+
+  // Mover plata desde otra cuenta, si lo indicó.
+  if (s.fromAccountHint) {
+    const from = await accountRepo(db).findByNameHint(userId, s.fromAccountHint);
+    if (from && from.id !== acct.id) {
+      await db.from("transactions").insert({
+        user_id: userId,
+        kind: "transfer",
+        amount_minor: amountMinor,
+        currency: "COP",
+        account_id: from.id,
+        transfer_account_id: acct.id,
+        description: "Movido al ahorro",
+        occurred_at: new Date().toISOString(),
+        source: "telegram_text",
+      });
+    }
+  }
+
+  const { data: bal } = await db.from("account_balances").select("balance_minor, reserved_minor, savings_goal_minor").eq("account_id", acct.id).maybeSingle();
+  const balance = bal?.balance_minor ?? 0;
+  const newReserved = Math.min((bal?.reserved_minor ?? 0) + amountMinor, balance);
+  await db.from("accounts").update({ reserved_minor: newReserved }).eq("id", acct.id).eq("user_id", userId);
+
+  const goalNote = bal?.savings_goal_minor
+    ? `\n🎯 Vas en ${pesos(newReserved)} de ${pesos(bal.savings_goal_minor)} (${Math.round((newReserved / bal.savings_goal_minor) * 100)}%).`
+    : "";
+  await telegram.sendMessage(
+    chatId,
+    `🐷 Aparté <b>${pesos(amountMinor)}</b> al ahorro en <b>${acct.name}</b>.\nAhorro en esa cuenta: ${pesos(newReserved)}.${goalNote}`,
+  );
+}
+
 async function answerQuery(userId: string, q: QueryIntent): Promise<string> {
   const db = createAdminClient();
   const now = new Date();
