@@ -14,6 +14,11 @@ export function AhorrosClient() {
   const [editing, setEditing] = useState<SavingRow | null>(null);
 
   const accById = useMemo(() => new Map(data.accounts.map((a) => [a.account_id, a])), [data.accounts]);
+  const savedByAccount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of data.savings) m.set(s.account_id, (m.get(s.account_id) ?? 0) + s.reserved_minor);
+    return m;
+  }, [data.savings]);
   const totalSaved = data.savings.reduce((s, x) => s + x.reserved_minor, 0);
   const totalGoal = data.savings.reduce((s, x) => s + (x.goal_minor || 0), 0);
 
@@ -47,6 +52,7 @@ export function AhorrosClient() {
           {data.savings.map((s) => {
             const acc = accById.get(s.account_id);
             const pct = s.goal_minor ? Math.round((s.reserved_minor / s.goal_minor) * 100) : null;
+            const overBalance = acc ? (savedByAccount.get(s.account_id) ?? 0) > acc.balance_minor : false;
             return (
               <div key={s.id} className="glass rounded-[var(--radius-card)] p-5">
                 <div className="flex items-start justify-between gap-2">
@@ -70,6 +76,11 @@ export function AhorrosClient() {
                   <p className="mt-1 text-[12px] text-[var(--color-ink-soft)]">Sin meta</p>
                 )}
 
+                {overBalance && (
+                  <p className="mt-2 rounded-[10px] bg-[#ff9f0a]/12 px-2.5 py-1.5 text-[11px] leading-snug text-[#b86e00]">
+                    ⚠️ Tu ahorro en {acc?.name} supera el saldo de la cuenta ({fmtMoney(acc?.balance_minor ?? 0)}). Gastaste parte de lo apartado; ajústalo.
+                  </p>
+                )}
                 <button onClick={() => setAdding(s)} className="btn-mac mt-4 w-full py-2 text-[13px] font-medium">+ Abonar</button>
               </div>
             );
