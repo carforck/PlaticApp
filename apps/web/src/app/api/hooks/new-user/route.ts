@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/server/supabase-admin";
 import { telegram } from "@/server/telegram";
+import { logEvent } from "@/server/logs";
 import { ADMIN_EMAIL } from "@/lib/admin";
 
 export const runtime = "nodejs";
@@ -17,6 +18,8 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as { email?: string; name?: string; provider?: string };
   const db = createAdminClient();
+
+  void logEvent({ source: "auth", event: "registro_nuevo", detail: `${body.name ?? ""} ${body.email ?? ""}`.trim(), actor: body.email ?? null });
 
   // Chat de Telegram del admin (debe tener su cuenta vinculada).
   const { data: list } = await db.auth.admin.listUsers({ perPage: 1000 });

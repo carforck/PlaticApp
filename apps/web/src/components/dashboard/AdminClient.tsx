@@ -7,6 +7,7 @@ import { fmtMoney } from "@/lib/format";
 import { Avatar } from "./Avatar";
 import { Paginator, usePagination } from "./Paginator";
 import { AdminMetrics } from "./AdminMetrics";
+import { LogsPanel } from "./LogsPanel";
 
 interface AdminUser {
   id: string;
@@ -65,6 +66,7 @@ export function AdminClient() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [today, setToday] = useState("");
+  const [tab, setTab] = useState<"resumen" | "usuarios" | "logs" | "novedades">("resumen");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/users");
@@ -111,20 +113,44 @@ export function AdminClient() {
         <p className="text-[13px] text-[var(--color-ink-soft)]">{today ? `📅 ${today} · ` : ""}usuarios registrados y su actividad</p>
       </header>
 
-      <AdminMetrics />
+      {/* Pestañas del dashboard de admin */}
+      <div className="glass flex gap-1 overflow-x-auto rounded-[var(--radius-card)] p-1">
+        {([
+          { id: "resumen", label: "📊 Resumen" },
+          { id: "usuarios", label: "👥 Usuarios" },
+          { id: "logs", label: "🧾 Logs" },
+          { id: "novedades", label: "📢 Novedades" },
+        ] as const).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`shrink-0 rounded-[10px] px-3.5 py-2 text-[13px] font-medium transition ${
+              tab === t.id ? "bg-[var(--color-accent)] text-white shadow-sm" : "text-[var(--color-ink-soft)] hover:bg-black/5"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      <SystemHealth />
+      {tab === "resumen" && (
+        <>
+          <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Stat label="Usuarios" value={`${data?.total ?? "—"}`} />
+            <Stat label="Con Telegram" value={`${data?.linked ?? "—"}`} />
+            <Stat label="En línea" value={`${data?.online ?? "—"}`} />
+            <Stat label="Almacenamiento" value={data ? fmtBytes(data.storageTotal) : "—"} />
+          </section>
+          <AdminMetrics />
+          <SystemHealth />
+        </>
+      )}
 
-      <PublishAnnouncement onPublished={refresh} />
+      {tab === "logs" && <LogsPanel />}
 
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Usuarios" value={`${data?.total ?? "—"}`} />
-        <Stat label="Con Telegram" value={`${data?.linked ?? "—"}`} />
-        <Stat label="En línea" value={`${data?.online ?? "—"}`} />
-        <Stat label="Almacenamiento" value={data ? fmtBytes(data.storageTotal) : "—"} />
-      </section>
+      {tab === "novedades" && <PublishAnnouncement onPublished={refresh} />}
 
-      <div className="glass overflow-hidden rounded-[var(--radius-card)]">
+      <div className={`glass overflow-hidden rounded-[var(--radius-card)] ${tab === "usuarios" ? "" : "hidden"}`}>
         {error ? (
           <p className="p-8 text-center text-[14px] text-[#ff375f]">{error}</p>
         ) : !data ? (

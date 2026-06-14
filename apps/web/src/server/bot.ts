@@ -16,6 +16,7 @@ import { telegram } from "./telegram";
 import { geminiText, geminiImage } from "./ai/gemini";
 import { groqAudio } from "./ai/groq";
 import { ACCOUNT_EMOJI } from "@/lib/labels";
+import { logEvent } from "./logs";
 
 // ── Tipos mínimos del Update de Telegram ───────────────────────
 interface TgUser { id: number; username?: string; first_name?: string }
@@ -137,6 +138,7 @@ async function handleLinkCode(chatId: number, code: string, username?: string, f
   });
   await db.from("link_codes").update({ used_at: new Date().toISOString() }).eq("code", lc.code);
 
+  void logEvent({ source: "auth", event: "telegram_vinculado", actor: username ?? chatId });
   await telegram.sendMessage(chatId, welcomeText(firstNameOf(firstName)));
 }
 
@@ -265,6 +267,10 @@ async function handleMessage(msg: TgMessage): Promise<void> {
 
     if (userText) await remember(db, chatId, "user", userText);
 
+    // Bitácora: mensaje entrante (para auditoría del Admin).
+    const inKind = msg.voice || msg.audio ? "audio" : msg.photo?.length ? "foto" : "texto";
+    void logEvent({ source: "telegram", event: inKind, detail: userText || msg.caption || "(sin texto)", actor: msg.from?.username ?? chatId });
+
     const nothingToRegister =
       result.transactions.length === 0 && result.debts.length === 0 && result.recurrences.length === 0;
 
@@ -305,6 +311,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     const friendly = m.includes("SATURADO")
       ? "😵‍💫 El modelo de IA está saturado ahora mismo. Reintenta en unos segundos."
       : `⚠️ Algo falló procesando eso: ${m}`;
+    void logEvent({ source: "telegram", event: "error", detail: m, actor: msg.from?.username ?? chatId, level: "error" });
     await telegram.sendMessage(chatId, friendly);
   }
 }
@@ -647,6 +654,13 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   const alerts = await budgetAlerts(db, draftRow.user_id, [...touchedCategories]);
   if (alerts.length) msg += `\n\n${alerts.join("\n")}`;
 
+  void logEvent({
+    source: "telegram",
+    event: parts.length ? "registro_confirmado" : "registro_vacio",
+    detail: parts.join(" y ") || "nada",
+    actor: chatId,
+    level: failed ? "warn" : "info",
+  });
   await telegram.editMessageText(chatId, messageId, msg);
   await telegram.answerCallbackQuery(cb.id, "¡Listo!");
 }

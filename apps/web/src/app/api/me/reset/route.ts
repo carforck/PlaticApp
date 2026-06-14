@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/server/supabase-admin";
+import { logEvent } from "@/server/logs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,5 +39,6 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: `Error al borrar ${t}: ${error.message}` }, { status: 500 });
   }
 
+  void logEvent({ source: "app", event: "datos_borrados", detail: "el usuario reinició su cuenta", actor: user.email ?? uid, level: "warn" });
   return NextResponse.json({ ok: true });
 }
