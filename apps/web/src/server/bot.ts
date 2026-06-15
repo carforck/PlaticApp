@@ -883,7 +883,8 @@ async function loadHistory(db: ReturnType<typeof createAdminClient>, chatId: num
 /** Guarda un turno y purga lo viejo del chat (mantiene el hilo corto). */
 async function remember(db: ReturnType<typeof createAdminClient>, chatId: number, role: "user" | "model", content: string): Promise<void> {
   await db.from("bot_messages").insert({ chat_id: chatId, role, content: content.slice(0, 500) });
-  await db.from("bot_messages").delete().eq("chat_id", chatId).lt("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString());
+  // Purga global de lo viejo (>30 min), no solo de este chat, para no acumular.
+  await db.from("bot_messages").delete().lt("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString());
 }
 
 /** Maneja acciones de ahorro desde el bot: apartar, abonar, fijar meta o consultar. */
