@@ -486,20 +486,24 @@ async function detectWarnings(
   if (expenses.length === 0) return [];
 
   const warningsSavings: string[] = [];
-  // Aviso si un gasto dejaría la cuenta por debajo de su ahorro apartado.
+  // Avisos por cuenta: sobregiro (queda en negativo) y gasto que toca el ahorro.
   const { data: balRows } = await db
     .from("account_balances")
-    .select("account_id, name, balance_minor, reserved_minor")
+    .select("account_id, name, type, balance_minor, reserved_minor")
     .eq("user_id", userId);
   const balById = new Map((balRows ?? []).map((b) => [b.account_id, b]));
-  if ((balRows ?? []).some((b) => (b.reserved_minor ?? 0) > 0)) {
-    for (const d of expenses) {
-      if (!d.accountHint) continue;
-      const acc = await accountRepo(db).findByNameHint(userId, d.accountHint);
-      const b = acc ? balById.get(acc.id) : null;
-      if (b && (b.reserved_minor ?? 0) > 0 && b.balance_minor - d.amount.minorUnits < b.reserved_minor) {
-        warningsSavings.push(`🐷 Ojo: este gasto reduce tu ahorro apartado en ${b.name}.`);
-      }
+  for (const d of expenses) {
+    if (!d.accountHint) continue;
+    const acc = await accountRepo(db).findByNameHint(userId, d.accountHint);
+    const b = acc ? balById.get(acc.id) : null;
+    if (!b) continue;
+    const after = b.balance_minor - d.amount.minorUnits;
+    if (b.type !== "credit" && after < 0) {
+      warningsSavings.push(
+        `🔴 Tu ${b.name} quedaría en negativo. Recuerda: cada gasto sale de una cuenta. Registra tu saldo (en la app: Cuentas) o tus ingresos.`,
+      );
+    } else if ((b.reserved_minor ?? 0) > 0 && after < b.reserved_minor) {
+      warningsSavings.push(`🐷 Ojo: este gasto reduce tu ahorro apartado en ${b.name}.`);
     }
   }
 

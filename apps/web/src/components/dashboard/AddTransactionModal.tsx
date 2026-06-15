@@ -51,14 +51,13 @@ export function AddTransactionModal({
   const [newAccType, setNewAccType] = useState<string>("bank");
   const creatingAccount = accountId === NEW;
 
-  // Aviso si el gasto dejaría la cuenta por debajo de su ahorro apartado.
+  // Avisos al gastar: ¿toca el ahorro? ¿deja la cuenta en negativo (sobregiro)?
   const selAcc = accounts.find((a) => a.account_id === accountId);
+  const after = selAcc && amount ? selAcc.balance_minor - Number(amount) : null;
   const touchesSavings =
-    kind === "expense" &&
-    !!selAcc &&
-    selAcc.reserved_minor > 0 &&
-    !!amount &&
-    selAcc.balance_minor - Number(amount) < selAcc.reserved_minor;
+    kind === "expense" && !!selAcc && selAcc.reserved_minor > 0 && after !== null && after < selAcc.reserved_minor;
+  const wouldOverdraft =
+    kind === "expense" && !!selAcc && selAcc.type !== "credit" && after !== null && after < 0;
 
   async function remove() {
     if (!editTx) return;
@@ -252,7 +251,13 @@ export function AddTransactionModal({
             />
           </label>
 
-          {touchesSavings && (
+          {wouldOverdraft && (
+            <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">
+              🔴 Tu {selAcc!.name} quedaría en negativo. Cada gasto sale de una cuenta: registra primero
+              cuánto tienes (Cuentas → editar saldo) o tus ingresos.
+            </p>
+          )}
+          {touchesSavings && !wouldOverdraft && (
             <p className="rounded-[10px] bg-[#ff9f0a]/12 px-3 py-2 text-[13px] text-[#b86e00]">
               🐷 Este gasto reduce tu ahorro apartado en {selAcc!.name}.
             </p>

@@ -44,9 +44,10 @@ export function WelcomeModal({
           </p>
 
           <ul className="space-y-2 text-[13px] text-[var(--color-ink-soft)]">
-            <li className="flex items-start gap-2"><span>📝</span> «Gasté 50 mil en el almuerzo» → queda registrado al instante</li>
+            <li className="flex items-start gap-2"><span>1️⃣</span> <b>Primero, registra cuánto tienes</b> en cada cuenta (en Cuentas), o tus ingresos. Cada gasto sale de una cuenta.</li>
+            <li className="flex items-start gap-2"><span>📝</span> Luego «Gasté 50 mil en el almuerzo» → queda registrado al instante</li>
             <li className="flex items-start gap-2"><span>📊</span> Gráficos, patrimonio y métricas siempre a la mano</li>
-            <li className="flex items-start gap-2"><span>🔁</span> Pagos fijos, deudas y presupuestos con recordatorios</li>
+            <li className="flex items-start gap-2"><span>🔁</span> Pagos fijos, deudas, presupuestos y ahorros con recordatorios</li>
           </ul>
 
           {!telegramLinked && (

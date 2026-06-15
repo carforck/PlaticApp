@@ -41,6 +41,14 @@ export function CuentasClient() {
         </button>
       </header>
 
+      {data.accounts.some((a) => !isCreditAccount(a.type) && a.balance_minor < 0) && (
+        <div className="rounded-[var(--radius-card)] border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 p-4 text-[13px] text-[#b86e00]">
+          💡 <b>Tienes cuentas en negativo.</b> Cada gasto sale de una cuenta, así que primero registra
+          <b> cuánto tienes</b> en cada una (toca la cuenta → <b>Editar</b> → saldo) o tus <b>ingresos</b>.
+          Si no, los gastos hacen que el saldo baje de cero.
+        </div>
+      )}
+
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {data.accounts.map((a) => (
           <button
