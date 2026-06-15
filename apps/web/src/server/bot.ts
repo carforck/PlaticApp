@@ -139,7 +139,7 @@ async function handleLinkCode(chatId: number, code: string, username?: string, f
   await db.from("link_codes").update({ used_at: new Date().toISOString() }).eq("code", lc.code);
 
   void logEvent({ source: "auth", event: "telegram_vinculado", actor: username ?? chatId });
-  await telegram.sendMessage(chatId, welcomeText(firstNameOf(firstName)));
+  await telegram.sendMessage(chatId, welcomeText(firstNameOf(firstName)), [[{ text: "🌐 Abrir mi panel", url: APP_URL }]]);
 }
 
 const APP_URL = "https://platicapp-web.vercel.app";
@@ -197,7 +197,8 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     if (linked) {
       await telegram.sendMessage(
         chatId,
-        `${warmHello(msg.from?.first_name)}\nAquí sigo, listo para anotar tu plata. Cuéntame un gasto, mándame un audio 🎙️ o una foto de un recibo 🖼️.\n\n📊 Tus gráficos y métricas: ${APP_URL}\nEscribe /ayuda para ver todo lo que hago. 😉`,
+        `${warmHello(msg.from?.first_name)}\nAquí sigo, listo para anotar tu plata. Cuéntame un gasto, mándame un audio 🎙️ o una foto de un recibo 🖼️.\nEscribe /ayuda para ver todo lo que hago. 😉`,
+        [[{ text: "🌐 Abrir mi panel", url: APP_URL }]],
       );
     } else {
       await telegram.sendMessage(
@@ -210,6 +211,13 @@ async function handleMessage(msg: TgMessage): Promise<void> {
 
   if (/^\/(ayuda|help)\b/i.test(text)) {
     await telegram.sendMessage(chatId, AYUDA_TEXT);
+    return;
+  }
+
+  if (/^\/(panel|app|web)\b/i.test(text)) {
+    await telegram.sendMessage(chatId, "📊 Aquí ves tus gráficos, patrimonio, ahorros y todo en tiempo real:", [
+      [{ text: "🌐 Abrir mi panel", url: APP_URL }],
+    ]);
     return;
   }
 
@@ -699,7 +707,8 @@ const AYUDA_TEXT = `🤖 <b>Soy PlaticApp y esto es lo que hago por ti:</b>
 • «¿en qué gasto más?» · «mis últimos movimientos»
 
 🔔 /novedades — lo último de PlaticApp
-🌐 Tu panel: https://platicapp-web.vercel.app`;
+🌐 /panel — abrir tu panel web
+https://platicapp-web.vercel.app`;
 
 const titleCase = (s: string) =>
   s.trim().replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());

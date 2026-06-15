@@ -9,7 +9,8 @@ function token(): string {
 
 export interface InlineButton {
   text: string;
-  callback_data: string;
+  callback_data?: string;
+  url?: string;
 }
 
 async function call<T = unknown>(method: string, body: Record<string, unknown>): Promise<T> {
