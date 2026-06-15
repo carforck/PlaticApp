@@ -13,7 +13,7 @@ import type {
 import { createAdminClient } from "./supabase-admin";
 import { accountRepo, categoryRepo, debtRepo, idempotencyStore, transactionRepo } from "./repos";
 import { telegram } from "./telegram";
-import { geminiText, geminiImage } from "./ai/gemini";
+import { geminiText, geminiImage, chat } from "./ai/gemini";
 import { groqAudio } from "./ai/groq";
 import { ACCOUNT_EMOJI } from "@/lib/labels";
 import { logEvent } from "./logs";
@@ -289,18 +289,21 @@ async function handleMessage(msg: TgMessage): Promise<void> {
       return;
     }
 
-    // Conversación: el usuario solo charla/saluda. Respondemos humano.
-    if (nothingToRegister && result.reply) {
-      await telegram.sendMessage(chatId, result.reply);
-      await remember(db, chatId, "model", result.reply);
-      return;
-    }
-
+    // Conversación inteligente: charla, consejos o preguntas que no son registro/
+    // consulta estructurada. Respuesta personalizada con los datos del usuario.
     if (nothingToRegister) {
-      await telegram.sendMessage(
-        chatId,
-        "🤔 Hmm, no logré pillar un movimiento ahí. Cuéntame algo como «gasté 50 mil en el almuerzo» o pregúntame «¿cuánto gasté en comida este mes?». Si quieres ver todo lo que hago, escribe /ayuda 😉",
-      );
+      let text: string;
+      try {
+        const snapshot = await financeSnapshot(userId);
+        text = await chat(chatSystem(snapshot, msg.from?.first_name), history, userText || "(sin texto)");
+      } catch {
+        text =
+          result.reply ??
+          "🤔 No pillé un movimiento ahí. Cuéntame un gasto («gasté 50 mil en el almuerzo»), pregúntame por tus finanzas o pídeme un consejo. /ayuda para ver todo. 😉";
+      }
+      await telegram.sendMessage(chatId, text);
+      await remember(db, chatId, "model", text);
+      void logEvent({ source: "telegram", event: "charla", detail: userText, actor: msg.from?.username ?? chatId });
       return;
     }
 
@@ -685,6 +688,10 @@ const AYUDA_TEXT = `🤖 <b>Soy PlaticApp y esto es lo que hago por ti:</b>
 • «mi meta de ahorro en Bancolombia es 5 millones»
 • «¿cuánto tengo ahorrado?»
 
+💬 <b>Conversar y pedir consejo</b>:
+• «¿cómo voy este mes?» · «dame un tip para ahorrar»
+• «¿me alcanza para un viaje de 2 millones?»
+
 ❓ <b>Preguntarme</b>:
 • «¿cuánto gasté este mes?»
 • «¿cuánto gasté en comida?»
@@ -867,6 +874,61 @@ async function savingsRoom(db: ReturnType<typeof createAdminClient>, userId: str
   const { data: others } = await q;
   const used = (others ?? []).reduce((s, r) => s + (r.reserved_minor ?? 0), 0);
   return Math.max(0, balance - used);
+}
+
+// ── Conversación inteligente (consciente de los datos del usuario) ──
+/** Resumen compacto de las finanzas del usuario para aterrizar la charla del bot. */
+async function financeSnapshot(userId: string): Promise<string> {
+  const db = createAdminClient();
+  const monthStart = (() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1).toISOString();
+  })();
+  const [{ data: bals }, { data: txs }, { data: savings }, { data: debts }] = await Promise.all([
+    db.from("account_balances").select("name, type, balance_minor").eq("user_id", userId),
+    db.from("transactions").select("kind, amount_minor").eq("user_id", userId).gte("occurred_at", monthStart),
+    db.from("savings").select("reserved_minor").eq("user_id", userId),
+    db.from("debts").select("direction, amount_minor").eq("user_id", userId).eq("status", "open"),
+  ]);
+
+  let assets = 0;
+  let creditDebt = 0;
+  const cuentas: string[] = [];
+  for (const b of bals ?? []) {
+    if (b.type === "credit") creditDebt += Math.max(0, -b.balance_minor);
+    else assets += b.balance_minor;
+    cuentas.push(`${b.name} ${pesos(b.balance_minor)}`);
+  }
+  let inc = 0;
+  let exp = 0;
+  for (const t of txs ?? []) {
+    if (t.kind === "income") inc += t.amount_minor;
+    else if (t.kind === "expense") exp += t.amount_minor;
+  }
+  const ahorro = (savings ?? []).reduce((s, x) => s + (x.reserved_minor ?? 0), 0);
+  const debo = (debts ?? []).filter((d) => d.direction === "i_owe").reduce((s, d) => s + d.amount_minor, 0);
+  const meDeben = (debts ?? []).filter((d) => d.direction === "they_owe").reduce((s, d) => s + d.amount_minor, 0);
+
+  return [
+    `Patrimonio neto: ${pesos(assets - creditDebt)}`,
+    `Cuentas: ${cuentas.join(", ") || "ninguna registrada"}`,
+    `Este mes: ingresos ${pesos(inc)}, gastos ${pesos(exp)}`,
+    ahorro ? `Ahorrado: ${pesos(ahorro)}` : "Sin ahorros apartados",
+    debo || meDeben ? `Deudas: debe ${pesos(debo)}, le deben ${pesos(meDeben)}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function chatSystem(snapshot: string, firstName?: string): string {
+  return [
+    "Eres PlaticApp, un asistente financiero personal colombiano: cercano, cálido, motivador y claro. Conversas como un buen amigo que sabe de plata.",
+    "Tuteas, eres breve (2 a 4 frases), natural y usas 1 o 2 emojis con mesura.",
+    "Usa los DATOS REALES del usuario para responder concreto y dar consejos útiles y accionables. NO inventes cifras: si no tienes un dato, dilo o invítalo a registrarlo.",
+    "NO registras nada en esta respuesta. Si el usuario quiere registrar, pídele que lo escriba claro (ej. «gasté 50 mil en el almuerzo»). Si sus cuentas están en negativo o vacías, recuérdale con tacto que registre su saldo o ingresos: cada gasto sale de una cuenta.",
+    "Si te piden algo fuera de finanzas, responde corto y reconduce con amabilidad a lo que sí puedes ayudar.",
+    `Datos del usuario${firstName ? ` (${firstName})` : ""}:\n${snapshot}`,
+  ].join("\n");
 }
 
 // ── Memoria de corto plazo (hilo de conversación) ──────────────

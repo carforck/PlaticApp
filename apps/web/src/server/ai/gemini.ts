@@ -291,6 +291,49 @@ export async function summarize(prompt: string): Promise<string> {
   throw new Error("SATURADO");
 }
 
+/**
+ * Conversación libre con persona + memoria multi-turno + instrucción de sistema.
+ * Para charla, consejos y preguntas que no son registro/consulta estructurada.
+ */
+export async function chat(
+  system: string,
+  history: { role: "user" | "model"; text: string }[],
+  userText: string,
+): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("Falta GEMINI_API_KEY");
+  const models = [...new Set([process.env.GEMINI_MODEL || "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"])];
+  const contents = [
+    ...history.map((h) => ({ role: h.role === "model" ? "model" : "user", parts: [{ text: h.text }] })),
+    { role: "user", parts: [{ text: userText }] },
+  ];
+  const payload = JSON.stringify({
+    systemInstruction: { parts: [{ text: system }] },
+    contents,
+    generationConfig: { temperature: 0.7, maxOutputTokens: 320 },
+  });
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`${ENDPOINT}/${model}:generateContent?key=${key}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: payload,
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return text.trim();
+        } else if (!RETRYABLE.has(res.status)) break;
+      } catch {
+        /* reintenta */
+      }
+      await sleep(400 * (attempt + 1));
+    }
+  }
+  throw new Error("SATURADO");
+}
+
 export const geminiText: TextInterpreter = {
   async interpret(text, ctx, history) {
     const ctxBlock =
