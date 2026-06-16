@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import type { AccountRow, SavingRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
+import { ACCOUNT_EMOJI } from "@/lib/labels";
 import { Sheet } from "./Sheet";
 import { MoneyInput } from "./MoneyInput";
 
@@ -37,6 +38,23 @@ export function AhorrosClient() {
         </button>
       </header>
 
+      {data.savings.length > 0 && (
+        <section className="grid grid-cols-3 gap-4">
+          <div className="glass rounded-[var(--radius-card)] p-4">
+            <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">Total ahorrado</p>
+            <p className="mt-1 text-[20px] font-semibold tracking-tight text-[#30d158]">{fmtMoney(totalSaved)}</p>
+          </div>
+          <div className="glass rounded-[var(--radius-card)] p-4">
+            <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">Ahorros</p>
+            <p className="mt-1 text-[20px] font-semibold tracking-tight">{data.savings.length}</p>
+          </div>
+          <div className="glass rounded-[var(--radius-card)] p-4">
+            <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">Meta total</p>
+            <p className="mt-1 text-[20px] font-semibold tracking-tight">{totalGoal > 0 ? `${Math.round((totalSaved / totalGoal) * 100)}%` : "—"}</p>
+          </div>
+        </section>
+      )}
+
       {data.savings.length === 0 ? (
         <div className="glass rounded-[var(--radius-card)] p-10 text-center">
           <p className="text-[32px]">🐷</p>
@@ -56,14 +74,24 @@ export function AhorrosClient() {
             return (
               <div key={s.id} className="glass rounded-[var(--radius-card)] p-5">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-[15px] font-semibold">🐷 {s.name}</p>
-                    <p className="text-[12px] text-[var(--color-ink-soft)]">en {acc?.name ?? "—"}</p>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
+                      {acc ? ACCOUNT_EMOJI[acc.type] ?? "💼" : "🐷"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[15px] font-semibold">{s.name}</p>
+                      <p className="truncate text-[12px] text-[var(--color-ink-soft)]">en {acc?.name ?? "—"}</p>
+                    </div>
                   </div>
                   <button onClick={() => setEditing(s)} className="shrink-0 rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Editar">✏️</button>
                 </div>
 
                 <p className="mt-3 text-[22px] font-semibold tracking-tight text-[#30d158]">{fmtMoney(s.reserved_minor)}</p>
+                {acc && (
+                  <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">
+                    Disponible en {acc.name}: {fmtMoney(Math.max(0, acc.balance_minor - acc.reserved_minor), acc.currency)}
+                  </p>
+                )}
                 {s.goal_minor ? (
                   <div className="mt-2">
                     <div className="mb-1 flex items-center justify-between text-[12px] text-[var(--color-ink-soft)]">

@@ -13,6 +13,7 @@ export function DeudasClient() {
   const [editing, setEditing] = useState<DebtRow | null>(null);
 
   const debts = data.debts;
+  const accName = new Map(data.accounts.map((a) => [a.account_id, a.name]));
   const pg = usePagination(debts, 15);
   const open = debts.filter((d) => d.status === "open");
   const theyOwe = open.filter((d) => d.direction === "they_owe").reduce((s, d) => s + d.amount_minor, 0);
@@ -58,7 +59,7 @@ export function DeudasClient() {
           ) : (
             <ul className="divide-y divide-black/5">
               {pg.pageItems.map((d) => (
-                <DebtRowItem key={d.id} d={d} onSettle={setStatus} onEdit={() => setEditing(d)} />
+                <DebtRowItem key={d.id} d={d} onSettle={setStatus} onEdit={() => setEditing(d)} accountName={d.account_id ? accName.get(d.account_id) : undefined} />
               ))}
             </ul>
           )}
@@ -84,10 +85,12 @@ function DebtRowItem({
   d,
   onSettle,
   onEdit,
+  accountName,
 }: {
   d: DebtRow;
   onSettle: (id: string, s: "open" | "settled") => void;
   onEdit: () => void;
+  accountName?: string;
 }) {
   const settled = d.status === "settled";
   return (
@@ -104,9 +107,10 @@ function DebtRowItem({
             {d.direction === "they_owe" ? `${d.counterparty} te debe` : `Le debes a ${d.counterparty}`}
             {settled && " · saldada"}
           </span>
-          {d.description && (
-            <span className="block text-[12px] text-[var(--color-ink-soft)]">{d.description}</span>
-          )}
+          <span className="block text-[12px] text-[var(--color-ink-soft)]">
+            {d.description ? `${d.description} · ` : ""}
+            {accountName ? (d.direction === "they_owe" ? `salió de ${accountName}` : `entró a ${accountName}`) : "sin cuenta"}
+          </span>
         </span>
       </span>
       <span className="flex items-center gap-3">
