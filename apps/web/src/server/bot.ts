@@ -12,7 +12,7 @@ import type {
 } from "@platica/core";
 import { createAdminClient } from "./supabase-admin";
 import { accountRepo, categoryRepo, debtRepo, idempotencyStore, transactionRepo } from "./repos";
-import { telegram } from "./telegram";
+import { telegram, type InlineButton } from "./telegram";
 import { geminiText, geminiImage, chat } from "./ai/gemini";
 import { groqAudio } from "./ai/groq";
 import { ACCOUNT_EMOJI } from "@/lib/labels";
@@ -561,6 +561,11 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     return handleReminderAction(cb, chatId, messageId, action, draftId, seg[2]);
   }
 
+  // «Salió de un ahorro»: descuenta un gasto recién registrado del sobre elegido.
+  if (action === "psv") {
+    return handlePaySaving(cb, chatId, messageId, draftId, Number(seg[2]));
+  }
+
   const { data: row } = await db.from("pending_drafts").select("*").eq("id", draftId).maybeSingle();
   if (!row) {
     await telegram.answerCallbackQuery(cb.id, "Ese borrador ya no existe");
@@ -684,8 +689,74 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     actor: chatId,
     level: failed ? "warn" : "info",
   });
-  await telegram.editMessageText(chatId, messageId, msg);
+
+  // ¿El gasto puede pagarse con un ahorro? Si la cuenta del gasto tiene sobres,
+  // ofrecemos descontarlo de uno (sale del ahorro y reduce lo apartado).
+  const payButtons = txOk ? await savingsPayButtons(db, draftRow.user_id, items) : null;
+  if (payButtons) msg += "\n\n🐷 ¿Este gasto sale de un ahorro? Tócalo para descontarlo del sobre:";
+  await telegram.editMessageText(chatId, messageId, msg, payButtons ?? undefined);
   await telegram.answerCallbackQuery(cb.id, "¡Listo!");
+}
+
+/**
+ * Construye botones para «pagar con un ahorro» tras registrar gastos: por cada sobre
+ * (con plata apartada) en una cuenta donde hubo gasto, un botón que descuenta ese gasto del sobre.
+ * callback: psv:<savingId>:<amountMinor> (cabe en 64 bytes: uuid + monto).
+ */
+async function savingsPayButtons(
+  db: ReturnType<typeof createAdminClient>,
+  userId: string,
+  items: DraftItem[],
+): Promise<InlineButton[][] | null> {
+  const expenses = items.filter((d) => d.kind === "expense");
+  if (expenses.length === 0) return null;
+
+  // Total gastado por cuenta (resolviendo el hint como lo hace el caso de uso).
+  const accs = await accountRepo(db).listByUser(userId);
+  const byAccount = new Map<string, number>();
+  for (const d of expenses) {
+    const acc = d.accountHint ? await accountRepo(db).findByNameHint(userId, d.accountHint) : null;
+    const id = (acc ?? accs[0])?.id;
+    if (!id) continue;
+    byAccount.set(id, (byAccount.get(id) ?? 0) + d.amountMinor);
+  }
+  if (byAccount.size === 0) return null;
+
+  const { data: pots } = await db
+    .from("savings")
+    .select("id, name, account_id, reserved_minor")
+    .eq("user_id", userId)
+    .gt("reserved_minor", 0)
+    .in("account_id", [...byAccount.keys()]);
+  if (!pots || pots.length === 0) return null;
+
+  const rows: InlineButton[][] = [];
+  for (const p of pots.slice(0, 6)) {
+    const amount = byAccount.get(p.account_id) ?? 0;
+    if (amount <= 0) continue;
+    rows.push([{ text: `🐷 Salió de: ${p.name}`, callback_data: `psv:${p.id}:${amount}` }]);
+  }
+  return rows.length ? rows : null;
+}
+
+/** El usuario marcó que un gasto salió de un ahorro: reducimos lo apartado en ese sobre. */
+async function handlePaySaving(cb: TgCallback, chatId: number, messageId: number, savingId: string, amountMinor: number): Promise<void> {
+  const db = createAdminClient();
+  const { data: pot } = await db.from("savings").select("id, name, reserved_minor").eq("id", savingId).maybeSingle();
+  if (!pot) {
+    await telegram.answerCallbackQuery(cb.id, "Ese ahorro ya no existe");
+    return;
+  }
+  const used = Math.min(amountMinor, pot.reserved_minor ?? 0);
+  const left = Math.max(0, (pot.reserved_minor ?? 0) - amountMinor);
+  await db.from("savings").update({ reserved_minor: left }).eq("id", savingId);
+  void logEvent({ source: "telegram", event: "gasto_desde_ahorro", detail: `${pot.name} -${pesos(used)}`, actor: chatId });
+  await telegram.editMessageText(
+    chatId,
+    messageId,
+    `✅ Listo. Ese gasto salió de tu ahorro «${pot.name}» 🐷\nApartado ahí ahora: ${pesos(left)}`,
+  );
+  await telegram.answerCallbackQuery(cb.id, "Descontado del ahorro");
 }
 
 const AYUDA_TEXT = `🤖 <b>Soy PlaticApp y esto es lo que hago por ti:</b>
@@ -921,19 +992,26 @@ async function financeSnapshot(userId: string): Promise<string> {
     return new Date(n.getFullYear(), n.getMonth(), 1).toISOString();
   })();
   const [{ data: bals }, { data: txs }, { data: savings }, { data: debts }] = await Promise.all([
-    db.from("account_balances").select("name, type, balance_minor").eq("user_id", userId),
+    db.from("account_balances").select("name, type, balance_minor, reserved_minor").eq("user_id", userId),
     db.from("transactions").select("kind, amount_minor").eq("user_id", userId).gte("occurred_at", monthStart),
-    db.from("savings").select("reserved_minor").eq("user_id", userId),
+    db.from("savings").select("name, reserved_minor, goal_minor").eq("user_id", userId).order("created_at"),
     db.from("debts").select("direction, amount_minor").eq("user_id", userId).eq("status", "open"),
   ]);
 
   let assets = 0;
   let creditDebt = 0;
+  let reserved = 0;
   const cuentas: string[] = [];
   for (const b of bals ?? []) {
-    if (b.type === "credit") creditDebt += Math.max(0, -b.balance_minor);
-    else assets += b.balance_minor;
-    cuentas.push(`${b.name} ${pesos(b.balance_minor)}`);
+    if (b.type === "credit") {
+      creditDebt += Math.max(0, -b.balance_minor);
+      cuentas.push(`${b.name} (tarjeta de crédito, debes ${pesos(Math.max(0, -b.balance_minor))})`);
+    } else {
+      assets += b.balance_minor;
+      const r = b.reserved_minor ?? 0;
+      reserved += r;
+      cuentas.push(`${b.name} ${pesos(b.balance_minor)}${r ? ` (de los cuales ${pesos(r)} están apartados en ahorros)` : ""}`);
+    }
   }
   let inc = 0;
   let exp = 0;
@@ -941,15 +1019,20 @@ async function financeSnapshot(userId: string): Promise<string> {
     if (t.kind === "income") inc += t.amount_minor;
     else if (t.kind === "expense") exp += t.amount_minor;
   }
-  const ahorro = (savings ?? []).reduce((s, x) => s + (x.reserved_minor ?? 0), 0);
+  const available = assets - creditDebt - reserved;
   const debo = (debts ?? []).filter((d) => d.direction === "i_owe").reduce((s, d) => s + d.amount_minor, 0);
   const meDeben = (debts ?? []).filter((d) => d.direction === "they_owe").reduce((s, d) => s + d.amount_minor, 0);
+  const sobres = (savings ?? []).filter((x) => (x.reserved_minor ?? 0) > 0);
+  const ahorro = sobres.reduce((s, x) => s + (x.reserved_minor ?? 0), 0);
 
   return [
+    `Saldo disponible para gastar hoy: ${pesos(available)} (= activos − deuda de tarjetas − ahorros apartados)`,
     `Patrimonio neto: ${pesos(assets - creditDebt)}`,
     `Cuentas: ${cuentas.join(", ") || "ninguna registrada"}`,
     `Este mes: ingresos ${pesos(inc)}, gastos ${pesos(exp)}`,
-    ahorro ? `Ahorrado: ${pesos(ahorro)}` : "Sin ahorros apartados",
+    sobres.length
+      ? `Ahorros apartados (sobres, ${pesos(ahorro)}): ${sobres.map((x) => `${x.name} ${pesos(x.reserved_minor ?? 0)}${x.goal_minor ? `/meta ${pesos(x.goal_minor)}` : ""}`).join(", ")}`
+      : "Sin ahorros apartados",
     debo || meDeben ? `Deudas: debe ${pesos(debo)}, le deben ${pesos(meDeben)}` : "",
   ]
     .filter(Boolean)
@@ -961,8 +1044,17 @@ function chatSystem(snapshot: string, firstName?: string): string {
     "Eres PlaticApp, un asistente financiero personal colombiano: cercano, cálido, motivador y claro. Conversas como un buen amigo que sabe de plata.",
     "Tuteas, eres breve (2 a 4 frases), natural y usas 1 o 2 emojis con mesura.",
     "Usa los DATOS REALES del usuario para responder concreto y dar consejos útiles y accionables. NO inventes cifras: si no tienes un dato, dilo o invítalo a registrarlo.",
-    "NO registras nada en esta respuesta. Si el usuario quiere registrar, pídele que lo escriba claro (ej. «gasté 50 mil en el almuerzo»). Si sus cuentas están en negativo o vacías, recuérdale con tacto que registre su saldo o ingresos: cada gasto sale de una cuenta.",
+    "NO registras nada en esta respuesta. Si el usuario quiere registrar, pídele que lo escriba claro (ej. «gasté 50 mil en el almuerzo»).",
     "Si te piden algo fuera de finanzas, responde corto y reconduce con amabilidad a lo que sí puedes ayudar.",
+    // ── Cómo funciona PlaticApp (lógica del negocio que debes respetar al aconsejar) ──
+    "REGLAS DEL MODELO (síguelas siempre que razones o aconsejes):",
+    "1) Cada gasto SALE de una cuenta concreta. Si las cuentas están en negativo o vacías, recuérdale con tacto que primero registre su saldo (Cuentas → editar saldo) o sus ingresos.",
+    "2) Las tarjetas de crédito son DEUDA (pasivo): NO suman al patrimonio, lo restan. Gastar con tarjeta aumenta lo que debes; no es plata disponible.",
+    "3) «Saldo disponible» = activos − deuda de tarjetas − ahorros apartados. Es lo que de verdad puede gastar hoy. El patrimonio neto es otra cosa (incluye lo ahorrado).",
+    "4) Los AHORROS son «sobres»: plata apartada DENTRO de una cuenta para una meta. No es gastable del día a día. Puede «pagar con un ahorro»: ese gasto sale del sobre y reduce lo apartado. Si quiere apartar, dile algo como «aparta 100 mil para el viaje en Bancolombia».",
+    "5) Los PRÉSTAMOS y deudas MUEVEN plata entre cuentas (entra o sale de una cuenta), NO son gasto ni ingreso. Al saldarlos, la plata se devuelve.",
+    "6) Los PAGOS FIJOS solo se recuerdan el día del cobro; NO se debitan solos. El usuario elige con qué cuenta pagar cuando le llega el recordatorio.",
+    "Cuando des consejos de gasto, razona sobre el «saldo disponible», no sobre el patrimonio. Anímalo a apartar ahorros y a no dejar cuentas en negativo.",
     `Datos del usuario${firstName ? ` (${firstName})` : ""}:\n${snapshot}`,
   ].join("\n");
 }

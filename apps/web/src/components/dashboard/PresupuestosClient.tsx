@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
 import { MoneyInput } from "./MoneyInput";
+import { TrafficLights } from "./TrafficLights";
 
 interface Row {
   id: string | null;
@@ -167,9 +168,7 @@ function BudgetModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="glass animate-float-in w-full max-w-sm overflow-hidden rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
-          <span className="traffic-light bg-[#ff5f57]" />
-          <span className="traffic-light bg-[#febc2e]" />
-          <span className="traffic-light bg-[#28c840]" />
+          <TrafficLights onClose={onClose} />
           <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">
             {isNew ? "Nuevo presupuesto" : `Presupuesto · ${row.name}`}
           </span>

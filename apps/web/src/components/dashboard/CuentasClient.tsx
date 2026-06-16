@@ -7,6 +7,7 @@ import { fmtMoney } from "@/lib/format";
 import { accountFinance, isCreditAccount } from "@/lib/finance";
 import { ACCOUNT_EMOJI, ACCOUNT_TYPE_LABEL } from "@/lib/labels";
 import { MoneyInput } from "./MoneyInput";
+import { TrafficLights } from "./TrafficLights";
 
 const TYPES = [
   { value: "bank", label: "Banco" },
@@ -178,9 +179,7 @@ function AccountDetailModal({
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
       <div className="glass animate-float-in relative max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
-          <span className="traffic-light bg-[#ff5f57]" />
-          <span className="traffic-light bg-[#febc2e]" />
-          <span className="traffic-light bg-[#28c840]" />
+          <TrafficLights onClose={onClose} />
           <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Detalle de la cuenta</span>
         </div>
 
@@ -300,9 +299,7 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="glass animate-float-in w-full max-w-sm overflow-hidden rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
-          <span className="traffic-light bg-[#ff5f57]" />
-          <span className="traffic-light bg-[#febc2e]" />
-          <span className="traffic-light bg-[#28c840]" />
+          <TrafficLights onClose={onClose} />
           <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">{isEdit ? "Editar cuenta" : "Nueva cuenta"}</span>
         </div>
         <form onSubmit={submit} className="space-y-4 p-6">

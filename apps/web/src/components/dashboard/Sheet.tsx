@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { TrafficLights } from "./TrafficLights";
 
 /**
  * Contenedor de modal responsivo:
@@ -52,9 +53,7 @@ export function Sheet({
           className="sticky top-0 z-10 cursor-grab active:cursor-grabbing"
         >
           <div className="flex items-center gap-2 border-b border-white/40 bg-white/40 px-4 py-3 backdrop-blur sm:bg-transparent">
-            <span className="traffic-light bg-[#ff5f57]" />
-            <span className="traffic-light bg-[#febc2e]" />
-            <span className="traffic-light bg-[#28c840]" />
+            <TrafficLights onClose={onClose} />
             {title && <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">{title}</span>}
             <span className="mx-auto h-1.5 w-10 rounded-full bg-black/15 sm:hidden" />
           </div>
