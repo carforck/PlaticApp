@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { AccountRow, CategoryRow, TxRow } from "@/lib/queries";
+import type { AccountRow, CategoryRow, SavingRow, TxRow } from "@/lib/queries";
+import { fmtMoney } from "@/lib/format";
 import { Sheet } from "./Sheet";
 import { MoneyInput } from "./MoneyInput";
 
@@ -25,6 +26,7 @@ const ACCOUNT_TYPES = [
 export function AddTransactionModal({
   accounts,
   categories,
+  savings = [],
   editTx,
   initialKind,
   onClose,
@@ -32,6 +34,7 @@ export function AddTransactionModal({
 }: {
   accounts: AccountRow[];
   categories: CategoryRow[];
+  savings?: SavingRow[];
   editTx?: TxRow | null;
   initialKind?: Kind;
   onClose: () => void;
@@ -44,20 +47,32 @@ export function AddTransactionModal({
   const [transferAccountId, setTransferAccountId] = useState(editTx?.transfer_account_id ?? "");
   const [categoryId, setCategoryId] = useState(editTx?.category_id ?? "");
   const [description, setDescription] = useState(editTx?.description ?? "");
+  // Pagar con un ahorro: el gasto sale de un sobre (reduce lo apartado de ese sobre).
+  const [savingId, setSavingId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const accName = useMemo(() => new Map(accounts.map((a) => [a.account_id, a.name])), [accounts]);
+  // Sobres con plata apartada (solo tiene sentido pagar con ellos en un gasto).
+  const payableSavings = useMemo(() => savings.filter((s) => s.reserved_minor > 0), [savings]);
+  const selSaving = payableSavings.find((s) => s.id === savingId) ?? null;
   // Crear cuenta nueva sin salir del formulario.
   const [newAccName, setNewAccName] = useState("");
   const [newAccType, setNewAccType] = useState<string>("bank");
   const creatingAccount = accountId === NEW;
 
+  // Si paga con un ahorro, el gasto sale de la cuenta de ese sobre.
+  const effectiveAccountId = kind === "expense" && selSaving ? selSaving.account_id : accountId;
+
   // Avisos al gastar: ¿toca el ahorro? ¿deja la cuenta en negativo (sobregiro)?
-  const selAcc = accounts.find((a) => a.account_id === accountId);
+  const selAcc = accounts.find((a) => a.account_id === effectiveAccountId);
   const after = selAcc && amount ? selAcc.balance_minor - Number(amount) : null;
+  // Pagar con sobre es a propósito: no avisamos «toca tu ahorro».
   const touchesSavings =
-    kind === "expense" && !!selAcc && selAcc.reserved_minor > 0 && after !== null && after < selAcc.reserved_minor;
+    !selSaving && kind === "expense" && !!selAcc && selAcc.reserved_minor > 0 && after !== null && after < selAcc.reserved_minor;
   const wouldOverdraft =
     kind === "expense" && !!selAcc && selAcc.type !== "credit" && after !== null && after < 0;
+  // Aviso si el gasto supera lo que tiene apartado ese sobre.
+  const exceedsSaving = !!selSaving && !!amount && Number(amount) > selSaving.reserved_minor;
 
   async function remove() {
     if (!editTx) return;
@@ -106,6 +121,9 @@ export function AddTransactionModal({
       resolvedAccountId = (await ar.json()).id;
     }
 
+    // Pagar con un ahorro: el gasto sale de la cuenta del sobre.
+    if (kind === "expense" && selSaving) resolvedAccountId = selSaving.account_id;
+
     const payload = {
       kind,
       amount: Number(amount),
@@ -119,14 +137,26 @@ export function AddTransactionModal({
       headers: { "content-type": "application/json" },
       body: JSON.stringify(isEdit ? { id: editTx!.id, ...payload } : payload),
     });
-    setSaving(false);
-    if (res.ok) {
-      onSaved();
-      onClose();
-    } else {
+    if (!res.ok) {
+      setSaving(false);
       const j = await res.json().catch(() => ({}));
       setError(j.error ?? "No se pudo registrar");
+      return;
     }
+
+    // Si pagó con un sobre, reducimos lo apartado en ese sobre (gastó parte de lo ahorrado).
+    if (kind === "expense" && selSaving) {
+      const left = Math.max(0, selSaving.reserved_minor - Number(amount));
+      await fetch("/api/savings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ savingId: selSaving.id, reserved: left }),
+      }).catch(() => {});
+    }
+
+    setSaving(false);
+    onSaved();
+    onClose();
   }
 
   return (
@@ -213,6 +243,33 @@ export function AddTransactionModal({
             )}
           </div>
 
+          {kind === "expense" && payableSavings.length > 0 && (
+            <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+              🐷 Pagar con un ahorro (opcional)
+              <select
+                value={savingId}
+                onChange={(e) => {
+                  setSavingId(e.target.value);
+                  const pot = payableSavings.find((s) => s.id === e.target.value);
+                  if (pot) setAccountId(pot.account_id);
+                }}
+                className="mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
+              >
+                <option value="">— No, sale del saldo normal —</option>
+                {payableSavings.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {fmtMoney(s.reserved_minor)} en {accName.get(s.account_id) ?? "cuenta"}
+                  </option>
+                ))}
+              </select>
+              {selSaving && (
+                <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">
+                  Saldrá de «{selSaving.name}» (cuenta {accName.get(selSaving.account_id) ?? "—"}) y reducirá lo que tienes apartado ahí.
+                </span>
+              )}
+            </label>
+          )}
+
           {creatingAccount && (
             <div className="grid grid-cols-2 gap-3 rounded-[12px] bg-[var(--color-accent)]/8 p-3">
               <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
@@ -260,6 +317,11 @@ export function AddTransactionModal({
           {touchesSavings && !wouldOverdraft && (
             <p className="rounded-[10px] bg-[#ff9f0a]/12 px-3 py-2 text-[13px] text-[#b86e00]">
               🐷 Este gasto reduce tu ahorro apartado en {selAcc!.name}.
+            </p>
+          )}
+          {exceedsSaving && (
+            <p className="rounded-[10px] bg-[#ff9f0a]/12 px-3 py-2 text-[13px] text-[#b86e00]">
+              🐷 El gasto supera lo apartado en «{selSaving!.name}» ({fmtMoney(selSaving!.reserved_minor)}). Se vaciará ese ahorro y el resto saldrá del saldo de la cuenta.
             </p>
           )}
 

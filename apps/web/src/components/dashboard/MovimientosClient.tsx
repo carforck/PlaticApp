@@ -233,6 +233,7 @@ export function MovimientosClient() {
         <AddTransactionModal
           accounts={data.accounts}
           categories={data.categories}
+          savings={data.savings}
           editTx={editTx}
           onClose={() => {
             setAdding(false);

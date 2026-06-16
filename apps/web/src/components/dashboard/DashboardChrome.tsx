@@ -249,6 +249,7 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
         <AddTransactionModal
           accounts={data.accounts}
           categories={data.categories}
+          savings={data.savings}
           onClose={() => setAdding(false)}
           onSaved={refresh}
         />

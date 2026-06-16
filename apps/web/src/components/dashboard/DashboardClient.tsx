@@ -11,6 +11,20 @@ import { CashflowChart, NetWorthChart, SpendingDonut } from "./Charts";
 import { AddTransactionModal } from "./AddTransactionModal";
 import { AnimatedNumber } from "./AnimatedNumber";
 
+/** Frases que rotan bajo el saludo: motivan a llevar las finanzas al día. */
+const MOTIV_TIPS = [
+  "Cada peso que registras es una decisión más clara. 💪",
+  "Lo que se mide, se mejora. Vas muy bien. 📈",
+  "Llevar tus finanzas al día hoy es tranquilidad mañana. 🌱",
+  "Pequeños registros, grandes resultados. ✨",
+  "Tu yo del futuro te lo va a agradecer. 🙌",
+  "Ahorrar es pagarte a ti primero. 🐷",
+  "Sin sustos: sabes exactamente en qué va tu plata. 👌",
+  "Organiza hoy, disfruta tranquilo. ☕",
+  "Un gasto registrado es un gasto bajo control. 🎯",
+  "La constancia construye libertad financiera. 🚀",
+];
+
 export function DashboardClient() {
   const { data, profile, refresh } = useDashboard();
   const [adding, setAdding] = useState(false);
@@ -28,16 +42,25 @@ export function DashboardClient() {
     setGreeting(h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches");
   }, []);
 
+  // Frases motivacionales que rotan cada pocos segundos (toque «marketing» / hábito financiero).
+  const [tipIdx, setTipIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTipIdx((i) => (i + 1) % MOTIV_TIPS.length), 6500);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <main className="flex-1 space-y-4">
       <header className="flex items-center justify-between">
-        <div>
-          <p className="text-[13px] font-medium text-[var(--color-ink-soft)]">
-            👋 {greeting}{firstName ? `, ${firstName}` : ""}
+        <div className="min-w-0">
+          <p className="text-[12px] font-medium uppercase tracking-wide text-[var(--color-ink-soft)]">
+            Resumen · {today ? today : profile.email}
           </p>
-          <h1 className="text-[26px] font-semibold tracking-tight">Resumen</h1>
-          <p className="text-[12px] text-[var(--color-ink-soft)]">
-            {today ? `📅 ${today}` : profile.email} · en tiempo real
+          <h1 className="mt-0.5 text-[30px] font-semibold leading-tight tracking-tight sm:text-[34px]">
+            👋 {greeting}{firstName ? `, ${firstName}` : ""}
+          </h1>
+          <p key={tipIdx} className="motiv-tip mt-1 text-[13.5px] font-medium text-[var(--color-accent)]">
+            {MOTIV_TIPS[tipIdx]}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -297,6 +320,7 @@ export function DashboardClient() {
         <AddTransactionModal
           accounts={data.accounts}
           categories={data.categories}
+          savings={data.savings}
           onClose={() => setAdding(false)}
           onSaved={refresh}
         />

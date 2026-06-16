@@ -137,6 +137,21 @@ body {
   animation: fade-in 0.2s ease both;
 }
 
+/* Frase motivacional que rota: entra con un suave fundido + leve subida */
+@keyframes motiv-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.motiv-tip {
+  animation: motiv-in 0.45s ease both;
+}
+
 /* Sheet móvil: sube desde abajo */
 @keyframes slide-up {
   from {
