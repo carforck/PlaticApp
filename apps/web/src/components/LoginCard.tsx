@@ -221,6 +221,14 @@ export function LoginCard() {
             </p>
           </div>
 
+          <p className="mt-4 flex items-start justify-center gap-2 rounded-[10px] bg-[#30d158]/10 px-3 py-2 text-[11.5px] leading-snug text-[#1d8a3a] sm:justify-start">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+              <rect x="4" y="10" width="16" height="10" rx="2" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
+            <span>Con Google solo usamos tu <b>nombre y correo</b> para identificarte. No leemos tu correo ni accedemos a tu Gmail.</span>
+          </p>
+
           {message && (
             <p className={`mt-4 rounded-[10px] px-3 py-2.5 text-[13px] ${status === "error" ? "bg-[#ff375f]/10 text-[#ff375f]" : "bg-[#30d158]/10 text-[#1d8a3a]"}`}>
               {message}

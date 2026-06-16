@@ -8,6 +8,7 @@ import { DevCredit } from "@/components/DevCredit";
 import { LandingShowcase } from "@/components/landing/LandingShowcase";
 import { LandingNews } from "@/components/landing/LandingNews";
 import { FeatureMarquee } from "@/components/landing/FeatureMarquee";
+import { PrivacySection } from "@/components/landing/PrivacySection";
 import { LiveUsersPill, LiveStatsBar } from "@/components/landing/LiveStats";
 import { BrandIcon } from "@/components/BrandIcon";
 
@@ -106,6 +107,9 @@ export default function Landing() {
 
       {/* Lo último (novedades reales) */}
       <LandingNews />
+
+      {/* Privacidad y Habeas Data */}
+      <PrivacySection />
 
       {/* CTA final */}
       <section className="mx-auto max-w-3xl px-5 py-12">

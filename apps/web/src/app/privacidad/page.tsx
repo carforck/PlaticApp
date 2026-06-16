@@ -20,9 +20,9 @@ export default function PrivacidadPage() {
         <div className="mt-6 space-y-6 text-[14px] leading-relaxed text-[var(--color-ink)]">
           <Section title="1. Responsable del tratamiento">
             <p>
-              Carlos Carranza (PlaticApp), Cartagena, Colombia. Contacto:{" "}
-              <a className="text-[var(--color-accent)] hover:underline" href="mailto:carforck@gmail.com">carforck@gmail.com</a>{" "}
-              · <a className="text-[var(--color-accent)] hover:underline" href="https://vanttagetech.com" target="_blank" rel="noreferrer">vanttagetech.com</a>.
+              PlaticApp (proyecto operado por Carlos Carranza), Colombia. Para consultas, reclamos o para ejercer
+              tus derechos sobre tus datos, escríbenos a{" "}
+              <a className="text-[var(--color-accent)] hover:underline" href="mailto:carforck@gmail.com">carforck@gmail.com</a>.
             </p>
           </Section>
 
@@ -60,14 +60,23 @@ export default function PrivacidadPage() {
             </p>
           </Section>
 
-          <Section title="6. Conservación">
+          <Section title="6. Inicio de sesión con Google">
+            <p className="text-[var(--color-ink-soft)]">
+              Cuando entras con Google, este solo nos comparte tu <b className="text-[var(--color-ink)]">nombre, correo
+              y foto de perfil</b> para identificarte y crear tu cuenta. <b className="text-[var(--color-ink)]">No
+              solicitamos ni tenemos acceso al contenido de tu correo (Gmail)</b>, ni a tus contactos, archivos u otros
+              servicios de Google. Puedes revocar el acceso cuando quieras desde tu cuenta de Google.
+            </p>
+          </Section>
+
+          <Section title="7. Conservación">
             <p className="text-[var(--color-ink-soft)]">
               Conservamos tus datos mientras tu cuenta esté activa. Si la eliminas o revocas la autorización, los
               borramos salvo obligación legal de conservarlos.
             </p>
           </Section>
 
-          <Section title="7. Autorización">
+          <Section title="8. Autorización">
             <p className="text-[var(--color-ink-soft)]">
               Al crear tu cuenta y usar PlaticApp, autorizas de manera libre, previa, expresa e informada el tratamiento
               de tus datos personales conforme a esta política.
