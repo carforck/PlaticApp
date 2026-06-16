@@ -22,6 +22,7 @@ export function Sheet({
 }) {
   const startY = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
+  const [expanded, setExpanded] = useState(false);
 
   function onTouchStart(e: React.TouchEvent) {
     startY.current = e.touches[0]?.clientY ?? null;
@@ -43,7 +44,7 @@ export function Sheet({
       <div
         onClick={(e) => e.stopPropagation()}
         style={dragY ? { transform: `translateY(${dragY}px)`, transition: "none" } : undefined}
-        className={`glass animate-slide-up sm:animate-float-in relative max-h-[92vh] w-full overflow-y-auto rounded-t-[22px] sm:max-h-[88vh] sm:rounded-[var(--radius-card)] ${maxWidth} sm:w-full`}
+        className={`glass animate-slide-up sm:animate-float-in relative max-h-[92vh] w-full overflow-y-auto rounded-t-[22px] sm:rounded-[var(--radius-card)] sm:w-full ${expanded ? "sm:max-h-[96vh] sm:max-w-3xl" : `sm:max-h-[88vh] ${maxWidth}`}`}
       >
         {/* Agarradera + título (la zona de arrastre para cerrar en móvil) */}
         <div
@@ -53,7 +54,7 @@ export function Sheet({
           className="sticky top-0 z-10 cursor-grab active:cursor-grabbing"
         >
           <div className="flex items-center gap-2 border-b border-white/40 bg-white/40 px-4 py-3 backdrop-blur sm:bg-transparent">
-            <TrafficLights onClose={onClose} />
+            <TrafficLights onClose={onClose} onToggleExpand={() => setExpanded((v) => !v)} expanded={expanded} />
             {title && <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">{title}</span>}
             <span className="mx-auto h-1.5 w-10 rounded-full bg-black/15 sm:hidden" />
           </div>

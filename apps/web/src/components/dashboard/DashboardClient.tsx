@@ -57,7 +57,7 @@ export function DashboardClient() {
             Resumen · {today ? today : profile.email}
           </p>
           <h1 className="mt-0.5 text-[30px] font-semibold leading-tight tracking-tight sm:text-[34px]">
-            👋 {greeting}{firstName ? `, ${firstName}` : ""}
+            {greeting}{firstName ? `, ${firstName}` : ""} <span className="inline-block origin-bottom-right animate-wave">👋</span>
           </h1>
           <p key={tipIdx} className="motiv-tip mt-1 text-[13.5px] font-medium text-[var(--color-accent)]">
             {MOTIV_TIPS[tipIdx]}
