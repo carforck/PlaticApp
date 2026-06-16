@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatedNumber } from "@/components/dashboard/AnimatedNumber";
 
 type Stats = { users: number; movimientos: number; cuentas: number };
@@ -32,7 +32,32 @@ function useStats(pollMs = 20000): Stats {
 
 const nf = (n: number) => Math.round(n).toLocaleString("es-CO");
 
-/** Pastilla compacta para el hero: «🟢 N personas ya usan PlaticApp». */
+/**
+ * Número en vivo: count-up al cambiar, «latido» periódico (pop escalonado) y un
+ * destello más marcado solo cuando la cifra sube de verdad (llega un dato nuevo).
+ */
+function LiveNumber({ value, delay = 0 }: { value: number; delay?: number }) {
+  const prev = useRef(value);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    if (value > prev.current) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 900);
+      prev.current = value;
+      return () => clearTimeout(t);
+    }
+    prev.current = value;
+  }, [value]);
+  return (
+    <span className="animate-num-pop inline-block" style={{ animationDelay: `${delay}s` }}>
+      <span className={`inline-block ${flash ? "animate-num-flash" : ""}`}>
+        <AnimatedNumber value={value} format={nf} />
+      </span>
+    </span>
+  );
+}
+
+/** Pastilla compacta para el hero: «N personas ya usan PlaticApp». */
 export function LiveUsersPill() {
   const { users } = useStats();
   return (
@@ -42,36 +67,31 @@ export function LiveUsersPill() {
         <span className="relative inline-flex h-2 w-2 rounded-full bg-[#30d158]" />
       </span>
       <span>
-        <b className="animate-num-pop"><AnimatedNumber value={users} format={nf} /></b> personas ya usan PlaticApp
+        <b><LiveNumber value={users} /></b> personas ya usan PlaticApp
       </span>
     </span>
   );
 }
 
-/** Barra de social proof con 3 cifras vivas. */
+/** Barra de social proof con 3 cifras vivas (sobria, sin emojis). */
 export function LiveStatsBar() {
   const { users, movimientos, cuentas } = useStats();
   const items = [
-    { label: "personas", value: users, emoji: "👥" },
-    { label: "movimientos registrados", value: movimientos, emoji: "📝" },
-    { label: "cuentas conectadas", value: cuentas, emoji: "🏦" },
+    { label: "personas", value: users },
+    { label: "movimientos registrados", value: movimientos },
+    { label: "cuentas conectadas", value: cuentas },
   ];
   return (
     <section className="mx-auto max-w-4xl px-5 py-6">
-      <div className="glass grid grid-cols-1 gap-4 rounded-[var(--radius-card)] p-6 sm:grid-cols-3">
+      <div className="glass grid grid-cols-1 gap-4 divide-y divide-black/5 rounded-[var(--radius-card)] p-6 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {items.map((it, i) => (
-          <div key={it.label} className="text-center">
+          <div key={it.label} className="px-2 pt-4 text-center first:pt-0 sm:pt-0">
             <p className="text-[30px] font-bold tracking-tight">
-              <span
-                className="animate-num-pop bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-transparent"
-                style={{ animationDelay: `${i * 0.5}s` }}
-              >
-                <AnimatedNumber value={it.value} format={nf} />
+              <span className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-transparent">
+                <LiveNumber value={it.value} delay={i * 0.5} />
               </span>
             </p>
-            <p className="mt-1 text-[12.5px] text-[var(--color-ink-soft)]">
-              {it.emoji} {it.label}
-            </p>
+            <p className="mt-1 text-[12.5px] text-[var(--color-ink-soft)]">{it.label}</p>
           </div>
         ))}
       </div>

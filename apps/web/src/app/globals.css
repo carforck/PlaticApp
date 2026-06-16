@@ -186,6 +186,16 @@ body {
   animation: num-pop 4.5s ease-in-out infinite;
 }
 
+/* Destello cuando una cifra sube de verdad (llega un dato nuevo) */
+@keyframes num-flash {
+  0% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(1.28); filter: brightness(1.4) drop-shadow(0 0 6px rgba(10, 132, 255, 0.5)); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.animate-num-flash {
+  animation: num-flash 0.9s ease-out;
+}
+
 /* Brillo sutil del badge «Nuevo» de la novedad más reciente */
 @keyframes badge-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(10, 132, 255, 0); }
@@ -207,6 +217,7 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-num-pop,
+  .animate-num-flash,
   .animate-badge-glow { animation: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
 }

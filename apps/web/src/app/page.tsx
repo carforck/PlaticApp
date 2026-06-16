@@ -12,12 +12,12 @@ import { LiveUsersPill, LiveStatsBar } from "@/components/landing/LiveStats";
 import { BrandIcon } from "@/components/BrandIcon";
 
 const FEATURES = [
-  { icon: "💬", title: "Habla y listo", desc: "«gasté 50 mil en el almuerzo» y queda registrado. Sin formularios." },
-  { icon: "🎙️", title: "Notas de voz", desc: "Manda un audio y la IA lo transcribe y lo entiende." },
-  { icon: "🖼️", title: "Foto del recibo", desc: "Tómale foto a la factura y la IA extrae el monto y la categoría." },
-  { icon: "📊", title: "Dashboard en vivo", desc: "Patrimonio, flujo y gráficos que se actualizan en tiempo real." },
-  { icon: "🤝", title: "Deudas y préstamos", desc: "Lleva el registro de quién te debe y a quién le debes." },
-  { icon: "🎯", title: "Presupuestos y recordatorios", desc: "Límites por categoría y avisos de tus pagos fijos por Telegram." },
+  { id: "talk", title: "Habla y listo", desc: "«gasté 50 mil en el almuerzo» y queda registrado. Sin formularios." },
+  { id: "voice", title: "Notas de voz", desc: "Manda un audio y la IA lo transcribe y lo entiende." },
+  { id: "photo", title: "Foto del recibo", desc: "Tómale foto a la factura y la IA extrae el monto y la categoría." },
+  { id: "dashboard", title: "Dashboard en vivo", desc: "Patrimonio, flujo y gráficos que se actualizan en tiempo real." },
+  { id: "debts", title: "Deudas y préstamos", desc: "Lleva el registro de quién te debe y a quién le debes." },
+  { id: "budget", title: "Presupuestos y recordatorios", desc: "Límites por categoría y avisos de tus pagos fijos por Telegram." },
 ];
 
 const STEPS = [
@@ -44,7 +44,8 @@ export default function Landing() {
       <section className="mx-auto grid max-w-6xl items-center gap-6 px-5 py-10 lg:grid-cols-2 lg:py-16">
         <div className="animate-float-in text-center lg:text-left">
           <span className="inline-flex items-center gap-2 rounded-full bg-[var(--color-accent)]/10 px-3 py-1 text-[12px] font-medium text-[var(--color-accent)]">
-            🤖 Tu control financiero por Telegram
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
+            Tu control financiero por Telegram
           </span>
           <h1 className="mt-4 text-[34px] font-bold leading-[1.1] tracking-tight sm:text-[44px]">
             Controla tus <RotatingWord words={["gastos", "ingresos", "deudas", "inversiones", "ahorros"]} />
