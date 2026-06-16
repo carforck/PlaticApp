@@ -3,22 +3,25 @@ import { ImageResponse } from "next/og";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-/** Ícono para la pantalla de inicio en iOS: 💸 sobre el gradiente de la marca. */
+/** Ícono de inicio en iOS: igual que el ícono de logo.svg — 💸 en cuadro redondeado con el gradiente. */
 export default function AppleIcon() {
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 104,
-          background: "linear-gradient(135deg, #0a84ff, #bf5af2)",
-        }}
-      >
-        💸
+      <div style={{ display: "flex", width: "100%", height: "100%" }}>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 97,
+            borderRadius: 48,
+            background: "linear-gradient(135deg, #0a84ff, #bf5af2)",
+          }}
+        >
+          💸
+        </div>
       </div>
     ),
     { ...size, emoji: "twemoji" },
