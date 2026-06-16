@@ -66,7 +66,11 @@ export function DashboardClient() {
           amount={d.netWorth}
           format={fmtMoney}
           accent="text-[var(--color-ink)]"
-          hint={d.theyOwe || d.iOwe ? `Con deudas: ${fmtMoney(d.netWorthAdjusted)}` : "Saldo total"}
+          hint={
+            d.netWorthAdjusted !== d.netWorth
+              ? `Si saldas lo pendiente: ${fmtMoney(d.netWorthAdjusted)}`
+              : "Tu plata disponible hoy"
+          }
         />
         <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint={trendHint(d.incomeChange)} />
         <StatCard label="Gastos" amount={d.expense} format={fmtMoney} accent="text-[#ff375f]" hint={trendHint(d.expenseChange)} />
