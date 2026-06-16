@@ -49,6 +49,10 @@ export function PerfilClient() {
   function exportData() {
     window.location.href = "/api/me/export";
   }
+  async function replayTutorial() {
+    await fetch("/api/me/welcomed", { method: "DELETE" });
+    router.refresh(); // recarga los datos del layout → reaparece el tour de bienvenida
+  }
 
   const field =
     "mt-1.5 w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] outline-none ring-[var(--color-accent)] focus:ring-2";
@@ -165,6 +169,12 @@ export function PerfilClient() {
             className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
           >
             ⬇️ Exportar mis datos (JSON)
+          </button>
+          <button
+            onClick={replayTutorial}
+            className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
+          >
+            🎓 Ver el tutorial de nuevo
           </button>
           <button
             onClick={() => setResetting(true)}

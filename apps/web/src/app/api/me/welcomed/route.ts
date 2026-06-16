@@ -13,3 +13,14 @@ export async function POST() {
   await supabase.from("profiles").update({ welcomed_at: new Date().toISOString() }).eq("id", user.id);
   return NextResponse.json({ ok: true });
 }
+
+/** Reabre el tour de bienvenida (botón «Ver el tutorial de nuevo» en el perfil). */
+export async function DELETE() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ ok: false }, { status: 401 });
+  await supabase.from("profiles").update({ welcomed_at: null }).eq("id", user.id);
+  return NextResponse.json({ ok: true });
+}

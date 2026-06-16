@@ -117,6 +117,21 @@ async function resolveUserId(chatId: number): Promise<string | null> {
   return data?.user_id ?? null;
 }
 
+/** Muestra la ruta de inicio una sola vez (la primera vez que el usuario escribe). */
+async function maybeSendOnboarding(chatId: number, firstName?: string): Promise<void> {
+  const db = createAdminClient();
+  const { data } = await db.from("telegram_links").select("onboarded_at").eq("telegram_chat_id", chatId).maybeSingle();
+  if (!data || data.onboarded_at != null) return;
+  await telegram.sendMessage(chatId, onboardingText(firstName), [[{ text: "🌐 Abrir mi panel", url: APP_URL }]]);
+  await db.from("telegram_links").update({ onboarded_at: new Date().toISOString() }).eq("telegram_chat_id", chatId);
+}
+
+/** Marca el onboarding como visto (p. ej. al usar /start, que ya muestra la guía). */
+async function markOnboarded(chatId: number): Promise<void> {
+  const db = createAdminClient();
+  await db.from("telegram_links").update({ onboarded_at: new Date().toISOString() }).eq("telegram_chat_id", chatId);
+}
+
 async function handleLinkCode(chatId: number, code: string, username?: string, firstName?: string): Promise<void> {
   const db = createAdminClient();
   const { data: lc } = await db
@@ -197,6 +212,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     const linked = await resolveUserId(chatId);
     if (linked) {
       await telegram.sendMessage(chatId, onboardingText(msg.from?.first_name), [[{ text: "🌐 Abrir mi panel", url: APP_URL }]]);
+      await markOnboarded(chatId);
     } else {
       await telegram.sendMessage(
         chatId,
@@ -241,6 +257,9 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     );
     return;
   }
+
+  // La primera vez que escribe (tras vincular o al volver), le mostramos la ruta de inicio.
+  await maybeSendOnboarding(chatId, msg.from?.first_name);
 
   try {
     const db = createAdminClient();
