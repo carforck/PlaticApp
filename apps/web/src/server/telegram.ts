@@ -34,12 +34,13 @@ export const telegram = {
     });
   },
 
-  editMessageText(chatId: number, messageId: number, text: string) {
+  editMessageText(chatId: number, messageId: number, text: string, buttons?: InlineButton[][]) {
     return call("editMessageText", {
       chat_id: chatId,
       message_id: messageId,
       text,
       parse_mode: "HTML",
+      ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
     });
   },
 

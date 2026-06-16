@@ -556,9 +556,9 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   const draftId = seg[1];
   if (!chatId || !messageId || !draftId) return void telegram.answerCallbackQuery(cb.id);
 
-  // Recordatorio de un pago fijo: registrar o saltar este ciclo.
-  if (action === "rok" || action === "rskip") {
-    return handleReminderAction(cb, chatId, messageId, action, draftId);
+  // Recordatorio de un pago fijo: pagar (elige cuenta), confirmar cuenta o saltar.
+  if (action === "rok" || action === "rpay" || action === "rskip" || action === "rpacc") {
+    return handleReminderAction(cb, chatId, messageId, action, draftId, seg[2]);
   }
 
   const { data: row } = await db.from("pending_drafts").select("*").eq("id", draftId).maybeSingle();
@@ -800,6 +800,7 @@ async function handleReminderAction(
   messageId: number,
   action: string,
   recId: string,
+  extra?: string,
 ): Promise<void> {
   const db = createAdminClient();
   const { data: rec } = await db.from("recurrences").select("*").eq("id", recId).maybeSingle();
@@ -807,37 +808,55 @@ async function handleReminderAction(
     await telegram.answerCallbackQuery(cb.id, "Ese pago fijo ya no existe");
     return;
   }
+  const money = Money.of(rec.amount_minor, rec.currency);
 
-  if (action === "rok") {
-    let accountId = rec.account_id as string | null;
-    if (!accountId) accountId = (await accountRepo(db).listByUser(rec.user_id))[0]?.id ?? null;
-    if (accountId) {
+  // Cuentas del usuario en orden estable (para indexar los botones).
+  const accounts = (await accountRepo(db).listByUser(rec.user_id)).filter((a) => a.type !== "credit");
+
+  // "Pagar": NO debita aún; pregunta con qué cuenta.
+  if (action === "rok" || action === "rpay") {
+    if (accounts.length === 0) {
+      await telegram.answerCallbackQuery(cb.id, "No tienes cuentas para pagar");
+      return;
+    }
+    const rows: { text: string; callback_data: string }[][] = [];
+    const btns = accounts.slice(0, 8).map((a, i) => ({ text: `${ACCOUNT_EMOJI[a.type] ?? "💼"} ${a.name}`, callback_data: `rpacc:${recId}:${i}` }));
+    for (let i = 0; i < btns.length; i += 2) rows.push(btns.slice(i, i + 2));
+    rows.push([{ text: "⏭️ Saltar este ciclo", callback_data: `rskip:${recId}` }]);
+    await telegram.editMessageText(chatId, messageId, `💳 <b>${fmt(money)}</b> · ${rec.name}\n¿Con qué cuenta lo pagas?`, rows);
+    await telegram.answerCallbackQuery(cb.id);
+    return;
+  }
+
+  // Eligió cuenta: ahí sí se debita.
+  if (action === "rpacc") {
+    const acc = accounts[Number(extra)];
+    if (acc) {
       await db.from("transactions").insert({
         user_id: rec.user_id,
         kind: rec.kind,
         amount_minor: rec.amount_minor,
         currency: rec.currency,
-        account_id: accountId,
+        account_id: acc.id,
         category_id: rec.category_id,
         description: rec.name,
         occurred_at: new Date().toISOString(),
         source: "web",
       });
     }
+    const next = nextOccurrence(new Date(`${rec.next_due}T00:00:00`), rec.frequency as Frequency);
+    await db.from("recurrences").update({ next_due: ymd(next), last_reminded: null }).eq("id", recId);
+    void logEvent({ source: "telegram", event: "pago_fijo_pagado", detail: `${rec.name} ${fmt(money)} · ${acc?.name ?? "?"}`, actor: chatId });
+    await telegram.editMessageText(chatId, messageId, `✅ <b>Pagado</b> · ${fmt(money)} (${rec.name}) desde ${acc?.name ?? "—"}\nPróximo: ${ymd(next)} 📅`);
+    await telegram.answerCallbackQuery(cb.id, "¡Pagado!");
+    return;
   }
 
+  // Saltar este ciclo (sin debitar).
   const next = nextOccurrence(new Date(`${rec.next_due}T00:00:00`), rec.frequency as Frequency);
   await db.from("recurrences").update({ next_due: ymd(next), last_reminded: null }).eq("id", recId);
-
-  const money = Money.of(rec.amount_minor, rec.currency);
-  await telegram.editMessageText(
-    chatId,
-    messageId,
-    action === "rok"
-      ? `✅ <b>Registrado</b> · ${fmt(money)} (${rec.name})\nPróximo: ${ymd(next)} 📅`
-      : `⏭️ Saltado este ciclo · ${rec.name}\nPróximo: ${ymd(next)}`,
-  );
-  await telegram.answerCallbackQuery(cb.id, "¡Listo!");
+  await telegram.editMessageText(chatId, messageId, `⏭️ Saltado este ciclo · ${rec.name}\nPróximo: ${ymd(next)}`);
+  await telegram.answerCallbackQuery(cb.id);
 }
 
 const pesos = (minor: number) => fmt(Money.of(minor, "COP"));
@@ -1175,10 +1194,10 @@ async function answerQuery(userId: string, q: QueryIntent): Promise<string> {
 export async function sendRecurrenceReminder(chatId: number, recId: string, name: string, amountText: string, freqLabel: string) {
   await telegram.sendMessage(
     chatId,
-    `🔔 <b>Recordatorio de pago fijo</b>\n${amountText} · ${name} (${freqLabel})\n¿Lo registro?`,
+    `🔔 <b>Recordatorio de pago fijo</b>\n${amountText} · ${name} (${freqLabel})\nNo debité nada. ¿Lo pagas ahora?`,
     [
       [
-        { text: "✅ Registrar", callback_data: `rok:${recId}` },
+        { text: "💳 Pagar", callback_data: `rpay:${recId}` },
         { text: "⏭️ Saltar", callback_data: `rskip:${recId}` },
       ],
     ],
