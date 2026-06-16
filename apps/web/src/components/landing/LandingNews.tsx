@@ -36,9 +36,15 @@ export function LandingNews() {
   }, []);
 
   // Revela las tarjetas (fade + slide-up escalonado) cuando la sección entra en pantalla.
+  // Con respaldo por temporizador para que SIEMPRE aparezcan, aunque el observer no dispare.
   useEffect(() => {
+    if (items.length === 0) return;
     const el = gridRef.current;
-    if (!el || items.length === 0) return;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setShown(true);
+      return;
+    }
+    const fallback = setTimeout(() => setShown(true), 1200);
     const obs = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
@@ -46,10 +52,13 @@ export function LandingNews() {
           obs.disconnect();
         }
       },
-      { threshold: 0.15 },
+      { threshold: 0.1 },
     );
     obs.observe(el);
-    return () => obs.disconnect();
+    return () => {
+      clearTimeout(fallback);
+      obs.disconnect();
+    };
   }, [items.length]);
 
   if (items.length === 0) return null;

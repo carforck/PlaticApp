@@ -36,7 +36,7 @@ const nf = (n: number) => Math.round(n).toLocaleString("es-CO");
  * Número en vivo: count-up al cambiar, «latido» periódico (pop escalonado) y un
  * destello más marcado solo cuando la cifra sube de verdad (llega un dato nuevo).
  */
-function LiveNumber({ value, delay = 0 }: { value: number; delay?: number }) {
+function LiveNumber({ value, delay = 0, className = "" }: { value: number; delay?: number; className?: string }) {
   const prev = useRef(value);
   const [flash, setFlash] = useState(false);
   useEffect(() => {
@@ -48,9 +48,11 @@ function LiveNumber({ value, delay = 0 }: { value: number; delay?: number }) {
     }
     prev.current = value;
   }, [value]);
+  // IMPORTANTE: el gradiente + bg-clip-text van en el MISMO span que contiene el texto
+  // (si hubiera un inline-block intermedio, el recorte falla y el número se vuelve invisible).
   return (
     <span className="animate-num-pop inline-block" style={{ animationDelay: `${delay}s` }}>
-      <span className={`inline-block ${flash ? "animate-num-flash" : ""}`}>
+      <span className={`inline-block ${className} ${flash ? "animate-num-flash" : ""}`}>
         <AnimatedNumber value={value} format={nf} />
       </span>
     </span>
@@ -86,12 +88,14 @@ export function LiveStatsBar() {
       <div className="glass grid grid-cols-1 gap-4 divide-y divide-black/5 rounded-[var(--radius-card)] p-6 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {items.map((it, i) => (
           <div key={it.label} className="px-2 pt-4 text-center first:pt-0 sm:pt-0">
-            <p className="text-[30px] font-bold tracking-tight">
-              <span className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-transparent">
-                <LiveNumber value={it.value} delay={i * 0.5} />
-              </span>
+            <p className="text-[48px] font-extrabold leading-none tracking-tight sm:text-[60px]">
+              <LiveNumber
+                value={it.value}
+                delay={i * 0.5}
+                className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-transparent"
+              />
             </p>
-            <p className="mt-1 text-[12.5px] text-[var(--color-ink-soft)]">{it.label}</p>
+            <p className="mt-2.5 text-[13px] font-medium text-[var(--color-ink-soft)]">{it.label}</p>
           </div>
         ))}
       </div>
