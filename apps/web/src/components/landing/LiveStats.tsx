@@ -42,7 +42,7 @@ export function LiveUsersPill() {
         <span className="relative inline-flex h-2 w-2 rounded-full bg-[#30d158]" />
       </span>
       <span>
-        <b><AnimatedNumber value={users} format={nf} /></b> personas ya usan PlaticApp
+        <b className="animate-num-pop"><AnimatedNumber value={users} format={nf} /></b> personas ya usan PlaticApp
       </span>
     </span>
   );
@@ -59,10 +59,13 @@ export function LiveStatsBar() {
   return (
     <section className="mx-auto max-w-4xl px-5 py-6">
       <div className="glass grid grid-cols-1 gap-4 rounded-[var(--radius-card)] p-6 sm:grid-cols-3">
-        {items.map((it) => (
+        {items.map((it, i) => (
           <div key={it.label} className="text-center">
             <p className="text-[30px] font-bold tracking-tight">
-              <span className="bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-transparent">
+              <span
+                className="animate-num-pop bg-gradient-to-r from-[#0a84ff] to-[#bf5af2] bg-clip-text text-transparent"
+                style={{ animationDelay: `${i * 0.5}s` }}
+              >
                 <AnimatedNumber value={it.value} format={nf} />
               </span>
             </p>

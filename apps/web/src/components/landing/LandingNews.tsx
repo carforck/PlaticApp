@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Ann {
@@ -20,6 +20,8 @@ const TAG: Record<string, string> = {
 
 export function LandingNews() {
   const [items, setItems] = useState<Ann[]>([]);
+  const [shown, setShown] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void (async () => {
@@ -33,6 +35,23 @@ export function LandingNews() {
     })();
   }, []);
 
+  // Revela las tarjetas (fade + slide-up escalonado) cuando la sección entra en pantalla.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || items.length === 0) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShown(true);
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.15 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [items.length]);
+
   if (items.length === 0) return null;
 
   return (
@@ -41,12 +60,18 @@ export function LandingNews() {
       <p className="mx-auto mt-2 max-w-lg text-center text-[14px] text-[var(--color-ink-soft)]">
         Mejoramos constantemente. Esto es lo que acabamos de lanzar.
       </p>
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((a) => (
-          <div key={a.id} className="glass rounded-[var(--radius-card)] p-5 transition hover:-translate-y-1">
+      <div ref={gridRef} className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((a, i) => (
+          <div
+            key={a.id}
+            className={`glass reveal rounded-[var(--radius-card)] p-5 transition hover:-translate-y-1 ${shown ? "reveal-in" : ""}`}
+            style={{ transitionDelay: `${i * 90}ms` }}
+          >
             <div className="flex items-center justify-between">
               <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-black/[0.05] text-[20px]">{a.emoji}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TAG[a.tag] ?? TAG.nuevo}`}>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TAG[a.tag] ?? TAG.nuevo} ${i === 0 ? "animate-badge-glow" : ""}`}
+              >
                 {a.tag === "mejora" ? "Mejora" : a.tag === "arreglo" ? "Arreglo" : "Nuevo"}
               </span>
             </div>

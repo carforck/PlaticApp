@@ -176,6 +176,41 @@ body {
   .animate-marquee { animation: none; }
 }
 
+/* Latido periódico de las cifras en vivo (pop + brillo), escalonado */
+@keyframes num-pop {
+  0%, 86%, 100% { transform: scale(1); filter: brightness(1); }
+  92% { transform: scale(1.14); filter: brightness(1.18); }
+}
+.animate-num-pop {
+  display: inline-block;
+  animation: num-pop 4.5s ease-in-out infinite;
+}
+
+/* Brillo sutil del badge «Nuevo» de la novedad más reciente */
+@keyframes badge-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(10, 132, 255, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.18); }
+}
+.animate-badge-glow {
+  animation: badge-glow 2.2s ease-in-out infinite;
+}
+
+/* Aparición de tarjetas al entrar en pantalla (reveal on scroll) */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.reveal.reveal-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-num-pop,
+  .animate-badge-glow { animation: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
 /* Sheet móvil: sube desde abajo */
 @keyframes slide-up {
   from {
