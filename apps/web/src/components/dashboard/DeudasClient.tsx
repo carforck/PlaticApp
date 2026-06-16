@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
-import { type DebtRow } from "@/lib/queries";
+import { type DebtRow, type AccountRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { Paginator, usePagination } from "./Paginator";
 import { MoneyInput } from "./MoneyInput";
@@ -68,6 +68,7 @@ export function DeudasClient() {
       {(creating || editing) && (
         <DebtModal
           debt={editing}
+          accounts={data.accounts}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -126,12 +127,23 @@ function DebtRowItem({
   );
 }
 
-function DebtModal({ debt, onClose, onSaved }: { debt: DebtRow | null; onClose: () => void; onSaved: () => void }) {
+function DebtModal({
+  debt,
+  accounts,
+  onClose,
+  onSaved,
+}: {
+  debt: DebtRow | null;
+  accounts: AccountRow[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const isEdit = !!debt;
   const [counterparty, setCounterparty] = useState(debt?.counterparty ?? "");
   const [direction, setDirection] = useState<"i_owe" | "they_owe">(debt?.direction ?? "they_owe");
   const [amount, setAmount] = useState(debt ? String(debt.amount_minor) : "");
   const [description, setDescription] = useState(debt?.description ?? "");
+  const [accountId, setAccountId] = useState(debt?.account_id ?? accounts[0]?.account_id ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -139,7 +151,7 @@ function DebtModal({ debt, onClose, onSaved }: { debt: DebtRow | null; onClose: 
     e.preventDefault();
     setSaving(true);
     setError("");
-    const payload = { counterparty, direction, amount: Number(amount), description };
+    const payload = { counterparty, direction, amount: Number(amount), description, accountId: accountId || null };
     const res = await fetch("/api/debts", {
       method: isEdit ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
@@ -193,6 +205,18 @@ function DebtModal({ debt, onClose, onSaved }: { debt: DebtRow | null; onClose: 
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Monto (COP)
             <MoneyInput required value={amount} onChange={setAmount} placeholder="200.000" className={`${field} font-semibold`} />
+          </label>
+          <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+            {direction === "they_owe" ? "¿De qué cuenta salió la plata?" : "¿A qué cuenta entró la plata?"}
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={field}>
+              <option value="">— No mover ninguna cuenta —</option>
+              {accounts.map((a) => (
+                <option key={a.account_id} value={a.account_id}>{a.name}</option>
+              ))}
+            </select>
+            <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">
+              {direction === "they_owe" ? "Tu saldo baja (prestaste); vuelve al saldar." : "Tu saldo sube (recibiste); baja al saldar."}
+            </span>
           </label>
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Nota (opcional)

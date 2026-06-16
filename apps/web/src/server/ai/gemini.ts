@@ -221,6 +221,7 @@ function split(
         direction: r.debtDirection ?? (r.kind === "income" ? "i_owe" : "they_owe"),
         amount,
         description: r.description || undefined,
+        accountHint: r.account || undefined,
       });
     } else {
       const accountType = ACCOUNT_TYPES.includes(r.accountType as AccountType)

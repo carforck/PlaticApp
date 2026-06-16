@@ -48,6 +48,7 @@ export interface DebtRow {
   description: string | null;
   status: "open" | "settled";
   created_at: string;
+  account_id: string | null;
 }
 
 export interface RecurrenceRow {

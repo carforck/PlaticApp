@@ -80,6 +80,7 @@ interface DebtItem {
   amountMinor: number;
   currency: string;
   description: string | null;
+  accountHint: string | null;
 }
 interface RecurrenceItem {
   name: string;
@@ -378,6 +379,7 @@ async function proposeDrafts(chatId: number, userId: string, result: ExtractResu
     amountMinor: d.amount.minorUnits,
     currency: d.amount.currency,
     description: d.description ?? null,
+    accountHint: d.accountHint ?? null,
   }));
   const recurrences: RecurrenceItem[] = result.recurrences.map((r) => ({
     name: r.name,
@@ -630,12 +632,18 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 
   for (const d of debts) {
     try {
+      // La plata del préstamo sale/entra de una cuenta: resuelve el hint, o usa
+      // la primera cuenta del usuario por defecto (así siempre se mueve de algún lado).
+      const accs = await accountRepo(db).listByUser(draftRow.user_id);
+      const acc = d.accountHint ? await accountRepo(db).findByNameHint(draftRow.user_id, d.accountHint) : null;
+      const accountId = (acc ?? accs[0])?.id ?? null;
       await debtsRepo.create({
         userId: draftRow.user_id,
         counterparty: d.counterparty,
         direction: d.direction,
         amount: Money.of(d.amountMinor, d.currency),
         description: d.description ?? undefined,
+        accountId,
       });
       debtOk++;
     } catch {

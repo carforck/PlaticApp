@@ -138,6 +138,7 @@ export function debtRepo(db: SupabaseClient): DebtRepository {
           amount_minor: debt.amount.minorUnits,
           currency: debt.amount.currency,
           description: debt.description ?? null,
+          account_id: debt.accountId ?? null,
         })
         .select("*")
         .single();

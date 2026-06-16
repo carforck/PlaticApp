@@ -21,6 +21,8 @@ export interface DebtDraft {
   direction: DebtDirection;
   amount: Money;
   description?: string;
+  /** Cuenta de la que sale/entra la plata del préstamo (texto a resolver). */
+  accountHint?: string;
 }
 
 export interface NewDebt {
@@ -29,4 +31,6 @@ export interface NewDebt {
   direction: DebtDirection;
   amount: Money;
   description?: string | null;
+  /** Cuenta cuyo saldo se afecta por el préstamo (id ya resuelto). */
+  accountId?: string | null;
 }
