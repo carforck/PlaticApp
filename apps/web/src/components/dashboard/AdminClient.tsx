@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { ADMIN_EMAIL } from "@/lib/admin";
 import { fmtMoney } from "@/lib/format";
@@ -33,6 +33,15 @@ const METHOD_BADGE: Record<string, string> = {
   Telegram: "✈️ Telegram",
   Correo: "✉️ Correo",
 };
+
+type SortKey = "actividad" | "movimientos" | "registro" | "registro_old" | "nombre";
+const SORT_OPTIONS: { id: SortKey; label: string }[] = [
+  { id: "actividad", label: "Actividad reciente (quién usa la app)" },
+  { id: "movimientos", label: "Más movimientos registrados" },
+  { id: "registro", label: "Registro: más recientes" },
+  { id: "registro_old", label: "Registro: más antiguos" },
+  { id: "nombre", label: "Nombre (A–Z)" },
+];
 
 const fmtDateShort = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "2-digit" }) : "—";
@@ -67,6 +76,7 @@ export function AdminClient() {
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [today, setToday] = useState("");
   const [tab, setTab] = useState<"resumen" | "usuarios" | "logs" | "novedades">("resumen");
+  const [sort, setSort] = useState<SortKey>("actividad");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/users");
@@ -91,7 +101,31 @@ export function AdminClient() {
     };
   }, [load]);
 
-  const pg = usePagination(data?.users ?? [], 15);
+  // Orden de la lista de usuarios (actividad, registro, uso, nombre).
+  const sortedUsers = useMemo(() => {
+    const arr = [...(data?.users ?? [])];
+    const t = (s: string | null) => (s ? new Date(s).getTime() : 0);
+    switch (sort) {
+      case "actividad": // quiénes están usando la app: en línea primero, luego actividad más reciente
+        return arr.sort(
+          (a, b) => Number(b.online) - Number(a.online) || t(b.lastSeen) - t(a.lastSeen) || t(b.lastSignIn) - t(a.lastSignIn),
+        );
+      case "registro": // registro más reciente primero
+        return arr.sort((a, b) => t(b.createdAt) - t(a.createdAt));
+      case "registro_old": // los primeros en registrarse
+        return arr.sort((a, b) => t(a.createdAt) - t(b.createdAt));
+      case "movimientos": // los que más han registrado
+        return arr.sort((a, b) => b.transactions - a.transactions);
+      case "nombre":
+        return arr.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, "es"));
+      default:
+        return arr;
+    }
+  }, [data, sort]);
+
+  const pg = usePagination(sortedUsers, 15);
+  // Al cambiar el orden, vuelve a la primera página.
+  useEffect(() => pg.setPage(1), [sort]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (profile.email !== ADMIN_EMAIL) {
     return (
@@ -151,6 +185,23 @@ export function AdminClient() {
       {tab === "novedades" && <PublishAnnouncement onPublished={refresh} />}
 
       <div className={`glass overflow-hidden rounded-[var(--radius-card)] ${tab === "usuarios" ? "" : "hidden"}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-4 py-2.5">
+          <span className="text-[12px] text-[var(--color-ink-soft)]">
+            {data ? `${data.total} usuarios · ${data.online} en línea` : "Cargando…"}
+          </span>
+          <label className="flex items-center gap-2 text-[12px] text-[var(--color-ink-soft)]">
+            Ordenar por
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="rounded-[8px] border border-black/10 bg-white/70 px-2.5 py-1.5 text-[12px] font-medium text-[var(--color-ink)] outline-none ring-[var(--color-accent)] focus:ring-2"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
         {error ? (
           <p className="p-8 text-center text-[14px] text-[#ff375f]">{error}</p>
         ) : !data ? (
