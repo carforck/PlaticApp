@@ -7,6 +7,8 @@ import { RotatingWord } from "@/components/RotatingWord";
 import { DevCredit } from "@/components/DevCredit";
 import { LandingShowcase } from "@/components/landing/LandingShowcase";
 import { LandingNews } from "@/components/landing/LandingNews";
+import { FeatureMarquee } from "@/components/landing/FeatureMarquee";
+import { LiveUsersPill, LiveStatsBar } from "@/components/landing/LiveStats";
 import { BrandIcon } from "@/components/BrandIcon";
 
 const FEATURES = [
@@ -58,12 +60,18 @@ export default function Landing() {
               Ver funciones
             </a>
           </div>
-          <p className="mt-4 text-[12px] text-[var(--color-ink-soft)]">✓ Gratis &nbsp;·&nbsp; ✓ Sin tarjeta &nbsp;·&nbsp; ✓ Listo en 30 segundos</p>
+          <div className="mt-4 flex justify-center lg:justify-start">
+            <LiveUsersPill />
+          </div>
+          <p className="mt-3 text-[12px] text-[var(--color-ink-soft)]">✓ Gratis &nbsp;·&nbsp; ✓ Sin tarjeta &nbsp;·&nbsp; ✓ Listo en 30 segundos</p>
         </div>
         <div className="mx-auto w-full max-w-sm">
           <Lottie animationData={anim} loop autoplay />
         </div>
       </section>
+
+      {/* Social proof en vivo */}
+      <LiveStatsBar />
 
       {/* Showcase dinámico (gráficas + chat) */}
       <LandingShowcase />
@@ -74,16 +82,12 @@ export default function Landing() {
         <p className="mx-auto mt-2 max-w-lg text-center text-[14px] text-[var(--color-ink-soft)]">
           Olvídate de planillas. Le hablas a PlaticApp como a una persona y él hace el resto.
         </p>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f) => (
-            <div key={f.title} className="glass rounded-[var(--radius-card)] p-5 transition hover:-translate-y-1 hover:brightness-[1.02]">
-              <div className="grid h-11 w-11 place-items-center rounded-[12px] bg-[var(--color-accent)]/10 text-[22px]">{f.icon}</div>
-              <h3 className="mt-3 text-[16px] font-semibold">{f.title}</h3>
-              <p className="mt-1 text-[13px] leading-snug text-[var(--color-ink-soft)]">{f.desc}</p>
-            </div>
-          ))}
-        </div>
       </section>
+
+      {/* Carrusel de funciones (ancho completo, en movimiento) */}
+      <div className="mt-2 pb-4">
+        <FeatureMarquee features={FEATURES} />
+      </div>
 
       {/* Cómo funciona */}
       <section className="mx-auto max-w-6xl px-5 py-10">

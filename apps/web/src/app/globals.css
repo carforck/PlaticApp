@@ -164,6 +164,18 @@ body {
   animation: wave 2.4s ease-in-out 0.4s 2;
 }
 
+/* Carrusel horizontal de funciones (marquee continuo) */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 36s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee { animation: none; }
+}
+
 /* Sheet móvil: sube desde abajo */
 @keyframes slide-up {
   from {
