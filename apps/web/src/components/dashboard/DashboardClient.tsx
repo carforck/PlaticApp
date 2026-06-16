@@ -85,20 +85,8 @@ export function DashboardClient() {
         <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint="Este mes" />
       </section>
 
-      {/* Pistas del mes: colchón, proyección, racha y próximo pago */}
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <InsightPill
-          icon="🛟"
-          title="Colchón financiero"
-          value={d.runwayLabel}
-          sub="lo que cubrirías sin ingresos, a tu ritmo de gasto"
-        />
-        <InsightPill
-          icon="📈"
-          title="Proyección de gastos"
-          value={fmtMoney(d.projectedExpense)}
-          sub={`A este ritmo cerrarías el mes así · faltan ${d.daysLeft} días`}
-        />
+      {/* Pistas del mes: racha y próximo pago */}
+      <section className="grid gap-3 sm:grid-cols-2">
         <InsightPill
           icon="🔥"
           title="Racha de registro"
