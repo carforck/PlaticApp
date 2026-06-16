@@ -196,11 +196,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   if (/^\/start\b/i.test(text)) {
     const linked = await resolveUserId(chatId);
     if (linked) {
-      await telegram.sendMessage(
-        chatId,
-        `${warmHello(msg.from?.first_name)}\nAquí sigo, listo para anotar tu plata. Cuéntame un gasto, mándame un audio 🎙️ o una foto de un recibo 🖼️.\nEscribe /ayuda para ver todo lo que hago. 😉`,
-        [[{ text: "🌐 Abrir mi panel", url: APP_URL }]],
-      );
+      await telegram.sendMessage(chatId, onboardingText(msg.from?.first_name), [[{ text: "🌐 Abrir mi panel", url: APP_URL }]]);
     } else {
       await telegram.sendMessage(
         chatId,
@@ -758,6 +754,16 @@ async function handlePaySaving(cb: TgCallback, chatId: number, messageId: number
   );
   await telegram.answerCallbackQuery(cb.id, "Descontado del ahorro");
 }
+
+/** Ruta de inicio: qué hacer paso a paso. Se muestra al abrir el bot (/start). */
+const onboardingText = (first?: string) =>
+  `${warmHello(first)}\n` +
+  `Soy <b>PlaticApp</b>, tu copiloto financiero 💸. Así empiezas en 4 pasos:\n\n` +
+  `<b>1️⃣ Registra tus cuentas y su saldo</b>\nEn el panel → <b>Cuentas</b>, crea tus bancos/efectivo y pon cuánto tienes hoy. Cada gasto sale de una cuenta 🏦\n\n` +
+  `<b>2️⃣ Anota tus movimientos hablándome</b>\nEj: «gasté 50 mil en el almuerzo», «me pagaron 1.500.000», «pasé 100 mil de Nequi a Bancolombia». También por audio 🎙️ o foto de un recibo 🖼️\n\n` +
+  `<b>3️⃣ Usa tus herramientas</b>\n🐷 Ahorros (sobres con metas) · 🤝 Deudas · 🔁 Pagos fijos (te recuerdo, no debito solo) · 🎯 Presupuestos\n\n` +
+  `<b>4️⃣ Revisa tu Resumen</b>\nSaldo disponible, gráficos y tu próximo pago, en tiempo real 📊\n\n` +
+  `Escribe <b>/ayuda</b> para ver todos los ejemplos. ¡Cuéntame tu primer gasto cuando quieras! 😉`;
 
 const AYUDA_TEXT = `🤖 <b>Soy PlaticApp y esto es lo que hago por ti:</b>
 
