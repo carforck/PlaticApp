@@ -13,9 +13,13 @@ export const isCreditAccount = (type: string) => type === "credit";
 export function accountFinance(accounts: AccountRow[]) {
   let assets = 0;
   let creditDebt = 0;
+  let reserved = 0; // apartado en ahorros (no es gastable)
   for (const a of accounts) {
     if (isCreditAccount(a.type)) creditDebt += Math.max(0, -a.balance_minor);
     else assets += a.balance_minor;
+    reserved += a.reserved_minor ?? 0;
   }
-  return { assets, creditDebt, netWorth: assets - creditDebt };
+  const netWorth = assets - creditDebt; // patrimonio total (incluye ahorros)
+  const available = netWorth - reserved; // saldo disponible: lo que puedes gastar hoy
+  return { assets, creditDebt, reserved, netWorth, available };
 }

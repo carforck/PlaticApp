@@ -62,14 +62,16 @@ export function DashboardClient() {
       {/* KPIs */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard
-          label="Patrimonio neto"
-          amount={d.netWorth}
+          label="Saldo disponible"
+          amount={d.available}
           format={fmtMoney}
           accent="text-[var(--color-ink)]"
           hint={
-            d.netWorthAdjusted !== d.netWorth
-              ? `Si saldas lo pendiente: ${fmtMoney(d.netWorthAdjusted)}`
-              : "Tu plata disponible hoy"
+            d.reserved > 0
+              ? `🐷 Ahorrado aparte: ${fmtMoney(d.reserved)}`
+              : d.netWorthAdjusted !== d.netWorth
+                ? `Si saldas lo pendiente: ${fmtMoney(d.netWorthAdjusted)}`
+                : "Lo que puedes gastar hoy"
           }
         />
         <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint={trendHint(d.incomeChange)} />
@@ -372,7 +374,10 @@ function StatCard({
 function useDerived(data: DashboardData) {
   return useMemo(() => {
     const catById = new Map(data.categories.map((c) => [c.id, c]));
-    const netWorth = accountFinance(data.accounts).netWorth;
+    const fin = accountFinance(data.accounts);
+    const netWorth = fin.netWorth;
+    const available = fin.available;
+    const reserved = fin.reserved;
 
     const now = new Date();
     const monthKey = (dt: Date) => `${dt.getFullYear()}-${dt.getMonth()}`;
@@ -512,6 +517,8 @@ function useDerived(data: DashboardData) {
     return {
       catById,
       netWorth,
+      available,
+      reserved,
       income,
       expense,
       invested,
