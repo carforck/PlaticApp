@@ -104,6 +104,29 @@ export function WelcomeModal({
         </div>
       ),
     },
+    {
+      emoji: "🔒",
+      title: "Tus datos están seguros",
+      body: (
+        <div className="space-y-2.5 text-[14px] leading-relaxed text-[var(--color-ink)]">
+          <p>
+            Tu información es <b>tuya</b>: puedes exportarla o borrarla cuando quieras, y nunca la
+            vendemos. Cada usuario solo ve lo suyo.
+          </p>
+          <p className="rounded-[10px] bg-[#30d158]/12 px-3 py-2 text-[13px] text-[#1a7f37]">
+            Si entras con Google, solo usamos tu nombre y correo para identificarte. No leemos tu
+            correo ni accedemos a tu Gmail.
+          </p>
+          <p className="text-[12.5px] text-[var(--color-ink-soft)]">
+            Cumplimos la Ley 1581 de 2012 (Habeas Data).{" "}
+            <Link href="/privacidad" onClick={onClose} className="font-medium text-[var(--color-accent)] hover:underline">
+              Ver la política
+            </Link>
+            .
+          </p>
+        </div>
+      ),
+    },
   ];
 
   const isLast = step === steps.length - 1;
