@@ -24,6 +24,6 @@ export default function AppleIcon() {
         </div>
       </div>
     ),
-    { ...size, emoji: "twemoji" },
+    { ...size, emoji: "fluent" },
   );
 }

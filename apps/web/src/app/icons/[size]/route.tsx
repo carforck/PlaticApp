@@ -35,6 +35,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ size: s
         </div>
       </div>
     ),
-    { width: s, height: s, emoji: "twemoji" },
+    { width: s, height: s, emoji: "fluent" },
   );
 }

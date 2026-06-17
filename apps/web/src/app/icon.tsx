@@ -24,6 +24,6 @@ export default function Icon() {
         </div>
       </div>
     ),
-    { ...size, emoji: "twemoji" },
+    { ...size, emoji: "fluent" },
   );
 }

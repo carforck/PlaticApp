@@ -57,6 +57,6 @@ export default function TwitterImage() {
         </div>
       </div>
     ),
-    { ...size, emoji: "twemoji" },
+    { ...size, emoji: "fluent" },
   );
 }
