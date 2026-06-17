@@ -64,6 +64,10 @@ export function WelcomeModal({
             Toca el botón <b>Registrar</b> (o háblale al bot): «gasté 50 mil en el almuerzo»,
             «me pagaron 1.500.000», «pasé 100 mil de Nequi a Bancolombia».
           </p>
+          <p className="rounded-[10px] bg-[var(--color-accent)]/8 px-3 py-2 text-[13px]">
+            💡 Registra <b>en el momento en que pasa</b> y di de qué cuenta sale o entra. Así tu
+            saldo siempre refleja la realidad, sin cuadrar nada después.
+          </p>
           <p>
             Aparece al instante en tu <b>Resumen</b>: saldo disponible, gráficos, racha y tu
             próximo pago. 📊
@@ -75,12 +79,17 @@ export function WelcomeModal({
       emoji: "🧰",
       title: "Paso 3 · Tus herramientas",
       body: (
-        <ul className="space-y-2 text-[13.5px] leading-snug text-[var(--color-ink)]">
-          <li className="flex gap-2"><span>🐷</span> <span><b>Ahorros</b>: aparta plata en «sobres» con metas, dentro de una cuenta.</span></li>
-          <li className="flex gap-2"><span>🤝</span> <span><b>Deudas</b>: quién te debe o a quién le debes; la plata se mueve de una cuenta.</span></li>
-          <li className="flex gap-2"><span>🔁</span> <span><b>Pagos fijos</b>: te recuerdo el día del cobro (no debito solo; tú eliges la cuenta).</span></li>
-          <li className="flex gap-2"><span>🎯</span> <span><b>Presupuestos</b>: pon límites por categoría y te aviso si te pasas.</span></li>
-        </ul>
+        <div className="space-y-2.5">
+          <ul className="space-y-2 text-[13.5px] leading-snug text-[var(--color-ink)]">
+            <li className="flex gap-2"><span>🐷</span> <span><b>Ahorros</b>: aparta plata en «sobres» con metas, dentro de una cuenta. No es gasto: la plata se mueve.</span></li>
+            <li className="flex gap-2"><span>🤝</span> <span><b>Deudas</b>: quién te debe o a quién le debes. La plata <b>sale o entra de una cuenta</b> (no es gasto ni ingreso); al saldar, vuelve.</span></li>
+            <li className="flex gap-2"><span>🔁</span> <span><b>Pagos fijos</b>: te recuerdo el día del cobro (no debito solo; tú eliges la cuenta).</span></li>
+            <li className="flex gap-2"><span>🎯</span> <span><b>Presupuestos</b>: pon límites por categoría y te aviso si te pasas.</span></li>
+          </ul>
+          <p className="rounded-[10px] bg-[var(--color-accent)]/8 px-3 py-2 text-[12.5px] text-[var(--color-ink-soft)]">
+            La idea: <b>todo sale o entra de una cuenta</b>. Por eso siempre sabes cuánto tienes de verdad.
+          </p>
+        </div>
       ),
     },
     {
