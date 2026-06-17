@@ -82,7 +82,7 @@ export function WelcomeModal({
         <div className="space-y-2.5">
           <ul className="space-y-2 text-[13.5px] leading-snug text-[var(--color-ink)]">
             <li className="flex gap-2"><span>🐷</span> <span><b>Ahorros</b>: aparta plata en «sobres» con metas, dentro de una cuenta. No es gasto: la plata se mueve.</span></li>
-            <li className="flex gap-2"><span>🤝</span> <span><b>Deudas</b>: quién te debe o a quién le debes. La plata <b>sale o entra de una cuenta</b> (no es gasto ni ingreso); al saldar, vuelve.</span></li>
+            <li className="flex gap-2"><span>🤝</span> <span><b>Deudas</b>: quién te debe o a quién le debes. Son solo un registro; si quieres, asóciales una cuenta y la plata <b>entra o sale cuando se paga</b> (no es gasto ni ingreso).</span></li>
             <li className="flex gap-2"><span>🔁</span> <span><b>Pagos fijos</b>: te recuerdo el día del cobro (no debito solo; tú eliges la cuenta).</span></li>
             <li className="flex gap-2"><span>🎯</span> <span><b>Presupuestos</b>: pon límites por categoría y te aviso si te pasas.</span></li>
           </ul>
