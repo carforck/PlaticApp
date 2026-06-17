@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { type DebtRow, type AccountRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
@@ -19,6 +19,8 @@ export function DeudasClient() {
   const open = debts.filter((d) => d.status === "open");
   const theyOwe = open.filter((d) => d.direction === "they_owe").reduce((s, d) => s + d.amount_minor, 0);
   const iOwe = open.filter((d) => d.direction === "i_owe").reduce((s, d) => s + d.amount_minor, 0);
+  // Préstamos abiertos que aún no salen/entran de ninguna cuenta (registrados antes de la mejora).
+  const noAccountOpen = open.filter((d) => !d.account_id);
 
   async function setStatus(id: string, status: "open" | "settled") {
     await fetch("/api/debts", {
@@ -52,6 +54,10 @@ export function DeudasClient() {
           </div>
         </section>
 
+        {noAccountOpen.length > 0 && data.accounts.length > 0 && (
+          <DebtBackfillBanner debts={noAccountOpen} accounts={data.accounts} onDone={refresh} />
+        )}
+
         <div className="glass overflow-hidden rounded-[var(--radius-card)]">
           {debts.length === 0 ? (
             <p className="p-8 text-center text-[14px] text-[var(--color-ink-soft)]">
@@ -79,6 +85,75 @@ export function DeudasClient() {
         />
       )}
     </main>
+  );
+}
+
+/**
+ * Aviso (solo para quien tenga préstamos viejos sin cuenta): explica en simple qué pasó
+ * y deja que el usuario decida — asignarlos a una cuenta él mismo, o dejarlos como registro.
+ */
+function DebtBackfillBanner({ debts, accounts, onDone }: { debts: DebtRow[]; accounts: AccountRow[]; onDone: () => void }) {
+  const STORAGE_KEY = "platica-debt-backfill-dismissed";
+  const [dismissed, setDismissed] = useState(true); // se decide tras leer localStorage
+  const [accountId, setAccountId] = useState(accounts[0]?.account_id ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDismissed(localStorage.getItem(STORAGE_KEY) === "1");
+  }, []);
+
+  if (dismissed) return null;
+
+  function leaveAsIs() {
+    localStorage.setItem(STORAGE_KEY, "1");
+    setDismissed(true);
+  }
+
+  async function assignAll() {
+    if (!accountId) return;
+    setSaving(true);
+    await Promise.all(
+      debts.map((d) =>
+        fetch("/api/debts", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: d.id, accountId }),
+        }),
+      ),
+    );
+    setSaving(false);
+    onDone();
+  }
+
+  return (
+    <div className="glass rounded-[var(--radius-card)] border border-[#ff9f0a]/30 bg-[#ff9f0a]/[0.06] p-5">
+      <p className="text-[14px] font-semibold">💡 Tienes {debts.length} préstamo{debts.length > 1 ? "s" : ""} que no salen de ninguna cuenta</p>
+      <p className="mt-1.5 text-[13px] leading-snug text-[var(--color-ink-soft)]">
+        Los registraste antes de una mejora, así que por ahora son <b>solo un registro</b> (no afectan tus saldos).
+        Hoy, cada préstamo puede <b>salir o entrar de una cuenta</b>. Tú decides:
+      </p>
+      <ul className="mt-2 space-y-1 text-[12.5px] text-[var(--color-ink-soft)]">
+        <li>• Si esa plata <b>aún no</b> está reflejada en tu saldo → asígnale una cuenta y se ajusta.</li>
+        <li>• Si tu saldo <b>ya</b> lo refleja → déjalos como registro (no toques nada).</li>
+      </ul>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <select
+          value={accountId}
+          onChange={(e) => setAccountId(e.target.value)}
+          className="rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3 py-2 text-[13px] outline-none ring-[var(--color-accent)] focus:ring-2"
+        >
+          {accounts.map((a) => (
+            <option key={a.account_id} value={a.account_id}>{a.name}</option>
+          ))}
+        </select>
+        <button onClick={assignAll} disabled={saving || !accountId} className="btn-mac px-4 py-2 text-[13px] font-medium disabled:opacity-70">
+          {saving ? "Asignando…" : "Asignar a esta cuenta"}
+        </button>
+        <button onClick={leaveAsIs} className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2 text-[13px] font-medium transition hover:bg-white/90">
+          Dejarlos como registro
+        </button>
+      </div>
+    </div>
   );
 }
 
