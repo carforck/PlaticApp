@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const DIRECTIONS = ["i_owe", "they_owe"] as const;
+const MOVES = ["creation", "settlement"] as const;
 
 /** Crea una deuda manualmente desde la web. */
 export async function POST(req: Request) {
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
     amount?: number;
     description?: string;
     accountId?: string | null;
+    movesAt?: (typeof MOVES)[number];
   };
   const counterparty = b.counterparty?.trim();
   const amount = Number(b.amount);
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
     currency: "COP",
     description: b.description?.trim() || null,
     account_id: b.accountId || null,
+    moves_at: b.movesAt && MOVES.includes(b.movesAt) ? b.movesAt : "settlement",
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
@@ -57,6 +60,7 @@ export async function PATCH(req: Request) {
     amount?: number;
     description?: string;
     accountId?: string | null;
+    movesAt?: (typeof MOVES)[number];
   };
   if (!b.id) return NextResponse.json({ error: "falta id" }, { status: 400 });
 
@@ -65,6 +69,7 @@ export async function PATCH(req: Request) {
   if (typeof b.counterparty === "string" && b.counterparty.trim()) patch.counterparty = b.counterparty.trim();
   if (b.direction && DIRECTIONS.includes(b.direction)) patch.direction = b.direction;
   if (b.accountId !== undefined) patch.account_id = b.accountId || null;
+  if (b.movesAt && MOVES.includes(b.movesAt)) patch.moves_at = b.movesAt;
   if (b.amount !== undefined) {
     const amount = Number(b.amount);
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "monto inválido" }, { status: 400 });

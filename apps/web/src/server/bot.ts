@@ -652,18 +652,15 @@ async function handleCallback(cb: TgCallback): Promise<void> {
 
   for (const d of debts) {
     try {
-      // La plata del préstamo sale/entra de una cuenta: resuelve el hint, o usa
-      // la primera cuenta del usuario por defecto (así siempre se mueve de algún lado).
-      const accs = await accountRepo(db).listByUser(draftRow.user_id);
-      const acc = d.accountHint ? await accountRepo(db).findByNameHint(draftRow.user_id, d.accountHint) : null;
-      const accountId = (acc ?? accs[0])?.id ?? null;
+      // La deuda se crea como REGISTRO (sin cuenta): no movemos plata a ciegas. El
+      // usuario asocia una cuenta en la app y elige cuándo se mueve (al pagar / ya se movió).
       await debtsRepo.create({
         userId: draftRow.user_id,
         counterparty: d.counterparty,
         direction: d.direction,
         amount: Money.of(d.amountMinor, d.currency),
         description: d.description ?? undefined,
-        accountId,
+        accountId: null,
       });
       debtOk++;
     } catch {

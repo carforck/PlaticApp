@@ -117,7 +117,8 @@ function DebtBackfillBanner({ debts, accounts, onDone }: { debts: DebtRow[]; acc
         fetch("/api/debts", {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: d.id, accountId }),
+          // Modo «al pagar»: no mueve tu saldo ahora, solo cuando la deuda se salde.
+          body: JSON.stringify({ id: d.id, accountId, movesAt: "settlement" }),
         }),
       ),
     );
@@ -127,15 +128,12 @@ function DebtBackfillBanner({ debts, accounts, onDone }: { debts: DebtRow[]; acc
 
   return (
     <div className="glass rounded-[var(--radius-card)] border border-[#ff9f0a]/30 bg-[#ff9f0a]/[0.06] p-5">
-      <p className="text-[14px] font-semibold">💡 Tienes {debts.length} préstamo{debts.length > 1 ? "s" : ""} que no salen de ninguna cuenta</p>
+      <p className="text-[14px] font-semibold">💡 Tienes {debts.length} préstamo{debts.length > 1 ? "s" : ""} sin cuenta asociada</p>
       <p className="mt-1.5 text-[13px] leading-snug text-[var(--color-ink-soft)]">
-        Los registraste antes de una mejora, así que por ahora son <b>solo un registro</b> (no afectan tus saldos).
-        Hoy, cada préstamo puede <b>salir o entrar de una cuenta</b>. Tú decides:
+        Por ahora son <b>solo un registro</b> y no afectan tus saldos. Si quieres, asóciales una cuenta:
+        cuando marques cada deuda como <b>pagada</b>, la plata <b>entrará o saldrá</b> de esa cuenta
+        (no se mueve nada ahora, así no se descuadra tu saldo).
       </p>
-      <ul className="mt-2 space-y-1 text-[12.5px] text-[var(--color-ink-soft)]">
-        <li>• Si esa plata <b>aún no</b> está reflejada en tu saldo → asígnale una cuenta y se ajusta.</li>
-        <li>• Si tu saldo <b>ya</b> lo refleja → déjalos como registro (no toques nada).</li>
-      </ul>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <select
           value={accountId}
@@ -147,7 +145,7 @@ function DebtBackfillBanner({ debts, accounts, onDone }: { debts: DebtRow[]; acc
           ))}
         </select>
         <button onClick={assignAll} disabled={saving || !accountId} className="btn-mac px-4 py-2 text-[13px] font-medium disabled:opacity-70">
-          {saving ? "Asignando…" : "Asignar a esta cuenta"}
+          {saving ? "Asignando…" : "Asociar cuenta (se mueve al pagar)"}
         </button>
         <button onClick={leaveAsIs} className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2 text-[13px] font-medium transition hover:bg-white/90">
           Dejarlos como registro
@@ -223,7 +221,8 @@ function DebtModal({
   const [direction, setDirection] = useState<"i_owe" | "they_owe">(debt?.direction ?? "they_owe");
   const [amount, setAmount] = useState(debt ? String(debt.amount_minor) : "");
   const [description, setDescription] = useState(debt?.description ?? "");
-  const [accountId, setAccountId] = useState(debt?.account_id ?? accounts[0]?.account_id ?? "");
+  const [accountId, setAccountId] = useState(debt?.account_id ?? "");
+  const [movesAt, setMovesAt] = useState<"creation" | "settlement">(debt?.moves_at ?? "settlement");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -231,7 +230,7 @@ function DebtModal({
     e.preventDefault();
     setSaving(true);
     setError("");
-    const payload = { counterparty, direction, amount: Number(amount), description, accountId: accountId || null };
+    const payload = { counterparty, direction, amount: Number(amount), description, accountId: accountId || null, movesAt };
     const res = await fetch("/api/debts", {
       method: isEdit ? "PATCH" : "POST",
       headers: { "content-type": "application/json" },
@@ -285,17 +284,35 @@ function DebtModal({
             <MoneyInput required value={amount} onChange={setAmount} placeholder="200.000" className={`${field} font-semibold`} />
           </label>
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
-            {direction === "they_owe" ? "¿De qué cuenta salió la plata?" : "¿A qué cuenta entró la plata?"}
+            Cuenta relacionada (opcional)
             <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={field}>
-              <option value="">— No mover ninguna cuenta —</option>
+              <option value="">— No mover ninguna cuenta (solo registro) —</option>
               {accounts.map((a) => (
                 <option key={a.account_id} value={a.account_id}>{a.name}</option>
               ))}
             </select>
-            <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">
-              {direction === "they_owe" ? "Tu saldo baja (prestaste); vuelve al saldar." : "Tu saldo sube (recibiste); baja al saldar."}
-            </span>
           </label>
+
+          {accountId && (
+            <div>
+              <p className="text-[13px] font-medium text-[var(--color-ink-soft)]">¿Cuándo se mueve la plata?</p>
+              <div className="mt-1.5 grid grid-cols-1 gap-1 rounded-[10px] bg-black/[0.05] p-1 sm:grid-cols-2">
+                <button type="button" onClick={() => setMovesAt("settlement")} className={`rounded-[7px] px-2 py-1.5 text-[12.5px] font-medium transition ${movesAt === "settlement" ? "bg-white shadow-sm" : "text-[var(--color-ink-soft)]"}`}>
+                  {direction === "they_owe" ? "Entra cuando me paguen" : "Sale cuando la pague"}
+                </button>
+                <button type="button" onClick={() => setMovesAt("creation")} className={`rounded-[7px] px-2 py-1.5 text-[12.5px] font-medium transition ${movesAt === "creation" ? "bg-white shadow-sm" : "text-[var(--color-ink-soft)]"}`}>
+                  {direction === "they_owe" ? "Ya salió (presté efectivo)" : "Ya entró (recibí efectivo)"}
+                </button>
+              </div>
+              <span className="mt-1.5 block text-[11px] text-[var(--color-ink-soft)]">
+                {movesAt === "settlement"
+                  ? "Tu saldo no cambia ahora; se mueve cuando marques la deuda como pagada."
+                  : direction === "they_owe"
+                    ? "Tu saldo baja ahora (prestaste); vuelve al saldar."
+                    : "Tu saldo sube ahora (recibiste); baja al saldar."}
+              </span>
+            </div>
+          )}
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Nota (opcional)
             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Soporte técnico" className={field} />
