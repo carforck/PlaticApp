@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ size: s
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: Math.round(s * 0.54),
+            fontSize: Math.round(s * (maskable ? 0.42 : 0.54)),
             borderRadius: maskable ? 0 : Math.round(s * 0.264),
             background: "linear-gradient(135deg, #0a84ff, #bf5af2)",
           }}
