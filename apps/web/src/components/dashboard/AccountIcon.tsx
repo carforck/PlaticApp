@@ -1,28 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { bankBrand, logoUrl } from "@/lib/bank-brands";
+import { bankBrand } from "@/lib/bank-brands";
 import { ACCOUNT_EMOJI } from "@/lib/labels";
 
 /**
  * Ícono de una cuenta: si el nombre coincide con un banco/billetera conocido, muestra su
- * logo oficial; si el logo no carga, usa el color de la marca + inicial; si no es un banco
- * conocido, usa el emoji del tipo de cuenta (banco/efectivo/billetera…).
+ * logo oficial con cadena de respaldo (Clearbit → favicon de Google → color + inicial).
+ * Si no es un banco conocido, usa el emoji del tipo de cuenta.
  */
 export function AccountIcon({ name, type, size = 40 }: { name: string; type: string; size?: number }) {
   const brand = bankBrand(name);
-  const [failed, setFailed] = useState(false);
+  // step 0 = Clearbit, 1 = favicon de Google, 2 = color + inicial
+  const [step, setStep] = useState(0);
   const radius = Math.round(size * 0.28);
 
-  if (brand && !failed) {
+  if (brand && step < 2) {
+    const src =
+      step === 0
+        ? `https://logo.clearbit.com/${brand.domain}`
+        : `https://www.google.com/s2/favicons?domain=${brand.domain}&sz=128`;
     return (
       <img
         // eslint-disable-next-line @next/next/no-img-element
-        src={logoUrl(brand.domain)}
+        src={src}
         alt={name}
         width={size}
         height={size}
-        onError={() => setFailed(true)}
+        onError={() => setStep((s) => s + 1)}
         style={{ width: size, height: size, borderRadius: radius, objectFit: "contain", background: "#fff", border: "1px solid rgba(0,0,0,0.06)" }}
       />
     );
