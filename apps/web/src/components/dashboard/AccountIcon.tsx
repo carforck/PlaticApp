@@ -11,15 +11,19 @@ import { ACCOUNT_EMOJI } from "@/lib/labels";
  */
 export function AccountIcon({ name, type, size = 40 }: { name: string; type: string; size?: number }) {
   const brand = bankBrand(name);
-  // step 0 = Clearbit, 1 = favicon de Google, 2 = color + inicial
+  // Cadena de fuentes de logo (cada una es respaldo de la anterior); la última es color + inicial.
+  const sources = brand
+    ? [
+        `https://logo.clearbit.com/${brand.domain}`,
+        `https://icons.duckduckgo.com/ip3/${brand.domain}.ico`,
+        `https://www.google.com/s2/favicons?domain=${brand.domain}&sz=128`,
+      ]
+    : [];
   const [step, setStep] = useState(0);
   const radius = Math.round(size * 0.28);
 
-  if (brand && step < 2) {
-    const src =
-      step === 0
-        ? `https://logo.clearbit.com/${brand.domain}`
-        : `https://www.google.com/s2/favicons?domain=${brand.domain}&sz=128`;
+  if (brand && step < sources.length) {
+    const src = sources[step];
     return (
       <img
         // eslint-disable-next-line @next/next/no-img-element
