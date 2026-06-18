@@ -1013,12 +1013,14 @@ async function financeSnapshot(userId: string): Promise<string> {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1).toISOString();
   })();
-  const [{ data: bals }, { data: txs }, { data: savings }, { data: debts }] = await Promise.all([
+  const [{ data: bals }, { data: txs }, { data: savings }, { data: debts }, { data: prof }] = await Promise.all([
     db.from("account_balances").select("name, type, balance_minor, reserved_minor").eq("user_id", userId),
     db.from("transactions").select("kind, amount_minor").eq("user_id", userId).gte("occurred_at", monthStart),
     db.from("savings").select("name, reserved_minor, goal_minor").eq("user_id", userId).order("created_at"),
     db.from("debts").select("direction, amount_minor").eq("user_id", userId).eq("status", "open"),
+    db.from("profiles").select("display_name").eq("id", userId).maybeSingle(),
   ]);
+  const nombre = (prof?.display_name as string | null)?.trim();
 
   let assets = 0;
   let creditDebt = 0;
@@ -1048,6 +1050,7 @@ async function financeSnapshot(userId: string): Promise<string> {
   const ahorro = sobres.reduce((s, x) => s + (x.reserved_minor ?? 0), 0);
 
   return [
+    nombre ? `Nombre del usuario: ${nombre}` : "",
     `Saldo disponible para gastar hoy: ${pesos(available)} (= activos − deuda de tarjetas − ahorros apartados)`,
     `Patrimonio neto: ${pesos(assets - creditDebt)}`,
     `Cuentas: ${cuentas.join(", ") || "ninguna registrada"}`,
@@ -1068,6 +1071,7 @@ function chatSystem(snapshot: string, firstName?: string): string {
     "Usa los DATOS REALES del usuario para responder concreto y dar consejos útiles y accionables. NO inventes cifras: si no tienes un dato, dilo o invítalo a registrarlo.",
     "NO registras nada en esta respuesta. Si el usuario quiere registrar, pídele que lo escriba claro (ej. «gasté 50 mil en el almuerzo»).",
     "Si te piden algo fuera de finanzas, responde corto y reconduce con amabilidad a lo que sí puedes ayudar.",
+    "Conoces al usuario: su nombre está en los datos de abajo. Si te pregunta quién es o su nombre, respóndele por su nombre con calidez. Llámalo por su nombre de vez en cuando, sin abusar.",
     // ── Cómo funciona PlaticApp (lógica del negocio que debes respetar al aconsejar) ──
     "REGLAS DEL MODELO (síguelas siempre que razones o aconsejes):",
     "1) Cada gasto SALE de una cuenta concreta. Si las cuentas están en negativo o vacías, recuérdale con tacto que primero registre su saldo (Cuentas → editar saldo) o sus ingresos.",

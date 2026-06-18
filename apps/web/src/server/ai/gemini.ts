@@ -47,7 +47,7 @@ const responseSchema = {
     },
     query: {
       type: "object",
-      description: "Si el usuario hace una PREGUNTA sobre sus finanzas (no registra nada)",
+      description: "SOLO si el usuario pregunta por una CIFRA de sus finanzas: saldo/cuentas, gastos, ingresos, deudas, categorías o movimientos recientes. NO lo uses para preguntas de identidad («quién soy», «mi nombre»), de qué puedes hacer, saludos ni charla general: eso déjalo sin query para que se responda conversando.",
       properties: {
         type: {
           type: "string",
