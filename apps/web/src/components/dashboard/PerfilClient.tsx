@@ -49,6 +49,9 @@ export function PerfilClient() {
   function exportData() {
     window.location.href = "/api/me/export";
   }
+  function exportCsv() {
+    window.location.href = "/api/me/export?format=csv";
+  }
   async function replayTutorial() {
     await fetch("/api/me/welcomed", { method: "DELETE" });
     router.refresh(); // recarga los datos del layout → reaparece el tour de bienvenida
@@ -165,10 +168,16 @@ export function PerfilClient() {
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <button
+            onClick={exportCsv}
+            className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
+          >
+            📊 Exportar a Excel (CSV)
+          </button>
+          <button
             onClick={exportData}
             className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
           >
-            ⬇️ Exportar mis datos (JSON)
+            ⬇️ Exportar todo (JSON)
           </button>
           <button
             onClick={replayTutorial}

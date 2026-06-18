@@ -5,8 +5,13 @@ import { createAdminClient } from "@/server/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Exporta TODOS los datos del usuario en un JSON descargable (portabilidad / Habeas Data). */
-export async function GET() {
+const csvCell = (v: unknown) => {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+/** Exporta los datos del usuario: JSON completo, o CSV de movimientos con ?format=csv (para Excel). */
+export async function GET(req: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -15,6 +20,42 @@ export async function GET() {
 
   const db = createAdminClient();
   const uid = user.id;
+  const format = new URL(req.url).searchParams.get("format");
+
+  // CSV de movimientos (lo más útil para abrir en Excel / Sheets).
+  if (format === "csv") {
+    const { data: txs } = await db.from("transactions").select("*").eq("user_id", uid).order("occurred_at", { ascending: false });
+    const { data: accts } = await db.from("accounts").select("id, name").eq("user_id", uid);
+    const { data: cats } = await db.from("categories").select("id, name").eq("user_id", uid);
+    const accName = new Map((accts ?? []).map((a) => [a.id, a.name]));
+    const catName = new Map((cats ?? []).map((c) => [c.id, c.name]));
+    const KIND: Record<string, string> = { expense: "Gasto", income: "Ingreso", investment: "Inversión", transfer: "Transferencia" };
+    const header = ["Fecha", "Tipo", "Monto", "Moneda", "Cuenta", "Cuenta destino", "Categoría", "Descripción", "Origen"];
+    const rows = (txs ?? []).map((t) =>
+      [
+        new Date(t.occurred_at).toISOString().slice(0, 10),
+        KIND[t.kind] ?? t.kind,
+        t.amount_minor,
+        t.currency,
+        accName.get(t.account_id) ?? "",
+        t.transfer_account_id ? accName.get(t.transfer_account_id) ?? "" : "",
+        t.category_id ? catName.get(t.category_id) ?? "" : "",
+        t.description ?? "",
+        t.source ?? "",
+      ]
+        .map(csvCell)
+        .join(","),
+    );
+    // BOM para que Excel respete los acentos (UTF-8).
+    const csv = "﻿" + [header.join(","), ...rows].join("\r\n");
+    return new NextResponse(csv, {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": `attachment; filename="platicapp-movimientos-${uid.slice(0, 8)}.csv"`,
+      },
+    });
+  }
+
   const [accounts, categories, transactions, debts, recurrences, budgets, receipts] = await Promise.all([
     db.from("accounts").select("*").eq("user_id", uid),
     db.from("categories").select("*").eq("user_id", uid),

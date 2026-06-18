@@ -8,6 +8,8 @@ import { DevCredit } from "@/components/DevCredit";
 import { LandingShowcase } from "@/components/landing/LandingShowcase";
 import { LandingNews } from "@/components/landing/LandingNews";
 import { FeatureMarquee } from "@/components/landing/FeatureMarquee";
+import { LandingMatrix } from "@/components/landing/LandingMatrix";
+import { LandingPricing } from "@/components/landing/LandingPricing";
 import { PrivacySection } from "@/components/landing/PrivacySection";
 import { LiveUsersPill, LiveStatsBar } from "@/components/landing/LiveStats";
 import { BrandIcon } from "@/components/BrandIcon";
@@ -91,6 +93,9 @@ export default function Landing() {
         <FeatureMarquee features={FEATURES} />
       </div>
 
+      {/* Matriz: todo lo que hace (sistema completo, no solo tracker) */}
+      <LandingMatrix />
+
       {/* Cómo funciona */}
       <section className="mx-auto max-w-6xl px-5 py-10">
         <h2 className="text-center text-[26px] font-semibold tracking-tight">Empieza en 3 pasos</h2>
@@ -107,6 +112,9 @@ export default function Landing() {
 
       {/* Lo último (novedades reales) */}
       <LandingNews />
+
+      {/* Precio: gratis (mayor diferencial) */}
+      <LandingPricing />
 
       {/* Privacidad y Habeas Data */}
       <PrivacySection />
