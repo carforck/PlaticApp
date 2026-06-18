@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useDashboard } from "@/lib/dashboard-context";
 import type { DashboardData } from "@/lib/queries";
 import { fmtMoney, monthLabel } from "@/lib/format";
-import { ACCOUNT_EMOJI, SOURCE_EMOJI } from "@/lib/labels";
+import { SOURCE_EMOJI } from "@/lib/labels";
+import { AccountIcon } from "./AccountIcon";
 import { accountFinance } from "@/lib/finance";
 import { CashflowChart, NetWorthChart, SpendingDonut } from "./Charts";
 import { AddTransactionModal } from "./AddTransactionModal";
@@ -264,9 +265,7 @@ export function DashboardClient() {
               {data.accounts.map((a) => (
                 <li key={a.account_id} className="flex items-center justify-between">
                   <span className="flex items-center gap-2.5">
-                    <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
-                      {ACCOUNT_EMOJI[a.type] ?? "💼"}
-                    </span>
+                    <AccountIcon name={a.name} type={a.type} size={36} />
                     <span className="text-[14px] font-medium">{a.name}</span>
                   </span>
                   <span className="text-[14px] font-semibold">{fmtMoney(a.balance_minor, a.currency)}</span>

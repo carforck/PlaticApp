@@ -5,8 +5,9 @@ import { useDashboard } from "@/lib/dashboard-context";
 import type { AccountRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { accountFinance, isCreditAccount } from "@/lib/finance";
-import { ACCOUNT_EMOJI, ACCOUNT_TYPE_LABEL } from "@/lib/labels";
+import { ACCOUNT_TYPE_LABEL } from "@/lib/labels";
 import { MoneyInput } from "./MoneyInput";
+import { AccountIcon } from "./AccountIcon";
 import { TrafficLights } from "./TrafficLights";
 
 const TYPES = [
@@ -58,9 +59,7 @@ export function CuentasClient() {
             className="glass rounded-[var(--radius-card)] p-5 text-left transition hover:brightness-[1.02]"
           >
             <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-[12px] bg-black/[0.05] text-[20px]">
-                {ACCOUNT_EMOJI[a.type] ?? "💼"}
-              </span>
+              <AccountIcon name={a.name} type={a.type} size={44} />
               <div>
                 <p className="text-[15px] font-semibold">{a.name}</p>
                 <p className="text-[12px] text-[var(--color-ink-soft)]">
@@ -185,9 +184,7 @@ function AccountDetailModal({
 
         <div className="space-y-4 p-6">
           <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-[14px] bg-black/[0.05] text-[24px]">
-              {ACCOUNT_EMOJI[account.type] ?? "💼"}
-            </span>
+            <AccountIcon name={account.name} type={account.type} size={48} />
             <div>
               <p className="text-[18px] font-semibold">{account.name}</p>
               <p className="text-[12px] text-[var(--color-ink-soft)]">
