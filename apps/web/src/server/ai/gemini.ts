@@ -268,7 +268,7 @@ export async function summarize(prompt: string): Promise<string> {
   const models = [...new Set([process.env.GEMINI_MODEL || "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"])];
   const payload = JSON.stringify({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.5 },
+    generationConfig: { temperature: 0.5, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } },
   });
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -311,7 +311,9 @@ export async function chat(
   const payload = JSON.stringify({
     systemInstruction: { parts: [{ text: system }] },
     contents,
-    generationConfig: { temperature: 0.7, maxOutputTokens: 320 },
+    // thinkingBudget:0 apaga el razonamiento interno de Gemini 2.5-flash (si no, se come
+    // los tokens y la respuesta sale cortada). maxOutputTokens holgado para 2-4 frases.
+    generationConfig: { temperature: 0.7, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } },
   });
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
