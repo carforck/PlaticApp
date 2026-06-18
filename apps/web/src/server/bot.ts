@@ -1026,6 +1026,7 @@ async function financeSnapshot(userId: string): Promise<string> {
   let creditDebt = 0;
   let reserved = 0;
   const cuentas: string[] = [];
+  const negativas: string[] = [];
   for (const b of bals ?? []) {
     if (b.type === "credit") {
       creditDebt += Math.max(0, -b.balance_minor);
@@ -1035,6 +1036,7 @@ async function financeSnapshot(userId: string): Promise<string> {
       const r = b.reserved_minor ?? 0;
       reserved += r;
       cuentas.push(`${b.name} ${pesos(b.balance_minor)}${r ? ` (de los cuales ${pesos(r)} están apartados en ahorros)` : ""}`);
+      if (b.balance_minor < 0) negativas.push(`${b.name} (${pesos(b.balance_minor)})`);
     }
   }
   let inc = 0;
@@ -1059,6 +1061,8 @@ async function financeSnapshot(userId: string): Promise<string> {
       ? `Ahorros apartados (sobres, ${pesos(ahorro)}): ${sobres.map((x) => `${x.name} ${pesos(x.reserved_minor ?? 0)}${x.goal_minor ? `/meta ${pesos(x.goal_minor)}` : ""}`).join(", ")}`
       : "Sin ahorros apartados",
     debo || meDeben ? `Deudas: debe ${pesos(debo)}, le deben ${pesos(meDeben)}` : "",
+    negativas.length ? `⚠️ Cuentas en negativo: ${negativas.join(", ")}` : "",
+    !sobres.length && available > 100000 ? "Sugerencia: tiene saldo disponible y aún no ha apartado ahorros." : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -1081,30 +1085,35 @@ function chatSystem(snapshot: string, firstName?: string): string {
     "5) Los PRÉSTAMOS y deudas MUEVEN plata entre cuentas (entra o sale de una cuenta), NO son gasto ni ingreso. Al saldarlos, la plata se devuelve.",
     "6) Los PAGOS FIJOS solo se recuerdan el día del cobro; NO se debitan solos. El usuario elige con qué cuenta pagar cuando le llega el recordatorio.",
     "Cuando des consejos de gasto, razona sobre el «saldo disponible», no sobre el patrimonio. Anímalo a apartar ahorros y a no dejar cuentas en negativo.",
+    "SÉ PROACTIVO con tacto: si en los datos ves una alerta de cuentas en negativo, avísale y sugiérele cómo arreglarlo. Si tiene saldo de sobra y no ha apartado ahorros, invítalo a apartar algo. Máximo UN consejo proactivo por respuesta, sin agobiar ni repetir lo que ya dijiste.",
     `Datos del usuario${firstName ? ` (${firstName})` : ""}:\n${snapshot}`,
   ].join("\n");
 }
 
 // ── Memoria de corto plazo (hilo de conversación) ──────────────
-/** Últimos turnos del chat (≤6, de los últimos 30 min) para dar contexto al hilo. */
+/** Ventana de memoria del hilo: turnos y tiempo que recordamos. */
+const MEMORY_TURNS = 16;
+const MEMORY_WINDOW_MS = 6 * 60 * 60 * 1000; // 6 horas
+
+/** Últimos turnos del chat (de la ventana de memoria) para dar contexto al hilo. */
 async function loadHistory(db: ReturnType<typeof createAdminClient>, chatId: number): Promise<ConversationTurn[]> {
   const { data } = await db
     .from("bot_messages")
     .select("role, content, created_at")
     .eq("chat_id", chatId)
-    .gt("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString())
+    .gt("created_at", new Date(Date.now() - MEMORY_WINDOW_MS).toISOString())
     .order("created_at", { ascending: false })
-    .limit(6);
+    .limit(MEMORY_TURNS);
   return (data ?? [])
     .reverse()
     .map((m) => ({ role: m.role as "user" | "model", text: m.content as string }));
 }
 
-/** Guarda un turno y purga lo viejo del chat (mantiene el hilo corto). */
+/** Guarda un turno y purga lo viejo del chat (mantiene el hilo acotado). */
 async function remember(db: ReturnType<typeof createAdminClient>, chatId: number, role: "user" | "model", content: string): Promise<void> {
   await db.from("bot_messages").insert({ chat_id: chatId, role, content: content.slice(0, 500) });
-  // Purga global de lo viejo (>30 min), no solo de este chat, para no acumular.
-  await db.from("bot_messages").delete().lt("created_at", new Date(Date.now() - 30 * 60 * 1000).toISOString());
+  // Purga global de lo viejo (fuera de la ventana), no solo de este chat, para no acumular.
+  await db.from("bot_messages").delete().lt("created_at", new Date(Date.now() - MEMORY_WINDOW_MS).toISOString());
 }
 
 /** Maneja acciones de ahorro desde el bot: apartar, abonar, fijar meta o consultar. */
