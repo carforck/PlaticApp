@@ -8,6 +8,8 @@ import { accountFinance, isCreditAccount } from "@/lib/finance";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/labels";
 import { MoneyInput } from "./MoneyInput";
 import { AccountIcon } from "./AccountIcon";
+import { EntityCombobox } from "./EntityCombobox";
+import { entityType } from "@/lib/bank-brands";
 import { TrafficLights } from "./TrafficLights";
 
 const TYPES = [
@@ -301,8 +303,21 @@ function AccountModal({ account, onClose, onSaved }: { account: AccountRow | nul
         </div>
         <form onSubmit={submit} className="space-y-4 p-6">
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
-            Nombre
-            <input autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Bancolombia, Nequi, Efectivo…" className={field} />
+            Entidad o nombre de la cuenta
+            <div className="mt-1.5">
+              <EntityCombobox
+                value={name}
+                onChange={setName}
+                onPick={(n) => {
+                  if (!isEdit) {
+                    const t = entityType(n);
+                    if (t) setType(t);
+                  }
+                }}
+                placeholder="Bancolombia, Nequi, Efectivo…"
+                className={field.replace("mt-1.5 ", "")}
+              />
+            </div>
           </label>
           <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
             Tipo
