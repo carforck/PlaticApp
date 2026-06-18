@@ -9,7 +9,7 @@ const BRANDS: { match: RegExp; brand: BankBrand }[] = [
   { match: /bancolombia/i, brand: { domain: "bancolombia.com", bg: "#FDDA24", fg: "#1a1a1a", label: "B" } },
   { match: /daviplata/i, brand: { domain: "daviplata.com", bg: "#ED1C24", fg: "#fff", label: "D" } },
   { match: /davivienda/i, brand: { domain: "davivienda.com", bg: "#ED1C24", fg: "#fff", label: "D" } },
-  { match: /\bnu\b|nubank|nu\s*bank/i, brand: { domain: "nu.com.co", bg: "#820AD1", fg: "#fff", label: "N" } },
+  { match: /\bnu\b|nubank|nu\s*bank/i, brand: { domain: "nu.com", bg: "#820AD1", fg: "#fff", label: "N" } },
   { match: /lulo/i, brand: { domain: "lulobank.com", bg: "#00E0B5", fg: "#0a1a1a", label: "L" } },
   { match: /bbva/i, brand: { domain: "bbva.com.co", bg: "#072146", fg: "#fff", label: "B" } },
   { match: /bogot[aá]/i, brand: { domain: "bancodebogota.com", bg: "#E40046", fg: "#fff", label: "B" } },
