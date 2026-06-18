@@ -50,6 +50,7 @@ export interface DebtRow {
   created_at: string;
   account_id: string | null;
   moves_at: "creation" | "settlement";
+  settle_account_id: string | null;
 }
 
 export interface RecurrenceRow {

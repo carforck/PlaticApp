@@ -12,6 +12,7 @@ export function DeudasClient() {
   const { data, refresh } = useDashboard();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<DebtRow | null>(null);
+  const [settling, setSettling] = useState<DebtRow | null>(null);
 
   const debts = data.debts;
   const accName = new Map(data.accounts.map((a) => [a.account_id, a.name]));
@@ -66,7 +67,13 @@ export function DeudasClient() {
           ) : (
             <ul className="divide-y divide-black/5">
               {pg.pageItems.map((d) => (
-                <DebtRowItem key={d.id} d={d} onSettle={setStatus} onEdit={() => setEditing(d)} accountName={d.account_id ? accName.get(d.account_id) : undefined} />
+                <DebtRowItem
+                  key={d.id}
+                  d={d}
+                  onToggleSettle={() => (d.status === "settled" ? setStatus(d.id, "open") : setSettling(d))}
+                  onEdit={() => setEditing(d)}
+                  accountName={d.account_id ? accName.get(d.account_id) : undefined}
+                />
               ))}
             </ul>
           )}
@@ -84,7 +91,79 @@ export function DeudasClient() {
           onSaved={refresh}
         />
       )}
+
+      {settling && (
+        <SettleModal
+          debt={settling}
+          accounts={data.accounts}
+          onClose={() => setSettling(null)}
+          onSaved={refresh}
+        />
+      )}
     </main>
+  );
+}
+
+/** Al marcar una deuda como pagada, pregunta a qué cuenta entró/salió el dinero. */
+function SettleModal({ debt, accounts, onClose, onSaved }: { debt: DebtRow; accounts: AccountRow[]; onClose: () => void; onSaved: () => void }) {
+  const isTheyOwe = debt.direction === "they_owe";
+  // Por defecto, la cuenta relacionada de la deuda (si tiene); si no, la primera.
+  const [accountId, setAccountId] = useState(debt.account_id ?? accounts[0]?.account_id ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function confirm() {
+    setSaving(true);
+    await fetch("/api/debts", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: debt.id, status: "settled", settleAccountId: accountId || null }),
+    });
+    setSaving(false);
+    onSaved();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass animate-float-in w-full max-w-sm overflow-hidden rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
+          <TrafficLights onClose={onClose} />
+          <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Marcar como pagada</span>
+        </div>
+        <div className="space-y-4 p-6">
+          <p className="text-[14px] leading-snug">
+            {isTheyOwe
+              ? `${debt.counterparty} te pagó ${fmtMoney(debt.amount_minor, debt.currency)}. ¿A qué cuenta entró el dinero?`
+              : `Pagaste ${fmtMoney(debt.amount_minor, debt.currency)} a ${debt.counterparty}. ¿De qué cuenta salió?`}
+          </p>
+          <select
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            className="w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] outline-none ring-[var(--color-accent)] focus:ring-2"
+          >
+            <option value="">— No mover ninguna cuenta —</option>
+            {accounts.map((a) => (
+              <option key={a.account_id} value={a.account_id}>{a.name}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-[var(--color-ink-soft)]">
+            {accountId
+              ? isTheyOwe
+                ? "Sumaremos ese dinero a la cuenta que elijas."
+                : "Restaremos ese dinero de la cuenta que elijas."
+              : "Quedará como pagada sin mover ningún saldo."}
+          </p>
+          <div className="flex gap-2 pt-1">
+            <button onClick={onClose} className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90">
+              Cancelar
+            </button>
+            <button onClick={confirm} disabled={saving} className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70">
+              {saving ? "Guardando…" : "Marcar pagada"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -157,12 +236,12 @@ function DebtBackfillBanner({ debts, accounts, onDone }: { debts: DebtRow[]; acc
 
 function DebtRowItem({
   d,
-  onSettle,
+  onToggleSettle,
   onEdit,
   accountName,
 }: {
   d: DebtRow;
-  onSettle: (id: string, s: "open" | "settled") => void;
+  onToggleSettle: () => void;
   onEdit: () => void;
   accountName?: string;
 }) {
@@ -194,7 +273,7 @@ function DebtRowItem({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onSettle(d.id, settled ? "open" : "settled");
+            onToggleSettle();
           }}
           className="rounded-[8px] border border-black/10 bg-white/60 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
         >

@@ -61,6 +61,7 @@ export async function PATCH(req: Request) {
     description?: string;
     accountId?: string | null;
     movesAt?: (typeof MOVES)[number];
+    settleAccountId?: string | null;
   };
   if (!b.id) return NextResponse.json({ error: "falta id" }, { status: 400 });
 
@@ -70,6 +71,7 @@ export async function PATCH(req: Request) {
   if (b.direction && DIRECTIONS.includes(b.direction)) patch.direction = b.direction;
   if (b.accountId !== undefined) patch.account_id = b.accountId || null;
   if (b.movesAt && MOVES.includes(b.movesAt)) patch.moves_at = b.movesAt;
+  if (b.settleAccountId !== undefined) patch.settle_account_id = b.settleAccountId || null;
   if (b.amount !== undefined) {
     const amount = Number(b.amount);
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "monto inválido" }, { status: 400 });
