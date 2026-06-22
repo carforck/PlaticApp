@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import type { TxRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
@@ -16,6 +16,17 @@ const compact = (n: number) => {
   if (a >= 1000) return `${s}$${Math.round(a / 1000)}k`;
   return `${s}$${a}`;
 };
+
+const MESES_LARGOS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+/** Etiqueta de grupo por período: «Este mes», «Mes pasado» o «Mes Año». */
+function periodGroup(d: Date): string {
+  const n = new Date();
+  const dm = d.getFullYear() * 12 + d.getMonth();
+  const nm = n.getFullYear() * 12 + n.getMonth();
+  if (dm === nm) return "Este mes";
+  if (dm === nm - 1) return "Mes pasado";
+  return `${MESES_LARGOS[d.getMonth()]} ${d.getFullYear()}`;
+}
 
 const FILTERS = [
   { value: "all", label: "Todos" },
@@ -190,12 +201,22 @@ export function MovimientosClient() {
               </tr>
             </thead>
             <tbody>
-              {pg.pageItems.map((t) => {
+              {pg.pageItems.map((t, i, arr) => {
                 const cat = catById.get(t.category_id ?? "");
                 const acc = accById.get(t.account_id);
                 const signed = t.kind === "income" ? t.amount_minor : -t.amount_minor;
+                const group = periodGroup(new Date(t.occurred_at));
+                const showHeader = i === 0 || group !== periodGroup(new Date(arr[i - 1]!.occurred_at));
                 return (
-                  <tr key={t.id} onClick={() => setEditTx(t)} className="cursor-pointer border-b border-black/5 last:border-0 hover:bg-black/[0.03]">
+                  <Fragment key={t.id}>
+                  {showHeader && (
+                    <tr>
+                      <td colSpan={4} className="bg-black/[0.02] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-ink-soft)] sm:px-5">
+                        {group}
+                      </td>
+                    </tr>
+                  )}
+                  <tr onClick={() => setEditTx(t)} className="cursor-pointer border-b border-black/5 last:border-0 hover:bg-black/[0.03]">
                     <td className="px-4 py-3 sm:px-5">
                       <span className="flex items-center gap-3">
                         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
@@ -219,6 +240,7 @@ export function MovimientosClient() {
                       {fmtMoney(signed, t.currency)}
                     </td>
                   </tr>
+                  </Fragment>
                 );
               })}
             </tbody>

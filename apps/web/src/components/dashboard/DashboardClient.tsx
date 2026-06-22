@@ -130,14 +130,16 @@ export function DashboardClient() {
                 : "Lo que puedes gastar hoy"
           }
         />
-        <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint={trendHint(d.incomeChange)} />
-        <StatCard label="Gastos" amount={d.expense} format={fmtMoney} accent="text-[#ff375f]" hint={trendHint(d.expenseChange)} />
+        <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint={trendHint(d.incomeChange)} spark={d.cashflow.map((c) => c.ingresos)} sparkColor="#30d158" />
+        <StatCard label="Gastos" amount={d.expense} format={fmtMoney} accent="text-[#ff375f]" hint={trendHint(d.expenseChange)} spark={d.cashflow.map((c) => c.gastos)} sparkColor="#ff375f" />
         <StatCard
           label={gran === "month" ? "Balance del mes" : "Balance quincena"}
           amount={d.balance}
           format={fmtMoney}
           accent={d.balance >= 0 ? "text-[#30d158]" : "text-[#ff375f]"}
           hint="Ingresos − gastos"
+          spark={d.cashflow.map((c) => c.balance)}
+          sparkColor="#0a84ff"
         />
         <StatCard label="Tasa de ahorro" amount={d.savingsRate} format={(n) => `${n}%`} accent="text-[#0a84ff]" hint="Del ingreso" />
         <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint={gran === "month" ? "Este mes" : "Esta quincena"} />
@@ -406,26 +408,60 @@ function InsightPill({
   return href ? <Link href={href}>{inner}</Link> : inner;
 }
 
+/** Mini-tendencia (sparkline) de los últimos meses, datos reales. */
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  const pts = values.filter((v) => Number.isFinite(v));
+  if (pts.length < 2) return null;
+  const W = 100;
+  const H = 26;
+  const min = Math.min(...pts);
+  const max = Math.max(...pts);
+  const span = max - min || 1;
+  const step = W / (pts.length - 1);
+  const coords = pts.map((v, i) => [i * step, H - 2 - ((v - min) / span) * (H - 4)] as const);
+  const line = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `${line} L${W},${H} L0,${H} Z`;
+  const id = `spk-${color.replace(/[^a-z0-9]/gi, "")}`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="mt-2 h-[26px] w-full" aria-hidden>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={color} stopOpacity="0.22" />
+          <stop offset="1" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${id})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={coords[coords.length - 1]![0]} cy={coords[coords.length - 1]![1]} r="2.4" fill={color} />
+    </svg>
+  );
+}
+
 function StatCard({
   label,
   amount,
   format,
   hint,
   accent,
+  spark,
+  sparkColor,
 }: {
   label: string;
   amount: number;
   format: (n: number) => string;
   hint: string;
   accent: string;
+  spark?: number[];
+  sparkColor?: string;
 }) {
   return (
-    <div className="glass rounded-[var(--radius-card)] p-4">
+    <div className="glass flex flex-col rounded-[var(--radius-card)] p-4">
       <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">{label}</p>
       <p className={`mt-1 text-[20px] font-semibold tracking-tight ${accent}`}>
         <AnimatedNumber value={amount} format={format} />
       </p>
       <p className="mt-0.5 text-[11px] text-[var(--color-ink-soft)]">{hint}</p>
+      {spark && spark.length >= 2 && <Sparkline values={spark} color={sparkColor ?? "#0a84ff"} />}
     </div>
   );
 }
