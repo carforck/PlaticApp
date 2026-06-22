@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   }
 
   // 2) Borrar filas en orden seguro (transactions antes que accounts por el FK restrict).
-  const tables = ["transactions", "budgets", "recurrences", "receipts", "debts", "accounts", "categories"];
+  const tables = ["transactions", "savings", "budgets", "recurrences", "receipts", "debts", "accounts", "categories"];
   for (const t of tables) {
     const { error } = await db.from(t).delete().eq("user_id", uid);
     if (error) return NextResponse.json({ error: `Error al borrar ${t}: ${error.message}` }, { status: 500 });

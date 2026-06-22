@@ -24,14 +24,37 @@ async function call<T = unknown>(method: string, body: Record<string, unknown>):
   return json.result as T;
 }
 
+const TG_LIMIT = 4096;
+
+/** Parte un texto largo en trozos ≤ límite de Telegram, cortando por saltos de línea cuando se puede. */
+function chunkText(text: string, limit = TG_LIMIT): string[] {
+  if (text.length <= limit) return [text];
+  const chunks: string[] = [];
+  let rest = text;
+  while (rest.length > limit) {
+    let cut = rest.lastIndexOf("\n", limit);
+    if (cut < limit * 0.5) cut = limit; // si no hay un salto útil, corta duro
+    chunks.push(rest.slice(0, cut));
+    rest = rest.slice(cut).replace(/^\n/, "");
+  }
+  if (rest) chunks.push(rest);
+  return chunks;
+}
+
 export const telegram = {
-  sendMessage(chatId: number, text: string, buttons?: InlineButton[][]) {
-    return call("sendMessage", {
-      chat_id: chatId,
-      text,
-      parse_mode: "HTML",
-      ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
-    });
+  async sendMessage(chatId: number, text: string, buttons?: InlineButton[][]) {
+    const parts = chunkText(text);
+    let result: unknown;
+    for (let i = 0; i < parts.length; i++) {
+      const buttonsHere = i === parts.length - 1 ? buttons : undefined; // botones solo en el último trozo
+      result = await call("sendMessage", {
+        chat_id: chatId,
+        text: parts[i],
+        parse_mode: "HTML",
+        ...(buttonsHere ? { reply_markup: { inline_keyboard: buttonsHere } } : {}),
+      });
+    }
+    return result;
   },
 
   editMessageText(chatId: number, messageId: number, text: string, buttons?: InlineButton[][]) {

@@ -424,8 +424,10 @@ function useDerived(data: DashboardData) {
       const k = monthKey(dt);
       daysWithTx.add(dayKeyOf(dt));
       const agg = monthAgg.get(k) ?? { ingresos: 0, gastos: 0 };
+      // Solo ingreso vs gasto real. Transferencias e inversiones mueven plata entre cuentas
+      // propias: NO son salida del flujo (antes inflaban los «gastos»).
       if (t.kind === "income") agg.ingresos += t.amount_minor;
-      else agg.gastos += t.amount_minor; // gasto/inversión/transfer cuentan como salida
+      else if (t.kind === "expense") agg.gastos += t.amount_minor;
       monthAgg.set(k, agg);
 
       if (k === prevKey) {

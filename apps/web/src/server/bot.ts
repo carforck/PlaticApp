@@ -618,6 +618,14 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     if (refreshed) draftRow = refreshed;
   }
 
+  // Reclamo atómico del borrador: lo borramos ANTES de procesar. Si un segundo toque
+  // (doble clic) llega, ya no encontrará la fila y abortará → no se registra dos veces.
+  const { data: claimed } = await db.from("pending_drafts").delete().eq("id", draftId).select("id").maybeSingle();
+  if (!claimed) {
+    await telegram.answerCallbackQuery(cb.id, "Eso ya lo registré ✅");
+    return;
+  }
+
   const items = (draftRow.draft?.items ?? []) as DraftItem[];
   const debts = (draftRow.draft?.debts ?? []) as DebtItem[];
   const useCase = new RegisterTransaction(transactionRepo(db), accountRepo(db), categoryRepo(db));
@@ -679,7 +687,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     }
   }
 
-  await db.from("pending_drafts").delete().eq("id", draftId);
+  // (el borrador ya se borró arriba al reclamarlo)
 
   const parts: string[] = [];
   if (txOk) parts.push(`${txOk} movimiento${txOk > 1 ? "s" : ""}`);
