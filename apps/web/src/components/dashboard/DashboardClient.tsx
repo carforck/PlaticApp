@@ -139,11 +139,14 @@ export function DashboardClient() {
         <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint={gran === "month" ? "Este mes" : "Esta quincena"} />
       </section>
 
-      {/* Mensajito global bajo los saldos: tras pagar los gastos fijos pendientes, cuánto queda. */}
+      {/* Mensajito global bajo los saldos: tras apartar los gastos fijos, cuánto queda para gastar. */}
       {isCurrent && d.fixedPending > 0 && (
         <p className="rounded-[var(--radius-card)] border border-black/5 bg-[var(--color-accent)]/[0.07] px-4 py-3 text-[13.5px] leading-snug text-[var(--color-ink)]">
-          💡 De tu saldo disponible (<b>{fmtMoney(d.available)}</b>), si pagas tus gastos fijos pendientes de {gran === "month" ? "este mes" : "esta quincena"} (<b>{fmtMoney(d.fixedPending)}</b>), te quedan{" "}
-          <b className={d.forSpending < 0 ? "text-[#ff375f]" : "text-[#1d8a3a]"}>{fmtMoney(d.forSpending)}</b> para gastar.
+          {gran === "month" ? (
+            <>💡 De tu saldo disponible (<b>{fmtMoney(d.available)}</b>), si pagas tus gastos fijos pendientes del mes (<b>{fmtMoney(d.fixedPending)}</b>), te quedan{" "}<b className={d.forSpending < 0 ? "text-[#ff375f]" : "text-[#1d8a3a]"}>{fmtMoney(d.forSpending)}</b> para gastar.</>
+          ) : (
+            <>💡 Esta quincena, si apartas <b>{fmtMoney(d.fixedPending)}</b> para tus fijos (la mitad del mes), de tu saldo disponible (<b>{fmtMoney(d.available)}</b>) te quedan{" "}<b className={d.forSpending < 0 ? "text-[#ff375f]" : "text-[#1d8a3a]"}>{fmtMoney(d.forSpending)}</b> para gastar.</>
+          )}
         </p>
       )}
 
@@ -590,10 +593,13 @@ function useDerived(data: DashboardData, range: PeriodRange) {
     const balance = income - expense;
     const savingsRate = income > 0 ? Math.round((balance / income) * 100) : 0;
 
-    // Gastos fijos que aún quedan por pagar en el período (desde hoy si es el período actual).
-    const fixedFrom = now > range.start ? now : range.start;
-    const fixedPending = fixedFrom < range.end ? fixedExpensesPending(data.recurrences, fixedFrom, range.end) : 0;
-    // Lo que de verdad te queda para gastar: disponible − gastos fijos pendientes del período.
+    // Gastos fijos del MES en curso que aún faltan por pagar (desde hoy hasta fin de mes).
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthFixedPending = now < monthEnd ? fixedExpensesPending(data.recurrences, now, monthEnd) : 0;
+    // En vista quincenal repartimos la mitad (la persona cobra dos veces al mes y reparte
+    // sus fijos en dos); en mensual, el total pendiente del mes.
+    const fixedPending = range.unit === "quincena" ? Math.round(monthFixedPending / 2) : monthFixedPending;
+    // Lo que de verdad te queda para gastar tras apartar los fijos.
     const forSpending = available - fixedPending;
 
     const openDebts = data.debts.filter((x) => x.status === "open");
