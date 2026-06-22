@@ -111,24 +111,6 @@ export function DashboardClient() {
         </div>
       </section>
 
-      {/* Para gastar: disponible − gastos fijos pendientes del período (solo período actual) */}
-      {isCurrent && (
-        <section className="glass flex items-center justify-between gap-4 rounded-[var(--radius-card)] bg-gradient-to-br from-[#0a84ff]/10 to-[#bf5af2]/10 p-5">
-          <div className="min-w-0">
-            <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">
-              Para gastar {gran === "month" ? "este mes" : "esta quincena"} <span className="text-[11px]">· tras gastos fijos pendientes</span>
-            </p>
-            <p className={`mt-0.5 text-[28px] font-bold tracking-tight ${d.forSpending < 0 ? "text-[#ff375f]" : "text-[var(--color-ink)]"}`}>
-              {fmtMoney(d.forSpending)}
-            </p>
-          </div>
-          <div className="shrink-0 text-right text-[12px] text-[var(--color-ink-soft)]">
-            <p>Disponible: <b className="text-[var(--color-ink)]">{fmtMoney(d.available)}</b></p>
-            <p>− Fijos pendientes: <b className="text-[#ff375f]">{fmtMoney(d.fixedPending)}</b></p>
-          </div>
-        </section>
-      )}
-
       {/* KPIs */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard
@@ -156,6 +138,14 @@ export function DashboardClient() {
         <StatCard label="Tasa de ahorro" amount={d.savingsRate} format={(n) => `${n}%`} accent="text-[#0a84ff]" hint="Del ingreso" />
         <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint={gran === "month" ? "Este mes" : "Esta quincena"} />
       </section>
+
+      {/* Mensajito global bajo los saldos: tras pagar los gastos fijos pendientes, cuánto queda. */}
+      {isCurrent && d.fixedPending > 0 && (
+        <p className="rounded-[var(--radius-card)] border border-black/5 bg-[var(--color-accent)]/[0.07] px-4 py-3 text-[13.5px] leading-snug text-[var(--color-ink)]">
+          💡 De tu saldo disponible (<b>{fmtMoney(d.available)}</b>), si pagas tus gastos fijos pendientes de {gran === "month" ? "este mes" : "esta quincena"} (<b>{fmtMoney(d.fixedPending)}</b>), te quedan{" "}
+          <b className={d.forSpending < 0 ? "text-[#ff375f]" : "text-[#1d8a3a]"}>{fmtMoney(d.forSpending)}</b> para gastar.
+        </p>
+      )}
 
       {/* Pistas del mes: racha y próximo pago */}
       <section className="grid gap-3 sm:grid-cols-2">

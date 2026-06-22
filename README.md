@@ -31,22 +31,25 @@ interpreta el mensaje, pide confirmación y lo guarda. Todo se refleja al instan
 
 ---
 
-## 📊 Estado del proyecto (auditoría · 2026-06-13)
+## 📊 Estado del proyecto (auditoría · 2026-06-21)
 
 | Área | Estado |
 |---|---|
 | Typecheck (core + web) | ✅ sin errores |
 | Build de producción | ✅ compila |
 | Deploy en Vercel | ✅ READY |
-| RLS en todas las tablas | ✅ activo (todas) |
+| RLS en todas las tablas | ✅ activo (todas, incl. `savings_moves`) |
+| Conservación del dinero (saldo = apertura + Σ movimientos) | ✅ 0 cuentas descuadradas |
 | Endpoints protegidos (cron/admin/me/hooks) | ✅ 401/403 sin auth |
-| Bucket de recibos | ✅ privado |
 | Webhook de Telegram | ✅ sano (0 pendientes, sin errores) |
-| Doctor de salud (Admin) | ✅ en tiempo real |
-| Secretos fuera del repo | ✅ solo `.env.example` versionado |
+| Respuestas del bot completas (sin cortes) | ✅ thinking off + chunking >4096 |
+| Secretos fuera del repo | ✅ todos en Vercel, solo `.env.example` versionado |
 
-**Uso actual** (≈1% de los límites del plan gratis): 16 usuarios · ~25 movimientos ·
-~12,5 MB de DB · ~0,2 MB de recibos.
+**Uso actual** (≈1% de los límites del plan gratis): 34 usuarios · ~97 movimientos.
+
+> Auditoría 2026-06-21 (4 lotes): se corrigieron mensajes largos del bot, doble registro,
+> «empezar de nuevo» que no borraba ahorros, y transferencias contadas como gasto; se
+> añadió período mensual/quincenal, «para gastar», historial de ahorros y PDF en el bot.
 
 ---
 
@@ -55,7 +58,7 @@ interpreta el mensaje, pide confirmación y lo guarda. Todo se refleja al instan
 **Registro por el bot**
 - Gastos, ingresos, inversiones, transferencias entre cuentas propias.
 - Deudas («Juan me prestó 200 mil»); pagos fijos con recordatorio 1 día antes.
-- Texto, **audio** (Groq Whisper) e **imagen** de recibos (Gemini Vision).
+- Texto, **audio** (Groq Whisper), **imagen** y **PDF** de recibos/extractos (Gemini).
 - **Pregunta la cuenta cuando hace falta**: si no dices el medio (y tienes 2+ cuentas) o
   mencionas una que no existe, te ofrece elegir entre las tuyas o crear una.
 - **Memoria de conversación** (hilo de los últimos ~30 min): entiende seguimientos
@@ -66,20 +69,29 @@ interpreta el mensaje, pide confirmación y lo guarda. Todo se refleja al instan
 - Confirmación antes de guardar; avisos de duplicados, gastos altos y «toca tu ahorro».
 
 **Dashboard web**
-- Resumen con KPIs, comparativo vs. mes anterior, proyección de gasto, racha de
-  registro, próximo pago fijo, alertas de presupuesto y **colchón financiero** (runway).
+- Resumen con KPIs, comparativo vs. período anterior, racha de registro, próximo pago
+  fijo, alertas de presupuesto y **colchón financiero** (runway).
+- **Filtro por período (mensual / quincenal)** con navegación a períodos anteriores:
+  ingresos, gastos, balance, tasa de ahorro, categorías y presupuestos se acotan al corte.
+- **«Para gastar»**: mensaje bajo los KPIs que muestra, de tu saldo disponible, cuánto te
+  queda tras pagar los **gastos fijos pendientes** del mes/quincena.
 - Vistas: Movimientos (lista + calendario), Cuentas, Deudas, Inversiones, **Ahorros**,
   Categorías, Presupuestos, Pagos fijos, Recibos (galería), Novedades.
 - **CRUD completo** en todo (crear/editar/eliminar) con detalle por ítem.
 - **Cuentas**: saldo inicial, cambiar tipo, y **tarjetas de crédito como pasivo** (no
   suman al patrimonio); **ahorros** muestran «disponible vs. ahorrado».
-- **Ahorros con título** («Casa», «Celular»…): varios sobres por cuenta, con meta y progreso.
+- **Ahorros con título** («Casa», «Celular»…): varios sobres por cuenta, con meta y progreso,
+  e **historial de movimientos por sobre** (abonos, retiros, gastos); avisa si apartas más de lo que cabe.
+- **Logos oficiales de bancos** en cada cuenta (autocompletado tipo PSE: Bancolombia, Nequi,
+  Nu, DaviPlata, BBVA, Lulo…) con respaldo a color+inicial si el logo no carga.
+- **Deudas con dos momentos**: «ya se movió» (préstamo en efectivo) o «al pagar» (solo registro
+  hasta saldar); al saldar pregunta **a qué cuenta entró/salió** el dinero.
 - **Montos con separadores de miles** al escribir (1.500.000) para confirmar antes de guardar.
 - Modo oscuro por defecto; **menú agrupado** por secciones; descripción de cada vista.
 - **Móvil-first**: barra inferior, gestos (deslizar para abrir el menú), botón flotante
   «Registrar», modales como *bottom sheets*; **PWA instalable** con badge de novedades en el ícono.
 - Centro de Novedades (changelog) con publicación desde Admin + broadcast por Telegram.
-- Perfil: 5 formas de login, **exportar datos (JSON)**, **empezar de nuevo** y accesos directos.
+- Perfil: 5 formas de login, **exportar a Excel (CSV) y JSON**, **empezar de nuevo** y accesos directos.
 
 **Login** (5 vías): Google, **correo + contraseña (con registro)**, **Telegram** (gratis,
 vincula el bot al instante), enlace mágico.
