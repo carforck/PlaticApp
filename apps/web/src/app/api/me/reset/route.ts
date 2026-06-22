@@ -36,7 +36,10 @@ export async function POST(req: Request) {
   const tables = ["transactions", "savings", "budgets", "recurrences", "receipts", "debts", "accounts", "categories"];
   for (const t of tables) {
     const { error } = await db.from(t).delete().eq("user_id", uid);
-    if (error) return NextResponse.json({ error: `Error al borrar ${t}: ${error.message}` }, { status: 500 });
+    if (error) {
+      console.error(`reset delete ${t}:`, error.message);
+      return NextResponse.json({ error: "No se pudieron borrar todos los datos. Intenta de nuevo." }, { status: 500 });
+    }
   }
 
   void logEvent({ source: "app", event: "datos_borrados", detail: "el usuario reinició su cuenta", actor: user.email ?? uid, level: "warn" });

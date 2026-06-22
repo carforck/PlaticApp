@@ -36,7 +36,10 @@ export async function POST(req: Request) {
     emoji: b.emoji?.trim() || "🚀",
     tag: TAGS.includes(b.tag as (typeof TAGS)[number]) ? b.tag : "nuevo",
   });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("admin/announcements insert:", error.message);
+    return NextResponse.json({ error: "No se pudo publicar la novedad" }, { status: 500 });
+  }
 
   let notified = 0;
   if (b.notify) {
