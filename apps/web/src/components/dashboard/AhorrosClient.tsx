@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
+import { createClient } from "@/lib/supabase/client";
 import type { AccountRow, SavingRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { ACCOUNT_EMOJI } from "@/lib/labels";
@@ -13,6 +14,7 @@ export function AhorrosClient() {
   const [creating, setCreating] = useState(false);
   const [adding, setAdding] = useState<SavingRow | null>(null);
   const [editing, setEditing] = useState<SavingRow | null>(null);
+  const [history, setHistory] = useState<SavingRow | null>(null);
 
   const accById = useMemo(() => new Map(data.accounts.map((a) => [a.account_id, a])), [data.accounts]);
   const savedByAccount = useMemo(() => {
@@ -109,7 +111,10 @@ export function AhorrosClient() {
                     ⚠️ Tu ahorro en {acc?.name} supera el saldo de la cuenta ({fmtMoney(acc?.balance_minor ?? 0)}). Gastaste parte de lo apartado; ajústalo.
                   </p>
                 )}
-                <button onClick={() => setAdding(s)} className="btn-mac mt-4 w-full py-2 text-[13px] font-medium">+ Abonar</button>
+                <div className="mt-4 flex gap-2">
+                  <button onClick={() => setAdding(s)} className="btn-mac flex-1 py-2 text-[13px] font-medium">+ Abonar</button>
+                  <button onClick={() => setHistory(s)} className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-3 py-2 text-[13px] font-medium transition hover:bg-white/90" title="Ver historial">🕘</button>
+                </div>
               </div>
             );
           })}
@@ -119,6 +124,7 @@ export function AhorrosClient() {
       {creating && <SavingModal accounts={data.accounts} onClose={() => setCreating(false)} onSaved={refresh} />}
       {adding && <AddModal saving={adding} accounts={data.accounts} onClose={() => setAdding(null)} onSaved={refresh} />}
       {editing && <EditModal saving={editing} onClose={() => setEditing(null)} onSaved={refresh} />}
+      {history && <HistoryModal saving={history} onClose={() => setHistory(null)} />}
     </main>
   );
 }
@@ -204,21 +210,30 @@ function AddModal({ saving, accounts, onClose, onSaved }: { saving: SavingRow; a
   const [fromAccountId, setFromAccountId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
+    setNotice("");
     const res = await fetch("/api/savings", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ savingId: saving.id, amount: Number(amount), fromAccountId: fromAccountId || null }),
     });
+    const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (res.ok) {
       onSaved();
-      onClose();
-    } else setError((await res.json().catch(() => ({}))).error ?? "No se pudo abonar");
+      // Si se apartó menos de lo pedido (no cabía en el saldo), avisamos y dejamos el modal abierto.
+      if (j.capped) {
+        setNotice(`Solo aparté ${fmtMoney(j.reserved ?? 0)} (es lo que cabía en el saldo de la cuenta).`);
+        setAmount("");
+      } else {
+        onClose();
+      }
+    } else setError(j.error ?? "No se pudo abonar");
   }
 
   return (
@@ -236,8 +251,9 @@ function AddModal({ saving, accounts, onClose, onSaved }: { saving: SavingRow; a
           </select>
         </label>
         {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
+        {notice && <p className="rounded-[10px] bg-[#ff9f0a]/12 px-3 py-2 text-[13px] text-[#b86e00]">🐷 {notice}</p>}
         <div className="flex gap-2 pt-1">
-          <button type="button" onClick={onClose} className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90">Cancelar</button>
+          <button type="button" onClick={onClose} className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90">{notice ? "Cerrar" : "Cancelar"}</button>
           <button type="submit" disabled={busy} className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70">{busy ? "Guardando…" : "Abonar"}</button>
         </div>
       </form>
@@ -301,6 +317,70 @@ function EditModal({ saving, onClose, onSaved }: { saving: SavingRow; onClose: (
           <button type="submit" disabled={busy} className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70">{busy ? "Guardando…" : "Guardar"}</button>
         </div>
       </form>
+    </Sheet>
+  );
+}
+
+interface Move {
+  id: string;
+  delta_minor: number;
+  reason: string;
+  created_at: string;
+}
+const REASON_LABEL: Record<string, string> = {
+  deposit: "Abono",
+  withdraw: "Retiro",
+  spent: "Gasto desde el ahorro",
+  goal: "Meta",
+  adjust: "Ajuste",
+};
+
+/** Historial de movimientos de un ahorro (abonos, retiros, gastos). */
+function HistoryModal({ saving, onClose }: { saving: SavingRow; onClose: () => void }) {
+  const [moves, setMoves] = useState<Move[] | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const { data } = await createClient()
+        .from("savings_moves")
+        .select("id, delta_minor, reason, created_at")
+        .eq("saving_id", saving.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      setMoves((data as Move[]) ?? []);
+    })();
+  }, [saving.id]);
+
+  return (
+    <Sheet title={`Historial · ${saving.name}`} onClose={onClose}>
+      <div className="p-6">
+        {moves === null ? (
+          <p className="py-8 text-center text-[14px] text-[var(--color-ink-soft)]">Cargando…</p>
+        ) : moves.length === 0 ? (
+          <p className="py-8 text-center text-[14px] text-[var(--color-ink-soft)]">
+            Aún no hay movimientos en este ahorro. Los abonos y retiros que hagas desde ahora aparecerán aquí.
+          </p>
+        ) : (
+          <ul className="divide-y divide-black/5">
+            {moves.map((m) => {
+              const pos = m.delta_minor >= 0;
+              return (
+                <li key={m.id} className="flex items-center justify-between py-2.5">
+                  <span>
+                    <span className="block text-[14px] font-medium">{REASON_LABEL[m.reason] ?? m.reason}</span>
+                    <span className="block text-[11px] text-[var(--color-ink-soft)]">
+                      {new Date(m.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </span>
+                  <span className={`text-[14px] font-semibold ${pos ? "text-[#30d158]" : "text-[#ff375f]"}`}>
+                    {pos ? "+" : "−"}{fmtMoney(Math.abs(m.delta_minor))}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </Sheet>
   );
 }

@@ -762,7 +762,7 @@ async function savingsPayButtons(
 /** El usuario marcó que un gasto salió de un ahorro: reducimos lo apartado en ese sobre. */
 async function handlePaySaving(cb: TgCallback, chatId: number, messageId: number, savingId: string, amountMinor: number): Promise<void> {
   const db = createAdminClient();
-  const { data: pot } = await db.from("savings").select("id, name, reserved_minor").eq("id", savingId).maybeSingle();
+  const { data: pot } = await db.from("savings").select("id, name, reserved_minor, user_id").eq("id", savingId).maybeSingle();
   if (!pot) {
     await telegram.answerCallbackQuery(cb.id, "Ese ahorro ya no existe");
     return;
@@ -770,6 +770,7 @@ async function handlePaySaving(cb: TgCallback, chatId: number, messageId: number
   const used = Math.min(amountMinor, pot.reserved_minor ?? 0);
   const left = Math.max(0, (pot.reserved_minor ?? 0) - amountMinor);
   await db.from("savings").update({ reserved_minor: left }).eq("id", savingId);
+  if (used > 0) await db.from("savings_moves").insert({ user_id: pot.user_id, saving_id: savingId, delta_minor: -used, reason: "spent" });
   void logEvent({ source: "telegram", event: "gasto_desde_ahorro", detail: `${pot.name} -${pesos(used)}`, actor: chatId });
   await telegram.editMessageText(
     chatId,
@@ -1204,12 +1205,14 @@ async function handleSavings(chatId: number, userId: string, s: SavingsIntent): 
   if (match) {
     const newReserved = (match.reserved_minor ?? 0) + add;
     await db.from("savings").update({ reserved_minor: newReserved }).eq("id", match.id).eq("user_id", userId);
+    if (add > 0) await db.from("savings_moves").insert({ user_id: userId, saving_id: match.id, delta_minor: add, reason: "deposit" });
     const goalNote = match.goal_minor
       ? `\n🎯 Vas en ${pesos(newReserved)} de ${pesos(match.goal_minor)} (${Math.round((newReserved / match.goal_minor) * 100)}%).`
       : "";
     await telegram.sendMessage(chatId, `🐷 Aboné <b>${pesos(add)}</b> a <b>${match.name}</b> (en ${acct.name}). Total: ${pesos(newReserved)}.${goalNote}`);
   } else {
-    await db.from("savings").insert({ user_id: userId, account_id: acct.id, name: potName, reserved_minor: add, goal_minor: null });
+    const { data: created } = await db.from("savings").insert({ user_id: userId, account_id: acct.id, name: potName, reserved_minor: add, goal_minor: null }).select("id").single();
+    if (created?.id && add > 0) await db.from("savings_moves").insert({ user_id: userId, saving_id: created.id, delta_minor: add, reason: "deposit" });
     await telegram.sendMessage(chatId, `🐷 Creé el ahorro <b>${potName}</b> en ${acct.name} con ${pesos(add)}.`);
   }
 }
