@@ -29,7 +29,12 @@ const MOTIV_TIPS = [
 export function DashboardClient() {
   const { data, profile, refresh } = useDashboard();
   const [adding, setAdding] = useState(false);
-  const d = useDerived(data);
+  // Período del Resumen: granularidad (mes/quincena) y desplazamiento (0 = actual).
+  const [gran, setGran] = useState<Granularity>("month");
+  const [offset, setOffset] = useState(0);
+  const range = useMemo(() => periodRange(gran, offset), [gran, offset]);
+  const d = useDerived(data, range);
+  const isCurrent = offset === 0;
   const firstName = (profile.displayName || "").trim().split(/\s+/)[0];
 
   // Fecha de hoy y saludo (se fijan tras montar para evitar desajustes de hidratación).
@@ -83,6 +88,47 @@ export function DashboardClient() {
         </div>
       </header>
 
+      {/* Selector de período (mensual / quincenal) */}
+      <section className="glass flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] p-3">
+        <div className="inline-flex rounded-[10px] bg-black/[0.05] p-1">
+          <button
+            onClick={() => { setGran("month"); setOffset(0); }}
+            className={`rounded-[7px] px-3 py-1.5 text-[13px] font-medium transition ${gran === "month" ? "bg-white shadow-sm" : "text-[var(--color-ink-soft)]"}`}
+          >
+            Mensual
+          </button>
+          <button
+            onClick={() => { setGran("fortnight"); setOffset(0); }}
+            className={`rounded-[7px] px-3 py-1.5 text-[13px] font-medium transition ${gran === "fortnight" ? "bg-white shadow-sm" : "text-[var(--color-ink-soft)]"}`}
+          >
+            Quincenal
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setOffset((o) => o - 1)} aria-label="Período anterior" className="grid h-8 w-8 place-items-center rounded-[8px] text-[16px] text-[var(--color-ink-soft)] transition hover:bg-black/5">‹</button>
+          <span className="min-w-[130px] text-center text-[13px] font-semibold capitalize">{range.label}</span>
+          <button onClick={() => setOffset((o) => Math.min(0, o + 1))} disabled={isCurrent} aria-label="Período siguiente" className="grid h-8 w-8 place-items-center rounded-[8px] text-[16px] text-[var(--color-ink-soft)] transition hover:bg-black/5 disabled:opacity-30">›</button>
+        </div>
+      </section>
+
+      {/* Para gastar: disponible − gastos fijos pendientes del período (solo período actual) */}
+      {isCurrent && (
+        <section className="glass flex items-center justify-between gap-4 rounded-[var(--radius-card)] bg-gradient-to-br from-[#0a84ff]/10 to-[#bf5af2]/10 p-5">
+          <div className="min-w-0">
+            <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">
+              Para gastar {gran === "month" ? "este mes" : "esta quincena"} <span className="text-[11px]">· tras gastos fijos pendientes</span>
+            </p>
+            <p className={`mt-0.5 text-[28px] font-bold tracking-tight ${d.forSpending < 0 ? "text-[#ff375f]" : "text-[var(--color-ink)]"}`}>
+              {fmtMoney(d.forSpending)}
+            </p>
+          </div>
+          <div className="shrink-0 text-right text-[12px] text-[var(--color-ink-soft)]">
+            <p>Disponible: <b className="text-[var(--color-ink)]">{fmtMoney(d.available)}</b></p>
+            <p>− Fijos pendientes: <b className="text-[#ff375f]">{fmtMoney(d.fixedPending)}</b></p>
+          </div>
+        </section>
+      )}
+
       {/* KPIs */}
       <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard
@@ -101,14 +147,14 @@ export function DashboardClient() {
         <StatCard label="Ingresos" amount={d.income} format={fmtMoney} accent="text-[#30d158]" hint={trendHint(d.incomeChange)} />
         <StatCard label="Gastos" amount={d.expense} format={fmtMoney} accent="text-[#ff375f]" hint={trendHint(d.expenseChange)} />
         <StatCard
-          label="Balance del mes"
+          label={gran === "month" ? "Balance del mes" : "Balance quincena"}
           amount={d.balance}
           format={fmtMoney}
           accent={d.balance >= 0 ? "text-[#30d158]" : "text-[#ff375f]"}
           hint="Ingresos − gastos"
         />
         <StatCard label="Tasa de ahorro" amount={d.savingsRate} format={(n) => `${n}%`} accent="text-[#0a84ff]" hint="Del ingreso" />
-        <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint="Este mes" />
+        <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint={gran === "month" ? "Este mes" : "Esta quincena"} />
       </section>
 
       {/* Pistas del mes: racha y próximo pago */}
@@ -393,8 +439,72 @@ function StatCard({
   );
 }
 
-/** Deriva KPIs y series temporales de los datos crudos. */
-function useDerived(data: DashboardData) {
+// ── Período (mensual / quincenal) ──────────────────────────────
+export type Granularity = "month" | "fortnight";
+export interface PeriodRange {
+  start: Date;
+  end: Date; // exclusivo
+  prevStart: Date;
+  prevEnd: Date;
+  label: string;
+  unit: string; // «mes» | «quincena»
+}
+
+/** Quincena por índice global (cada mes = 2 quincenas: 1–15 y 16–fin). */
+function fortnightFromIndex(qi: number): { start: Date; end: Date; label: string } {
+  const within = ((qi % 24) + 24) % 24;
+  const year = Math.round((qi - within) / 24);
+  const month = Math.floor(within / 2);
+  const half = within % 2;
+  const start = half === 0 ? new Date(year, month, 1) : new Date(year, month, 16);
+  const end = half === 0 ? new Date(year, month, 16) : new Date(year, month + 1, 1);
+  const label = `${half === 0 ? "1–15" : "16–fin"} ${monthLabel(start)} ${String(year).slice(2)}`;
+  return { start, end, label };
+}
+
+/** Calcula el rango del período según granularidad y desplazamiento (0 = actual, -1 = anterior…). */
+export function periodRange(granularity: Granularity, offset: number, now = new Date()): PeriodRange {
+  if (granularity === "month") {
+    const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 1);
+    const prevStart = new Date(now.getFullYear(), now.getMonth() + offset - 1, 1);
+    const label = `${monthLabel(start)} ${start.getFullYear()}`;
+    return { start, end, prevStart, prevEnd: start, label, unit: "mes" };
+  }
+  const curHalf = now.getDate() <= 15 ? 0 : 1;
+  const qi = now.getFullYear() * 24 + now.getMonth() * 2 + curHalf + offset;
+  const cur = fortnightFromIndex(qi);
+  const prev = fortnightFromIndex(qi - 1);
+  return { start: cur.start, end: cur.end, prevStart: prev.start, prevEnd: prev.end, label: cur.label, unit: "quincena" };
+}
+
+/** Avanza una fecha según la frecuencia de una recurrencia. */
+function stepRecurrence(d: Date, freq: string): Date {
+  const n = new Date(d);
+  if (freq === "weekly") n.setDate(n.getDate() + 7);
+  else if (freq === "biweekly") n.setDate(n.getDate() + 14);
+  else if (freq === "yearly") n.setFullYear(n.getFullYear() + 1);
+  else n.setMonth(n.getMonth() + 1); // monthly por defecto
+  return n;
+}
+
+/** Suma los gastos fijos (recurrencias de gasto) que vencen entre [desde, end). */
+function fixedExpensesPending(recurrences: DashboardData["recurrences"], from: Date, end: Date): number {
+  let total = 0;
+  for (const r of recurrences) {
+    if (!r.active || r.kind !== "expense" || !r.next_due) continue;
+    let due = new Date(`${r.next_due}T12:00:00`);
+    let guard = 0;
+    while (due < end && guard++ < 80) {
+      if (due >= from) total += r.amount_minor;
+      due = stepRecurrence(due, r.frequency);
+    }
+  }
+  return total;
+}
+
+/** Deriva KPIs y series temporales de los datos crudos, acotados al período elegido. */
+function useDerived(data: DashboardData, range: PeriodRange) {
   return useMemo(() => {
     const catById = new Map(data.categories.map((c) => [c.id, c]));
     const fin = accountFinance(data.accounts);
@@ -405,9 +515,9 @@ function useDerived(data: DashboardData) {
     const now = new Date();
     const monthKey = (dt: Date) => `${dt.getFullYear()}-${dt.getMonth()}`;
     const dayKeyOf = (dt: Date) => `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
-    const thisKey = monthKey(now);
-    const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevKey = monthKey(prevDate);
+    // Membresía en el período seleccionado y en el período anterior (para la variación %).
+    const inCur = (dt: Date) => dt >= range.start && dt < range.end;
+    const inPrev = (dt: Date) => dt >= range.prevStart && dt < range.prevEnd;
 
     let income = 0;
     let expense = 0;
@@ -430,11 +540,11 @@ function useDerived(data: DashboardData) {
       else if (t.kind === "expense") agg.gastos += t.amount_minor;
       monthAgg.set(k, agg);
 
-      if (k === prevKey) {
+      if (inPrev(dt)) {
         if (t.kind === "income") prevIncome += t.amount_minor;
         else if (t.kind === "expense") prevExpense += t.amount_minor;
       }
-      if (k !== thisKey) continue;
+      if (!inCur(dt)) continue;
       if (t.kind === "income") income += t.amount_minor;
       else if (t.kind === "expense") {
         expense += t.amount_minor;
@@ -489,6 +599,12 @@ function useDerived(data: DashboardData) {
 
     const balance = income - expense;
     const savingsRate = income > 0 ? Math.round((balance / income) * 100) : 0;
+
+    // Gastos fijos que aún quedan por pagar en el período (desde hoy si es el período actual).
+    const fixedFrom = now > range.start ? now : range.start;
+    const fixedPending = fixedFrom < range.end ? fixedExpensesPending(data.recurrences, fixedFrom, range.end) : 0;
+    // Lo que de verdad te queda para gastar: disponible − gastos fijos pendientes del período.
+    const forSpending = available - fixedPending;
 
     const openDebts = data.debts.filter((x) => x.status === "open");
     const theyOwe = openDebts.filter((x) => x.direction === "they_owe").reduce((s, x) => s + x.amount_minor, 0);
@@ -564,6 +680,8 @@ function useDerived(data: DashboardData) {
       streak,
       budgetsAtRisk,
       nextPayment,
+      fixedPending,
+      forSpending,
     };
-  }, [data]);
+  }, [data, range]);
 }
