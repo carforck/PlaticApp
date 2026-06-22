@@ -9,6 +9,7 @@ import { SOURCE_EMOJI } from "@/lib/labels";
 import { AccountIcon } from "./AccountIcon";
 import { accountFinance } from "@/lib/finance";
 import { CashflowChart, NetWorthChart, SpendingDonut } from "./Charts";
+import { SpendingGauge } from "./SpendingGauge";
 import { AddTransactionModal } from "./AddTransactionModal";
 import { AnimatedNumber } from "./AnimatedNumber";
 
@@ -109,6 +110,9 @@ export function DashboardClient() {
           <span className="min-w-[130px] text-center text-[13px] font-semibold capitalize">{range.label}</span>
           <button onClick={() => setOffset((o) => Math.min(0, o + 1))} disabled={isCurrent} aria-label="Período siguiente" className="grid h-8 w-8 place-items-center rounded-[8px] text-[16px] text-[var(--color-ink-soft)] transition hover:bg-black/5 disabled:opacity-30">›</button>
         </div>
+        <p className="w-full text-[11.5px] leading-snug text-[var(--color-ink-soft)]">
+          Solo es cómo ves tus obligaciones: <b>Mensual</b> muestra tus gastos fijos del mes completo; <b>Quincenal</b> muestra la mitad (útil si cobras o planeas por quincena). Si tus fijos son mensuales, en Mensual ves el total.
+        </p>
       </section>
 
       {/* KPIs */}
@@ -139,15 +143,9 @@ export function DashboardClient() {
         <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint={gran === "month" ? "Este mes" : "Esta quincena"} />
       </section>
 
-      {/* Mensajito global bajo los saldos: tras apartar los gastos fijos, cuánto queda para gastar. */}
-      {isCurrent && d.fixedPending > 0 && (
-        <p className="rounded-[var(--radius-card)] border border-black/5 bg-[var(--color-accent)]/[0.07] px-4 py-3 text-[13.5px] leading-snug text-[var(--color-ink)]">
-          {gran === "month" ? (
-            <>💡 De tu saldo disponible (<b>{fmtMoney(d.available)}</b>), si pagas tus gastos fijos pendientes del mes (<b>{fmtMoney(d.fixedPending)}</b>), te quedan{" "}<b className={d.forSpending < 0 ? "text-[#ff375f]" : "text-[#1d8a3a]"}>{fmtMoney(d.forSpending)}</b> para gastar.</>
-          ) : (
-            <>💡 Esta quincena, si apartas <b>{fmtMoney(d.fixedPending)}</b> para tus fijos (la mitad del mes), de tu saldo disponible (<b>{fmtMoney(d.available)}</b>) te quedan{" "}<b className={d.forSpending < 0 ? "text-[#ff375f]" : "text-[#1d8a3a]"}>{fmtMoney(d.forSpending)}</b> para gastar.</>
-          )}
-        </p>
+      {/* Widget animado «Plan del período»: cuánto apartar para fijos y cuánto queda para gastar. */}
+      {isCurrent && (
+        <SpendingGauge available={d.available} fixed={d.fixedPending} forSpending={d.forSpending} periodUnit={range.unit} />
       )}
 
       {/* Pistas del mes: racha y próximo pago */}
