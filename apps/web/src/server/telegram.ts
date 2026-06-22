@@ -82,6 +82,7 @@ export const telegram = {
       : ext === "mp3" ? "audio/mpeg"
       : ext === "jpg" || ext === "jpeg" ? "image/jpeg"
       : ext === "png" ? "image/png"
+      : ext === "pdf" ? "application/pdf"
       : "application/octet-stream";
     return { bytes: buf, mimeHint };
   },

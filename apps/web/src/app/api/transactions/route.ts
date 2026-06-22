@@ -25,6 +25,11 @@ async function resolveTransferAccount(
   provided?: string | null,
 ): Promise<string | null> {
   let dest = provided || null;
+  // Si llega una cuenta destino, verificamos explícitamente que sea del usuario (defensa en profundidad).
+  if (dest) {
+    const { data: own } = await supabase.from("accounts").select("id").eq("id", dest).eq("user_id", userId).maybeSingle();
+    if (!own) dest = null;
+  }
   if (kind === "investment" && !dest) {
     const { data: inv } = await supabase
       .from("accounts")

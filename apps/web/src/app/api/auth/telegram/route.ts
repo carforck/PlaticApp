@@ -38,7 +38,12 @@ export async function POST(req: Request) {
     .join("\n");
   const secret = crypto.createHash("sha256").update(token).digest();
   const hmac = crypto.createHmac("sha256", secret).update(dataCheck).digest("hex");
-  if (hmac !== hash) return NextResponse.json({ error: "firma inválida" }, { status: 401 });
+  // Comparación de tiempo constante (evita timing attacks); longitudes distintas → inválido.
+  const a = Buffer.from(hmac, "hex");
+  const b = Buffer.from(String(hash), "hex");
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return NextResponse.json({ error: "firma inválida" }, { status: 401 });
+  }
 
   // 2) Evitar reuso: la autorización debe ser reciente (< 1 día).
   if (Math.floor(Date.now() / 1000) - Number(body.auth_date) > 86400) {

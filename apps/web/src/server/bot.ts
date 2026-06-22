@@ -22,6 +22,7 @@ import { logEvent } from "./logs";
 interface TgUser { id: number; username?: string; first_name?: string }
 interface TgVoice { file_id: string }
 interface TgPhoto { file_id: string; file_size?: number }
+interface TgDocument { file_id: string; mime_type?: string; file_name?: string; file_size?: number }
 interface TgMessage {
   message_id: number;
   from?: TgUser;
@@ -31,6 +32,7 @@ interface TgMessage {
   voice?: TgVoice;
   audio?: TgVoice;
   photo?: TgPhoto[];
+  document?: TgDocument;
 }
 interface TgCallback {
   id: string;
@@ -282,6 +284,22 @@ async function handleMessage(msg: TgMessage): Promise<void> {
       result = await geminiImage.interpret(bytes, mimeHint, ctx);
       if (msg.caption && result.transactions[0]) result.transactions[0].description ??= msg.caption;
       await saveReceipt(userId, bytes, mimeHint, result, msg.caption); // guarda la foto en la galería
+    } else if (msg.document) {
+      // Documentos: solo PDF (extractos, facturas). La IA los lee igual que una imagen.
+      const doc = msg.document;
+      const isPdf = (doc.mime_type ?? "").includes("pdf") || (doc.file_name ?? "").toLowerCase().endsWith(".pdf");
+      if (!isPdf) {
+        await telegram.sendMessage(chatId, "📎 Por ahora solo entiendo PDF (extractos o facturas), texto, audio 🎙️ o foto 🖼️. Mándame el recibo como foto o cuéntame el gasto.");
+        return;
+      }
+      if ((doc.file_size ?? 0) > 8_000_000) {
+        await telegram.sendMessage(chatId, "📄 Ese PDF está muy pesado (máx ~8 MB). Mándame uno más liviano o cuéntame los movimientos.");
+        return;
+      }
+      const { bytes } = await telegram.downloadFile(doc.file_id);
+      result = await geminiImage.interpret(bytes, "application/pdf", ctx);
+      result.transactions = result.transactions.map((d) => ({ ...d, source: "telegram_image" as const }));
+      if (msg.caption && result.transactions[0]) result.transactions[0].description ??= msg.caption;
     } else if (text) {
       userText = text;
       result = await geminiText.interpret(text, ctx, history);
@@ -292,7 +310,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     if (userText) await remember(db, chatId, "user", userText);
 
     // Bitácora: mensaje entrante (para auditoría del Admin).
-    const inKind = msg.voice || msg.audio ? "audio" : msg.photo?.length ? "foto" : "texto";
+    const inKind = msg.voice || msg.audio ? "audio" : msg.photo?.length ? "foto" : msg.document ? "pdf" : "texto";
     void logEvent({ source: "telegram", event: inKind, detail: userText || msg.caption || "(sin texto)", actor: msg.from?.username ?? chatId });
 
     const nothingToRegister =
@@ -636,6 +654,7 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   let failed = 0;
   const touchedCategories = new Set<string>();
 
+  const failReasons = new Set<string>();
   for (const d of items) {
     try {
       const tx = await useCase.execute({
@@ -653,8 +672,9 @@ async function handleCallback(cb: TgCallback): Promise<void> {
       });
       if (tx.kind === "expense" && tx.categoryId) touchedCategories.add(tx.categoryId);
       txOk++;
-    } catch {
+    } catch (e) {
       failed++;
+      failReasons.add((e as Error).message || "error desconocido");
     }
   }
 
@@ -671,8 +691,9 @@ async function handleCallback(cb: TgCallback): Promise<void> {
         accountId: null,
       });
       debtOk++;
-    } catch {
+    } catch (e) {
       failed++;
+      failReasons.add((e as Error).message || "error desconocido");
     }
   }
 
@@ -682,8 +703,9 @@ async function handleCallback(cb: TgCallback): Promise<void> {
     try {
       await createRecurrence(db, draftRow.user_id, r);
       recOk++;
-    } catch {
+    } catch (e) {
       failed++;
+      failReasons.add((e as Error).message || "error desconocido");
     }
   }
 
@@ -693,10 +715,11 @@ async function handleCallback(cb: TgCallback): Promise<void> {
   if (txOk) parts.push(`${txOk} movimiento${txOk > 1 ? "s" : ""}`);
   if (debtOk) parts.push(`${debtOk} deuda${debtOk > 1 ? "s" : ""}`);
   if (recOk) parts.push(`${recOk} pago fijo${recOk > 1 ? "s" : ""}`);
+  const reasonText = failReasons.size ? ` Motivo: ${[...failReasons].join("; ")}.` : "";
   let msg =
     parts.length === 0
-      ? "⚠️ No pude registrar nada. Revisa que tengas una cuenta configurada."
-      : `✅ <b>Registré ${parts.join(" y ")}</b>${failed ? ` (${failed} fallaron)` : ""}.\nYa aparece en tu dashboard 📊`;
+      ? `⚠️ No pude registrar nada.${reasonText || " Revisa que tengas una cuenta configurada."}`
+      : `✅ <b>Registré ${parts.join(" y ")}</b>${failed ? ` (${failed} fallaron.${reasonText})` : ""}.\nYa aparece en tu dashboard 📊`;
 
   // Alertas de presupuesto para las categorías afectadas.
   const alerts = await budgetAlerts(db, draftRow.user_id, [...touchedCategories]);

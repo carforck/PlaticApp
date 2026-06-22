@@ -30,6 +30,13 @@ export async function POST(req: Request) {
   if (!Number.isFinite(amount) || amount <= 0)
     return NextResponse.json({ error: "monto inválido" }, { status: 400 });
 
+  // La cuenta asociada (si llega) debe ser del usuario.
+  let accountId = b.accountId || null;
+  if (accountId) {
+    const { data: own } = await supabase.from("accounts").select("id").eq("id", accountId).eq("user_id", user.id).maybeSingle();
+    if (!own) accountId = null;
+  }
+
   const { error } = await supabase.from("debts").insert({
     user_id: user.id,
     counterparty,
@@ -37,7 +44,7 @@ export async function POST(req: Request) {
     amount_minor: Math.round(amount),
     currency: "COP",
     description: b.description?.trim() || null,
-    account_id: b.accountId || null,
+    account_id: accountId,
     moves_at: b.movesAt && MOVES.includes(b.movesAt) ? b.movesAt : "settlement",
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
