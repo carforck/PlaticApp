@@ -2,7 +2,7 @@
 
 import {
   Area,
-  AreaChart,
+  ComposedChart,
   CartesianGrid,
   Cell,
   Legend,
@@ -27,21 +27,38 @@ const tooltipStyle = {
 const fmtShort = (n: number) =>
   Math.abs(n) >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${Math.round(n / 1000)}k`;
 
-export function NetWorthChart({ series }: { series: { mes: string; valor: number }[] }) {
+export function NetWorthChart({
+  series,
+  cashflow,
+}: {
+  series: { mes: string; valor: number }[];
+  cashflow?: { mes: string; ingresos: number; gastos: number }[];
+}) {
+  // Combinamos patrimonio (área) con ingresos y gastos del mes (líneas) para una vista completa.
+  const data = series.map((s, i) => ({
+    mes: s.mes,
+    Patrimonio: s.valor,
+    Ingresos: cashflow?.[i]?.ingresos ?? 0,
+    Gastos: cashflow?.[i]?.gastos ?? 0,
+  }));
   return (
     <ResponsiveContainer width="100%" height={240}>
-      <AreaChart data={series} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
+      <ComposedChart data={data} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
         <defs>
           <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#0a84ff" stopOpacity={0.45} />
             <stop offset="100%" stopColor="#0a84ff" stopOpacity={0} />
           </linearGradient>
         </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
         <XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{ fill: "#6e6e73", fontSize: 12 }} />
         <YAxis tickFormatter={fmtShort} axisLine={false} tickLine={false} tick={{ fill: "#6e6e73", fontSize: 12 }} width={48} />
         <Tooltip formatter={(v: number) => fmtMoney(v)} contentStyle={tooltipStyle} />
-        <Area type="monotone" dataKey="valor" stroke="#0a84ff" strokeWidth={3} fill="url(#nw)" />
-      </AreaChart>
+        <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+        <Area type="monotone" dataKey="Patrimonio" stroke="#0a84ff" strokeWidth={3} fill="url(#nw)" />
+        <Line type="monotone" dataKey="Ingresos" stroke="#30d158" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="Gastos" stroke="#ff375f" strokeWidth={2} dot={false} />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }

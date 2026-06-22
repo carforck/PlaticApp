@@ -141,7 +141,7 @@ export function DashboardClient() {
           spark={d.cashflow.map((c) => c.balance)}
           sparkColor="#0a84ff"
         />
-        <StatCard label="Tasa de ahorro" amount={d.savingsRate} format={(n) => `${n}%`} accent="text-[#0a84ff]" hint="Del ingreso" />
+        <StatCard label="Tasa de ahorro" amount={d.savingsRate} format={(n) => `${n}%`} accent={d.savingsRate < 0 ? "text-[#ff375f]" : "text-[#0a84ff]"} hint={d.savingsRate < 0 ? "gastaste más que tu ingreso" : "del ingreso del período"} />
         <StatCard label="Invertido" amount={d.invested} format={fmtMoney} accent="text-[#bf5af2]" hint={gran === "month" ? "Este mes" : "Esta quincena"} />
       </section>
 
@@ -290,7 +290,7 @@ export function DashboardClient() {
           <h2 className="text-[15px] font-semibold">Evolución del patrimonio</h2>
           <span className="text-[12px] text-[var(--color-ink-soft)]">Últimos 6 meses</span>
         </div>
-        <NetWorthChart series={d.netWorthSeries} />
+        <NetWorthChart series={d.netWorthSeries} cashflow={d.cashflow} />
       </section>
 
       {/* Cuentas + movimientos */}
@@ -625,14 +625,17 @@ function useDerived(data: DashboardData, range: PeriodRange) {
     netWorthSeries.push(...tmpNW.reverse());
 
     const balance = income - expense;
-    const savingsRate = income > 0 ? Math.round((balance / income) * 100) : 0;
+    // Tasa de ahorro acotada a [-100, 100] para no mostrar valores absurdos (ej. −1010%)
+    // cuando el ingreso del período es muy bajo frente al gasto.
+    const savingsRate = income > 0 ? Math.max(-100, Math.min(100, Math.round((balance / income) * 100))) : expense > 0 ? -100 : 0;
 
-    // Gastos fijos del MES en curso que aún faltan por pagar (desde hoy hasta fin de mes).
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const monthFixedPending = now < monthEnd ? fixedExpensesPending(data.recurrences, now, monthEnd) : 0;
-    // En vista quincenal repartimos la mitad (la persona cobra dos veces al mes y reparte
-    // sus fijos en dos); en mensual, el total pendiente del mes.
-    const fixedPending = range.unit === "quincena" ? Math.round(monthFixedPending / 2) : monthFixedPending;
+    // Gastos fijos que vienen en los PRÓXIMOS 30 DÍAS (incluye los que caen a inicios del
+    // próximo mes, como una cuota que vence el día 2). Así el «para gastar» es realista.
+    const horizonEnd = new Date(now);
+    horizonEnd.setDate(horizonEnd.getDate() + 30);
+    const fixedNext30 = fixedExpensesPending(data.recurrences, now, horizonEnd);
+    // En vista quincenal repartimos la mitad (dos ingresos cubren el ciclo); en mensual, el total.
+    const fixedPending = range.unit === "quincena" ? Math.round(fixedNext30 / 2) : fixedNext30;
     // Lo que de verdad te queda para gastar tras apartar los fijos.
     const forSpending = available - fixedPending;
 
