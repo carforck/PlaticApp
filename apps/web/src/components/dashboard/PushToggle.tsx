@@ -103,7 +103,14 @@ export function PushToggle() {
           {state === "working" ? "Un momento…" : state === "on" ? "Desactivar notificaciones" : "Activar notificaciones"}
         </button>
       )}
-      {state === "on" && <p className="mt-2 text-[12px] text-[#1d8a3a]">✓ Activadas en este dispositivo.</p>}
+      {state === "on" && (
+        <div className="mt-2 flex items-center gap-3">
+          <p className="text-[12px] text-[#1d8a3a]">✓ Activadas en este dispositivo.</p>
+          <button onClick={() => void fetch("/api/push/test", { method: "POST" })} className="text-[12px] font-medium text-[var(--color-accent)] hover:underline">
+            Enviar prueba
+          </button>
+        </div>
+      )}
     </section>
   );
 }
