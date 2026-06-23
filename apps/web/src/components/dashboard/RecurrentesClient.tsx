@@ -10,6 +10,7 @@ import { MonthCalendar, dayKey } from "./MonthCalendar";
 import { Paginator, usePagination } from "./Paginator";
 import { MoneyInput } from "./MoneyInput";
 import { TrafficLights } from "./TrafficLights";
+import { NavIcon } from "./NavIcon";
 
 const FREQ_LABEL: Record<string, string> = {
   weekly: "Semanal",
@@ -151,8 +152,8 @@ export function RecurrentesClient() {
                   <span className={`text-[14px] font-semibold ${r.kind === "income" ? "text-[#30d158]" : "text-[var(--color-ink)]"}`}>
                     {fmtMoney(r.amount_minor, r.currency)}
                   </span>
-                  <button onClick={(e) => { e.stopPropagation(); setHistory(r); }} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Historial de pagos">
-                    🕘
+                  <button onClick={(e) => { e.stopPropagation(); setHistory(r); }} className="grid h-7 w-7 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5" title="Historial de pagos">
+                    <NavIcon name="history" size={16} />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); toggle(r.id, !r.active); }}
@@ -160,8 +161,8 @@ export function RecurrentesClient() {
                   >
                     {r.active ? "Pausar" : "Activar"}
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); remove(r.id); }} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-[#ff375f]/10" title="Eliminar">
-                    🗑️
+                  <button onClick={(e) => { e.stopPropagation(); remove(r.id); }} className="grid h-7 w-7 place-items-center rounded-[8px] text-[#ff375f] hover:bg-[#ff375f]/10" title="Eliminar">
+                    <NavIcon name="trash" size={16} />
                   </button>
                 </span>
               </li>

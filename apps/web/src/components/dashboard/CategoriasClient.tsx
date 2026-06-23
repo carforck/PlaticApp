@@ -6,6 +6,7 @@ import { type CategoryRow } from "@/lib/queries";
 import { Paginator, usePagination } from "./Paginator";
 import { TrafficLights } from "./TrafficLights";
 import { TxHistoryModal } from "./TxHistoryModal";
+import { NavIcon } from "./NavIcon";
 
 const APPLIES_LABEL: Record<string, string> = { expense: "Gasto", income: "Ingreso" };
 const EMOJIS = ["🍽️", "🚕", "🏠", "🎬", "🩺", "💰", "🛒", "✈️", "🎁", "📚", "👕", "🐶", "💡", "📱", "🏷️", "🍻"];
@@ -53,14 +54,14 @@ export function CategoriasClient() {
                 </p>
               </div>
               <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                <button onClick={() => setHistory(c)} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Movimientos">
-                  🕘
+                <button onClick={() => setHistory(c)} className="grid h-7 w-7 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5" title="Movimientos">
+                  <NavIcon name="history" size={16} />
                 </button>
-                <button onClick={() => setEditing(c)} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Editar">
-                  ✏️
+                <button onClick={() => setEditing(c)} className="grid h-7 w-7 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5" title="Editar">
+                  <NavIcon name="edit" size={16} />
                 </button>
-                <button onClick={() => remove(c.id)} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-[#ff375f]/10" title="Eliminar">
-                  🗑️
+                <button onClick={() => remove(c.id)} className="grid h-7 w-7 place-items-center rounded-[8px] text-[#ff375f] hover:bg-[#ff375f]/10" title="Eliminar">
+                  <NavIcon name="trash" size={16} />
                 </button>
               </div>
             </div>

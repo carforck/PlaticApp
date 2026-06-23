@@ -11,6 +11,7 @@ import { AccountIcon } from "./AccountIcon";
 import { EntityCombobox } from "./EntityCombobox";
 import { entityType } from "@/lib/bank-brands";
 import { TxHistoryModal } from "./TxHistoryModal";
+import { NavIcon } from "./NavIcon";
 import { TrafficLights } from "./TrafficLights";
 
 const TYPES = [
@@ -250,12 +251,12 @@ function AccountDetailModal({
           {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
 
           <div className="flex flex-wrap gap-2 pt-1">
-            <button onClick={onEdit} className="btn-mac px-4 py-2.5 text-[14px] font-medium">✏️ Editar</button>
+            <button onClick={onEdit} className="btn-mac flex items-center gap-1.5 px-4 py-2.5 text-[14px] font-medium"><NavIcon name="edit" size={16} /> Editar</button>
             <button onClick={archive} disabled={busy} className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/90 disabled:opacity-60">
               📦 Archivar
             </button>
-            <button onClick={remove} disabled={busy} className="rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[14px] font-medium text-[#ff375f] transition hover:bg-[#ff375f]/20 disabled:opacity-60">
-              🗑️ Eliminar
+            <button onClick={remove} disabled={busy} className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[14px] font-medium text-[#ff375f] transition hover:bg-[#ff375f]/20 disabled:opacity-60">
+              <NavIcon name="trash" size={16} /> Eliminar
             </button>
           </div>
           <p className="text-[11px] text-[var(--color-ink-soft)]">

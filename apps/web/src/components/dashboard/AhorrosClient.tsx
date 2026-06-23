@@ -8,6 +8,7 @@ import { fmtMoney } from "@/lib/format";
 import { ACCOUNT_EMOJI } from "@/lib/labels";
 import { Sheet } from "./Sheet";
 import { MoneyInput } from "./MoneyInput";
+import { NavIcon } from "./NavIcon";
 
 export function AhorrosClient() {
   const { data, refresh } = useDashboard();
@@ -85,7 +86,7 @@ export function AhorrosClient() {
                       <p className="truncate text-[12px] text-[var(--color-ink-soft)]">en {acc?.name ?? "—"}</p>
                     </div>
                   </div>
-                  <button onClick={() => setEditing(s)} className="shrink-0 rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Editar">✏️</button>
+                  <button onClick={() => setEditing(s)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5" title="Editar"><NavIcon name="edit" size={16} /></button>
                 </div>
 
                 <p className="mt-3 text-[22px] font-semibold tracking-tight text-[#30d158]">{fmtMoney(s.reserved_minor)}</p>
@@ -113,7 +114,7 @@ export function AhorrosClient() {
                 )}
                 <div className="mt-4 flex gap-2">
                   <button onClick={() => setAdding(s)} className="btn-mac flex-1 py-2 text-[13px] font-medium">+ Abonar</button>
-                  <button onClick={() => setHistory(s)} className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-3 py-2 text-[13px] font-medium transition hover:bg-white/90" title="Ver historial">🕘</button>
+                  <button onClick={() => setHistory(s)} className="grid place-items-center rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-3 py-2 text-[var(--color-ink-soft)] transition hover:bg-white/90" title="Ver historial"><NavIcon name="history" size={17} /></button>
                 </div>
               </div>
             );
@@ -313,7 +314,7 @@ function EditModal({ saving, onClose, onSaved }: { saving: SavingRow; onClose: (
         </label>
         {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
         <div className="flex gap-2 pt-1">
-          <button type="button" onClick={remove} disabled={busy} className="rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[14px] font-medium text-[#ff375f] transition hover:bg-[#ff375f]/20" title="Eliminar ahorro">🗑️</button>
+          <button type="button" onClick={remove} disabled={busy} className="grid place-items-center rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[#ff375f] transition hover:bg-[#ff375f]/20" title="Eliminar ahorro"><NavIcon name="trash" size={17} /></button>
           <button type="submit" disabled={busy} className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70">{busy ? "Guardando…" : "Guardar"}</button>
         </div>
       </form>

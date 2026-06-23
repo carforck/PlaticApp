@@ -5,6 +5,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import { fmtMoney } from "@/lib/format";
 import { MoneyInput } from "./MoneyInput";
 import { TrafficLights } from "./TrafficLights";
+import { NavIcon } from "./NavIcon";
 
 interface Row {
   id: string | null;
@@ -110,8 +111,8 @@ export function PresupuestosClient() {
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="text-[14px] font-semibold" style={{ color }}>{pct}%</span>
-                    <button onClick={() => setEditing(r)} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Editar">✏️</button>
-                    {r.id && <button onClick={() => remove(r.id!)} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-[#ff375f]/10" title="Eliminar">🗑️</button>}
+                    <button onClick={() => setEditing(r)} className="grid h-7 w-7 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5" title="Editar"><NavIcon name="edit" size={16} /></button>
+                    {r.id && <button onClick={() => remove(r.id!)} className="grid h-7 w-7 place-items-center rounded-[8px] text-[#ff375f] hover:bg-[#ff375f]/10" title="Eliminar"><NavIcon name="trash" size={16} /></button>}
                   </span>
                 </div>
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/[0.06]">

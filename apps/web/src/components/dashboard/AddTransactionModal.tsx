@@ -5,6 +5,7 @@ import type { AccountRow, CategoryRow, SavingRow, TxRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { Sheet } from "./Sheet";
 import { MoneyInput } from "./MoneyInput";
+import { NavIcon } from "./NavIcon";
 
 const KINDS = [
   { value: "expense", label: "Gasto", emoji: "💸" },
@@ -335,10 +336,10 @@ export function AddTransactionModal({
                 type="button"
                 onClick={remove}
                 disabled={saving}
-                className="rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[14px] font-medium text-[#ff375f] transition hover:bg-[#ff375f]/20"
+                className="grid place-items-center rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[#ff375f] transition hover:bg-[#ff375f]/20"
                 title="Eliminar"
               >
-                🗑️
+                <NavIcon name="trash" size={17} />
               </button>
             ) : (
               <button

@@ -8,6 +8,7 @@ import { fmtMoney } from "@/lib/format";
 import { Paginator, usePagination } from "./Paginator";
 import { MoneyInput } from "./MoneyInput";
 import { TrafficLights } from "./TrafficLights";
+import { NavIcon } from "./NavIcon";
 
 export function DeudasClient() {
   const { data, refresh } = useDashboard();
@@ -277,8 +278,8 @@ function DebtRowItem({
         <span className={`text-[14px] font-semibold ${d.direction === "they_owe" ? "text-[#30d158]" : "text-[#ff375f]"}`}>
           {fmtMoney(d.amount_minor, d.currency)}
         </span>
-        <button onClick={(e) => { e.stopPropagation(); onHistory(); }} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Historial">
-          🕘
+        <button onClick={(e) => { e.stopPropagation(); onHistory(); }} className="grid h-7 w-7 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5" title="Historial">
+          <NavIcon name="history" size={16} />
         </button>
         <button
           onClick={(e) => {
@@ -409,8 +410,8 @@ function DebtModal({
           {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
           <div className="flex gap-2 pt-1">
             {isEdit ? (
-              <button type="button" onClick={remove} disabled={saving} className="rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[14px] font-medium text-[#ff375f] transition hover:bg-[#ff375f]/20" title="Eliminar">
-                🗑️
+              <button type="button" onClick={remove} disabled={saving} className="grid place-items-center rounded-[var(--radius-control)] border border-[#ff375f]/30 bg-[#ff375f]/10 px-4 py-2.5 text-[#ff375f] transition hover:bg-[#ff375f]/20" title="Eliminar">
+                <NavIcon name="trash" size={17} />
               </button>
             ) : (
               <button type="button" onClick={onClose} className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90">
