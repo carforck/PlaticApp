@@ -12,11 +12,13 @@ export function SpendingGauge({
   available,
   fixed,
   forSpending,
+  reserved = 0,
   periodUnit,
 }: {
   available: number;
   fixed: number;
   forSpending: number;
+  reserved?: number;
   periodUnit: string; // "mes" | "quincena"
 }) {
   const quincena = periodUnit === "quincena";
@@ -85,6 +87,11 @@ export function SpendingGauge({
             <b className={neg ? "text-[#ff375f]" : "text-[#1d8a3a]"}>{fmtMoney(forSpending)}</b>
           </li>
         </ul>
+        {reserved > 0 && (
+          <p className="mt-2 text-[11px] text-[var(--color-ink-soft)]">
+            🐷 Además tienes {fmtMoney(reserved)} apartados en ahorros (no cuentan como disponible).
+          </p>
+        )}
         {neg && <p className="mt-2 text-[11.5px] text-[#ff375f]">Tus gastos fijos superan tu disponible este {periodUnit}.</p>}
       </div>
     </section>

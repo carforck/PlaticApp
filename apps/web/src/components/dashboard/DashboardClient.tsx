@@ -147,7 +147,7 @@ export function DashboardClient() {
 
       {/* Widget animado «Plan del período»: cuánto apartar para fijos y cuánto queda para gastar. */}
       {isCurrent && (
-        <SpendingGauge available={d.available} fixed={d.fixedPending} forSpending={d.forSpending} periodUnit={range.unit} />
+        <SpendingGauge available={d.available} fixed={d.fixedPending} forSpending={d.forSpending} reserved={d.reserved} periodUnit={range.unit} />
       )}
 
       {/* Pistas del mes: racha y próximo pago */}
@@ -305,7 +305,14 @@ export function DashboardClient() {
                 <li key={a.account_id} className="flex items-center justify-between">
                   <span className="flex items-center gap-2.5">
                     <AccountIcon name={a.name} type={a.type} size={36} />
-                    <span className="text-[14px] font-medium">{a.name}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14px] font-medium">{a.name}</span>
+                      {a.reserved_minor > 0 && (
+                        <span className="block text-[11px] text-[var(--color-ink-soft)]">
+                          Disponible {fmtMoney(a.balance_minor - a.reserved_minor, a.currency)} · apartado {fmtMoney(a.reserved_minor, a.currency)}
+                        </span>
+                      )}
+                    </span>
                   </span>
                   <span className="text-[14px] font-semibold">{fmtMoney(a.balance_minor, a.currency)}</span>
                 </li>
