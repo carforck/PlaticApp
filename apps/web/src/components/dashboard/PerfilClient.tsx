@@ -8,6 +8,7 @@ import { fmtMoney } from "@/lib/format";
 import { accountFinance } from "@/lib/finance";
 import { Avatar } from "./Avatar";
 import { InstallPrompt } from "./InstallPrompt";
+import { PushToggle } from "./PushToggle";
 import { DevCredit } from "@/components/DevCredit";
 
 export function PerfilClient() {
@@ -193,6 +194,8 @@ export function PerfilClient() {
           </button>
         </div>
       </section>
+
+      <PushToggle />
 
       <FeedbackBox />
 

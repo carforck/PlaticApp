@@ -28,6 +28,9 @@ export async function POST(req: Request) {
     console.error("feedback insert:", error.message);
     return NextResponse.json({ error: "No se pudo enviar" }, { status: 500 });
   }
-  void notifyAdmin(`💬 <b>Nuevo mensaje en PlaticApp</b> (app)\nDe: ${user.email ?? "—"}\n\n${message.slice(0, 500)}`);
+  void notifyAdmin(
+    `💬 <b>Nuevo mensaje en PlaticApp</b> (app)\nDe: ${user.email ?? "—"}\n\n${message.slice(0, 500)}`,
+    { title: "💬 Nuevo mensaje (app)", body: `${user.email ?? "alguien"}: ${message.slice(0, 90)}`, url: "/dashboard/admin" },
+  );
   return NextResponse.json({ ok: true });
 }
