@@ -10,6 +10,7 @@ import { MoneyInput } from "./MoneyInput";
 import { AccountIcon } from "./AccountIcon";
 import { EntityCombobox } from "./EntityCombobox";
 import { entityType } from "@/lib/bank-brands";
+import { TxHistoryModal } from "./TxHistoryModal";
 import { TrafficLights } from "./TrafficLights";
 
 const TYPES = [
@@ -138,6 +139,7 @@ function AccountDetailModal({
   const { data } = useDashboard();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showAll, setShowAll] = useState(false);
 
   const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories]);
   const accById = useMemo(() => new Map(data.accounts.map((a) => [a.account_id, a])), [data.accounts]);
@@ -211,7 +213,10 @@ function AccountDetailModal({
           </div>
 
           <div>
-            <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Movimientos recientes</h3>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">Movimientos recientes</h3>
+              <button onClick={() => setShowAll(true)} className="text-[12px] font-medium text-[var(--color-accent)] hover:underline">Ver todos →</button>
+            </div>
             {movements.length === 0 ? (
               <p className="text-[13px] text-[var(--color-ink-soft)]">Sin movimientos en esta cuenta.</p>
             ) : (
@@ -258,6 +263,7 @@ function AccountDetailModal({
           </p>
         </div>
       </div>
+      {showAll && <TxHistoryModal title={account.name} mode="account" id={account.account_id} onClose={() => setShowAll(false)} />}
     </div>
   );
 }

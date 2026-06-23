@@ -5,6 +5,7 @@ import { useDashboard } from "@/lib/dashboard-context";
 import { type CategoryRow } from "@/lib/queries";
 import { Paginator, usePagination } from "./Paginator";
 import { TrafficLights } from "./TrafficLights";
+import { TxHistoryModal } from "./TxHistoryModal";
 
 const APPLIES_LABEL: Record<string, string> = { expense: "Gasto", income: "Ingreso" };
 const EMOJIS = ["🍽️", "🚕", "🏠", "🎬", "🩺", "💰", "🛒", "✈️", "🎁", "📚", "👕", "🐶", "💡", "📱", "🏷️", "🍻"];
@@ -14,6 +15,7 @@ export function CategoriasClient() {
   const { data, refresh } = useDashboard();
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [history, setHistory] = useState<CategoryRow | null>(null);
 
   async function remove(id: string) {
     await fetch(`/api/categories?id=${id}`, { method: "DELETE" });
@@ -51,6 +53,9 @@ export function CategoriasClient() {
                 </p>
               </div>
               <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                <button onClick={() => setHistory(c)} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Movimientos">
+                  🕘
+                </button>
                 <button onClick={() => setEditing(c)} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Editar">
                   ✏️
                 </button>
@@ -77,6 +82,8 @@ export function CategoriasClient() {
           onSaved={refresh}
         />
       )}
+
+      {history && <TxHistoryModal title={history.name} mode="category" id={history.id} onClose={() => setHistory(null)} />}
     </main>
   );
 }
