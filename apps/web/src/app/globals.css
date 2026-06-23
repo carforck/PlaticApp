@@ -152,6 +152,18 @@ body {
   animation: motiv-in 0.45s ease both;
 }
 
+/* Toast (notificación emergente): entra desde arriba, sale deslizando a la izquierda */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-140%); }
+  to { opacity: 1; transform: translate(0,0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translate(0,0); }
+  to { opacity: 0; transform: translateX(-140%); }
+}
+.animate-toast-in { animation: toast-in 0.42s cubic-bezier(.22,1,.36,1) both; }
+.animate-toast-out { animation: toast-out 0.4s ease-in both; }
+
 /* Manito que saluda al lado del nombre */
 @keyframes wave {
   0%, 60%, 100% { transform: rotate(0deg); }

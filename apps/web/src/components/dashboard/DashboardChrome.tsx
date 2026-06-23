@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useDashboard } from "@/lib/dashboard-context";
+import { ADMIN_EMAIL } from "@/lib/admin";
 import { Sidebar } from "./Sidebar";
 import { NavIcon } from "./NavIcon";
 import { Avatar } from "./Avatar";
@@ -43,6 +44,44 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
   const [pullPx, setPullPx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const pullRef = useRef(0);
+  const [toast, setToast] = useState<{ title: string; body: string; href?: string } | null>(null);
+
+  // Aviso (toast) al admin cuando llega un mensaje nuevo de un usuario. Sondea cada 25s.
+  const lastFeedbackId = useRef<string | null>(null);
+  useEffect(() => {
+    if (profile.email !== ADMIN_EMAIL) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const r = await fetch("/api/admin/feedback", { cache: "no-store" });
+        if (!r.ok || !alive) return;
+        const items = ((await r.json()).items ?? []) as { id: string; email: string | null; message: string; source: string }[];
+        const newest = items[0];
+        if (!newest) return;
+        if (lastFeedbackId.current === null) {
+          lastFeedbackId.current = newest.id; // primera carga: fija la línea base, no avisa
+          return;
+        }
+        if (newest.id !== lastFeedbackId.current) {
+          lastFeedbackId.current = newest.id;
+          setToast({
+            title: `💬 Nuevo mensaje · ${newest.source === "bot" ? "Telegram" : "App"}`,
+            body: `${newest.email ?? "alguien"}: ${newest.message.slice(0, 90)}`,
+            href: "/dashboard/admin",
+          });
+          playDing();
+        }
+      } catch {
+        /* sin red: reintenta luego */
+      }
+    };
+    void tick();
+    const id = setInterval(tick, 25000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [profile.email]);
 
   // Muestra el modal de bienvenida una sola vez para usuarios nuevos.
   useEffect(() => {
@@ -141,6 +180,8 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen gap-4 p-3 sm:p-4">
+      {toast && <Toast title={toast.title} body={toast.body} href={toast.href} onClose={() => setToast(null)} />}
+
       {/* Indicador de pull-to-refresh (móvil) */}
       {(pullPx > 0 || refreshing) && (
         <div
@@ -292,6 +333,70 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
           Más
         </button>
       </nav>
+    </div>
+  );
+}
+
+/** Sonidito corto al llegar una notificación (Web Audio, sin assets). */
+function playDing() {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ac = new Ctx();
+    const notes = [880, 1175];
+    notes.forEach((f, i) => {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = "sine";
+      o.frequency.value = f;
+      o.connect(g);
+      g.connect(ac.destination);
+      const t = ac.currentTime + i * 0.12;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      o.start(t);
+      o.stop(t + 0.2);
+    });
+    setTimeout(() => void ac.close(), 600);
+  } catch {
+    /* el navegador puede bloquear audio sin interacción; no pasa nada */
+  }
+}
+
+/** Notificación emergente (toast): entra desde arriba, se queda unos segundos y sale a la izquierda. */
+function Toast({ title, body, href, onClose }: { title: string; body: string; href?: string; onClose: () => void }) {
+  const router = useRouter();
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLeaving(true), 5200);
+    return () => clearTimeout(t);
+  }, []);
+  function dismiss() {
+    setLeaving(true);
+    setTimeout(onClose, 380);
+  }
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-3" style={{ paddingTop: "max(0.6rem, env(safe-area-inset-top))" }}>
+      <button
+        onClick={() => { if (href) router.push(href); dismiss(); }}
+        onAnimationEnd={() => { if (leaving) onClose(); }}
+        className={`glass pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-[var(--radius-card)] border border-black/10 p-3.5 text-left shadow-xl ${leaving ? "animate-toast-out" : "animate-toast-in"}`}
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--color-accent)]/12 text-[var(--color-accent)]">
+          <NavIcon name="novedades" size={18} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-semibold">{title}</span>
+          <span className="block truncate text-[12px] text-[var(--color-ink-soft)]">{body}</span>
+        </span>
+        <span
+          onClick={(e) => { e.stopPropagation(); dismiss(); }}
+          className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[var(--color-ink-soft)] hover:bg-black/5"
+          aria-label="Cerrar"
+        >
+          ✕
+        </span>
+      </button>
     </div>
   );
 }
