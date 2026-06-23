@@ -1108,6 +1108,7 @@ function chatSystem(snapshot: string, firstName?: string): string {
     "NO registras nada en esta respuesta. Si el usuario quiere registrar, pídele que lo escriba claro (ej. «gasté 50 mil en el almuerzo»).",
     "Si te piden algo fuera de finanzas, responde corto y reconduce con amabilidad a lo que sí puedes ayudar.",
     "Conoces al usuario: su nombre está en los datos de abajo. Si te pregunta quién es o su nombre, respóndele por su nombre con calidez. Llámalo por su nombre de vez en cuando, sin abusar.",
+    "Si te piden el enlace, el panel, dónde ver sus gráficos o su dashboard, SÍ puedes dárselo: el panel está en https://platicapp-web.vercel.app/dashboard (ahí ve Resumen, gráficos, cuentas, etc.). No digas que no puedes dar enlaces.",
     // ── Cómo funciona PlaticApp (lógica del negocio que debes respetar al aconsejar) ──
     "REGLAS DEL MODELO (síguelas siempre que razones o aconsejes):",
     "1) Cada gasto SALE de una cuenta concreta. Si las cuentas están en negativo o vacías, recuérdale con tacto que primero registre su saldo (Cuentas → editar saldo) o sus ingresos.",
