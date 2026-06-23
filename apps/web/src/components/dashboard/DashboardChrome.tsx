@@ -368,7 +368,7 @@ function Toast({ title, body, href, onClose }: { title: string; body: string; hr
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setLeaving(true), 5200);
+    const t = setTimeout(() => setLeaving(true), 9000);
     return () => clearTimeout(t);
   }, []);
   function dismiss() {
