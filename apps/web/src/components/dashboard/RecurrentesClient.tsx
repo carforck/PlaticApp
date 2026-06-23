@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
+import { createClient } from "@/lib/supabase/client";
 import { fmtMoney } from "@/lib/format";
 import { KIND_EMOJI } from "@/lib/labels";
 import type { RecurrenceRow } from "@/lib/queries";
@@ -21,6 +22,7 @@ export function RecurrentesClient() {
   const { data, refresh } = useDashboard();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<RecurrenceRow | null>(null);
+  const [history, setHistory] = useState<RecurrenceRow | null>(null);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [month, setMonth] = useState(() => {
     const n = new Date();
@@ -149,6 +151,9 @@ export function RecurrentesClient() {
                   <span className={`text-[14px] font-semibold ${r.kind === "income" ? "text-[#30d158]" : "text-[var(--color-ink)]"}`}>
                     {fmtMoney(r.amount_minor, r.currency)}
                   </span>
+                  <button onClick={(e) => { e.stopPropagation(); setHistory(r); }} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Historial de pagos">
+                    🕘
+                  </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); toggle(r.id, !r.active); }}
                     className="rounded-[8px] border border-black/10 bg-white/60 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
@@ -177,7 +182,73 @@ export function RecurrentesClient() {
           onSaved={refresh}
         />
       )}
+
+      {history && <RecPaymentsModal rec={history} onClose={() => setHistory(null)} />}
     </main>
+  );
+}
+
+interface RecPayment {
+  id: string;
+  amount_minor: number;
+  status: string;
+  paid_for: string | null;
+  created_at: string;
+}
+
+/** Historial de pagos de un pago fijo (pagados y saltados). */
+function RecPaymentsModal({ rec, onClose }: { rec: RecurrenceRow; onClose: () => void }) {
+  const [rows, setRows] = useState<RecPayment[] | null>(null);
+  useEffect(() => {
+    void (async () => {
+      const { data } = await createClient()
+        .from("recurrence_payments")
+        .select("id, amount_minor, status, paid_for, created_at")
+        .eq("recurrence_id", rec.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      setRows((data as RecPayment[]) ?? []);
+    })();
+  }, [rec.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass animate-float-in w-full max-w-sm overflow-hidden rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
+          <TrafficLights onClose={onClose} />
+          <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Historial · {rec.name}</span>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto p-6">
+          {rows === null ? (
+            <p className="py-8 text-center text-[14px] text-[var(--color-ink-soft)]">Cargando…</p>
+          ) : rows.length === 0 ? (
+            <p className="py-8 text-center text-[14px] text-[var(--color-ink-soft)]">
+              Aún no hay pagos registrados. Cuando pagues o saltes este pago fijo (desde el recordatorio del bot), aparecerá aquí.
+            </p>
+          ) : (
+            <ul className="divide-y divide-black/5">
+              {rows.map((p) => {
+                const skipped = p.status === "skipped";
+                return (
+                  <li key={p.id} className="flex items-center justify-between py-2.5">
+                    <span>
+                      <span className="block text-[14px] font-medium">{skipped ? "⏭️ Saltado" : "✅ Pagado"}</span>
+                      <span className="block text-[11px] text-[var(--color-ink-soft)]">
+                        {new Date(p.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "2-digit" })}
+                        {p.paid_for ? ` · ciclo ${p.paid_for}` : ""}
+                      </span>
+                    </span>
+                    <span className={`text-[14px] font-semibold ${skipped ? "text-[var(--color-ink-soft)]" : "text-[var(--color-ink)]"}`}>
+                      {skipped ? "—" : fmtMoney(p.amount_minor, rec.currency)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

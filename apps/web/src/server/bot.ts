@@ -971,6 +971,8 @@ async function handleReminderAction(
     }
     const next = nextOccurrence(new Date(`${rec.next_due}T00:00:00`), rec.frequency as Frequency);
     await db.from("recurrences").update({ next_due: ymd(next), last_reminded: null }).eq("id", recId);
+    // Historial del pago fijo.
+    await db.from("recurrence_payments").insert({ user_id: rec.user_id, recurrence_id: recId, amount_minor: rec.amount_minor, account_id: acc?.id ?? null, status: "paid", paid_for: rec.next_due });
     void logEvent({ source: "telegram", event: "pago_fijo_pagado", detail: `${rec.name} ${fmt(money)} · ${acc?.name ?? "?"}`, actor: chatId });
     await telegram.editMessageText(chatId, messageId, `✅ <b>Pagado</b> · ${fmt(money)} (${rec.name}) desde ${acc?.name ?? "—"}\nPróximo: ${ymd(next)} 📅`);
     await telegram.answerCallbackQuery(cb.id, "¡Pagado!");
@@ -980,6 +982,7 @@ async function handleReminderAction(
   // Saltar este ciclo (sin debitar).
   const next = nextOccurrence(new Date(`${rec.next_due}T00:00:00`), rec.frequency as Frequency);
   await db.from("recurrences").update({ next_due: ymd(next), last_reminded: null }).eq("id", recId);
+  await db.from("recurrence_payments").insert({ user_id: rec.user_id, recurrence_id: recId, amount_minor: rec.amount_minor, account_id: null, status: "skipped", paid_for: rec.next_due });
   await telegram.editMessageText(chatId, messageId, `⏭️ Saltado este ciclo · ${rec.name}\nPróximo: ${ymd(next)}`);
   await telegram.answerCallbackQuery(cb.id);
 }
