@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useDashboard } from "@/lib/dashboard-context";
 import { Sidebar } from "./Sidebar";
+import { NavIcon } from "./NavIcon";
 import { Avatar } from "./Avatar";
 import { TelegramConnectModal } from "./TelegramConnectModal";
 import { WelcomeModal } from "./WelcomeModal";
@@ -181,7 +182,7 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
           <span className="text-[15px] font-semibold tracking-tight">{title}</span>
           <span className="flex items-center gap-1.5">
             <Link href="/dashboard/novedades" aria-label="Novedades" className="relative grid h-9 w-9 place-items-center rounded-[10px] hover:bg-black/5">
-              🔔
+              <NavIcon name="novedades" size={19} />
               {unread > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#ff375f]" />}
             </Link>
             <Link href="/dashboard/perfil" aria-label="Ver perfil">
@@ -257,14 +258,14 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
 
       {/* Navegación inferior — solo móvil, al alcance del pulgar */}
       <nav
-        className="glass fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-white/15 px-1 pt-1 md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-black/10 bg-white px-1 pt-1 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-[#15151a] md:hidden"
         style={{ paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))" }}
       >
         {[
-          { label: "Inicio", icon: "🏠", href: "/dashboard" },
-          { label: "Movs", icon: "💸", href: "/dashboard/movimientos" },
-          { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
-          { label: "Novedades", icon: "🔔", href: "/dashboard/novedades" },
+          { label: "Inicio", icon: "home", href: "/dashboard" },
+          { label: "Movs", icon: "movimientos", href: "/dashboard/movimientos" },
+          { label: "Cuentas", icon: "cuentas", href: "/dashboard/cuentas" },
+          { label: "Novedades", icon: "novedades", href: "/dashboard/novedades" },
         ].map((it) => {
           const active = pathname === it.href;
           return (
@@ -275,7 +276,7 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
                 active ? "text-[var(--color-accent)]" : "text-[var(--color-ink-soft)]"
               }`}
             >
-              <span className="text-[19px] leading-none">{it.icon}</span>
+              <NavIcon name={it.icon} size={21} />
               {it.label}
               {it.href === "/dashboard/novedades" && unread > 0 && (
                 <span className="absolute right-[24%] top-1 h-2 w-2 rounded-full bg-[#ff375f]" />
@@ -287,7 +288,7 @@ export function DashboardChrome({ children }: { children: React.ReactNode }) {
           onClick={() => setOpen(true)}
           className="flex flex-1 flex-col items-center gap-0.5 rounded-[10px] py-1.5 text-[10px] font-medium text-[var(--color-ink-soft)]"
         >
-          <span className="text-[19px] leading-none">☰</span>
+          <NavIcon name="menu" size={21} />
           Más
         </button>
       </nav>

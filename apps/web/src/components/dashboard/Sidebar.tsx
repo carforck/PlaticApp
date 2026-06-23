@@ -11,32 +11,33 @@ import { SECTION_DESC } from "@/lib/sections";
 import { BrandLockup } from "@/components/BrandIcon";
 import { Avatar } from "./Avatar";
 import { ThemeToggle } from "./ThemeToggle";
+import { NavIcon } from "./NavIcon";
 
 const NAV_GROUPS = [
   {
     title: "Principal",
     items: [
-      { label: "Resumen", icon: "🏠", href: "/dashboard" },
-      { label: "Movimientos", icon: "💸", href: "/dashboard/movimientos" },
-      { label: "Novedades", icon: "🔔", href: "/dashboard/novedades" },
+      { label: "Resumen", icon: "home", href: "/dashboard" },
+      { label: "Movimientos", icon: "movimientos", href: "/dashboard/movimientos" },
+      { label: "Novedades", icon: "novedades", href: "/dashboard/novedades" },
     ],
   },
   {
     title: "Finanzas",
     items: [
-      { label: "Cuentas", icon: "🏦", href: "/dashboard/cuentas" },
-      { label: "Deudas", icon: "🤝", href: "/dashboard/deudas" },
-      { label: "Ahorros", icon: "🐷", href: "/dashboard/ahorros" },
-      { label: "Inversiones", icon: "📈", href: "/dashboard/inversiones" },
-      { label: "Presupuestos", icon: "🎯", href: "/dashboard/presupuestos" },
-      { label: "Pagos fijos", icon: "🔁", href: "/dashboard/recurrentes" },
+      { label: "Cuentas", icon: "cuentas", href: "/dashboard/cuentas" },
+      { label: "Deudas", icon: "deudas", href: "/dashboard/deudas" },
+      { label: "Ahorros", icon: "ahorros", href: "/dashboard/ahorros" },
+      { label: "Inversiones", icon: "inversiones", href: "/dashboard/inversiones" },
+      { label: "Presupuestos", icon: "presupuestos", href: "/dashboard/presupuestos" },
+      { label: "Pagos fijos", icon: "recurrentes", href: "/dashboard/recurrentes" },
     ],
   },
   {
     title: "Registros",
     items: [
-      { label: "Recibos", icon: "🧾", href: "/dashboard/recibos" },
-      { label: "Categorías", icon: "🏷️", href: "/dashboard/categorias" },
+      { label: "Recibos", icon: "recibos", href: "/dashboard/recibos" },
+      { label: "Categorías", icon: "categorias", href: "/dashboard/categorias" },
     ],
   },
 ] as const;
@@ -110,9 +111,9 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
             Cuenta
           </p>
           <div className="space-y-0.5">
-            <NavLink href="/dashboard/perfil" icon="👤" label="Perfil" active={pathname === "/dashboard/perfil"} badge={0} />
+            <NavLink href="/dashboard/perfil" icon="perfil" label="Perfil" active={pathname === "/dashboard/perfil"} badge={0} />
             {profile.email === ADMIN_EMAIL && (
-              <NavLink href="/dashboard/admin" icon="🛡️" label="Admin" active={pathname === "/dashboard/admin"} badge={0} />
+              <NavLink href="/dashboard/admin" icon="admin" label="Admin" active={pathname === "/dashboard/admin"} badge={0} />
             )}
           </div>
         </div>
@@ -140,18 +141,18 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
           ) : (
             <button
               onClick={linkTelegram}
-              className="mt-1.5 w-full rounded-[8px] border border-black/10 bg-white/70 py-1.5 text-[12px] font-medium transition hover:bg-white"
+              className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-[8px] border border-black/10 bg-white/70 py-1.5 text-[12px] font-medium transition hover:bg-white"
             >
-              🔗 Vincular Telegram
+              <NavIcon name="telegram" size={15} /> Vincular Telegram
             </button>
           )}
         </div>
         <ThemeToggle />
         <button
           onClick={logout}
-          className="w-full rounded-[8px] px-2.5 py-2 text-left text-[13px] text-[var(--color-ink-soft)] transition hover:bg-black/5"
+          className="flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left text-[13px] text-[var(--color-ink-soft)] transition hover:bg-black/5"
         >
-          ⏏︎ Salir
+          <NavIcon name="salir" size={16} /> Salir
         </button>
       </div>
     </aside>
@@ -179,7 +180,7 @@ function NavLink({
         active ? "bg-[var(--color-accent)] text-white shadow-sm" : "hover:bg-black/5"
       }`}
     >
-      <span className="text-[15px]">{icon}</span>
+      <NavIcon name={icon} size={19} />
       {label}
       {badge > 0 && (
         <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#ff375f] px-1 text-[11px] font-semibold text-white">
