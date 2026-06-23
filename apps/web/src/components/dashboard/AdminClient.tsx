@@ -75,7 +75,7 @@ export function AdminClient() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [today, setToday] = useState("");
-  const [tab, setTab] = useState<"resumen" | "usuarios" | "logs" | "novedades">("resumen");
+  const [tab, setTab] = useState<"resumen" | "usuarios" | "mensajes" | "logs" | "novedades">("resumen");
   const [sort, setSort] = useState<SortKey>("actividad");
 
   const load = useCallback(async () => {
@@ -152,6 +152,7 @@ export function AdminClient() {
         {([
           { id: "resumen", label: "📊 Resumen" },
           { id: "usuarios", label: "👥 Usuarios" },
+          { id: "mensajes", label: "💬 Mensajes" },
           { id: "logs", label: "🧾 Logs" },
           { id: "novedades", label: "📢 Novedades" },
         ] as const).map((t) => (
@@ -179,6 +180,8 @@ export function AdminClient() {
           <SystemHealth />
         </>
       )}
+
+      {tab === "mensajes" && <FeedbackPanel />}
 
       {tab === "logs" && <LogsPanel />}
 
@@ -582,6 +585,80 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="glass rounded-[var(--radius-card)] p-4">
       <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">{label}</p>
       <p className="mt-1 text-[22px] font-semibold tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+interface FeedbackItem {
+  id: string;
+  email: string | null;
+  source: string;
+  message: string;
+  status: string;
+  created_at: string;
+}
+
+/** Buzón de mensajes de usuarios (dudas, preguntas, sugerencias). Solo admin. */
+function FeedbackPanel() {
+  const [items, setItems] = useState<FeedbackItem[] | null>(null);
+  const [filter, setFilter] = useState<"open" | "all">("open");
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/admin/feedback");
+    if (res.ok) setItems((await res.json()).items as FeedbackItem[]);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  async function setStatus(id: string, status: "open" | "done") {
+    await fetch("/api/admin/feedback", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    });
+    void load();
+  }
+
+  const shown = (items ?? []).filter((i) => (filter === "all" ? true : i.status === "open"));
+
+  return (
+    <div className="glass overflow-hidden rounded-[var(--radius-card)]">
+      <div className="flex items-center justify-between gap-2 border-b border-black/5 px-4 py-2.5">
+        <span className="text-[12px] text-[var(--color-ink-soft)]">
+          {items ? `${items.filter((i) => i.status === "open").length} sin atender · ${items.length} en total` : "Cargando…"}
+        </span>
+        <div className="inline-flex rounded-[8px] bg-black/[0.05] p-0.5">
+          {(["open", "all"] as const).map((f) => (
+            <button key={f} onClick={() => setFilter(f)} className={`rounded-[6px] px-2.5 py-1 text-[12px] font-medium transition ${filter === f ? "bg-white shadow-sm" : "text-[var(--color-ink-soft)]"}`}>
+              {f === "open" ? "Sin atender" : "Todos"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {!items ? (
+        <p className="p-8 text-center text-[14px] text-[var(--color-ink-soft)]">Cargando…</p>
+      ) : shown.length === 0 ? (
+        <p className="p-8 text-center text-[14px] text-[var(--color-ink-soft)]">No hay mensajes {filter === "open" ? "sin atender" : ""}.</p>
+      ) : (
+        <ul className="divide-y divide-black/5">
+          {shown.map((f) => (
+            <li key={f.id} className="flex items-start justify-between gap-3 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[14px]">{f.message}</p>
+                <p className="mt-1 text-[11px] text-[var(--color-ink-soft)]">
+                  {f.email ?? "—"} · {f.source === "bot" ? "Telegram" : "App"} · {new Date(f.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  {f.status === "done" && " · ✓ atendido"}
+                </p>
+              </div>
+              <button
+                onClick={() => setStatus(f.id, f.status === "done" ? "open" : "done")}
+                className="shrink-0 rounded-[8px] border border-black/10 bg-white/60 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
+              >
+                {f.status === "done" ? "Reabrir" : "Atendido"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

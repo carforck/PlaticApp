@@ -224,6 +224,27 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     return;
   }
 
+  // Buzón de mensajes: el usuario deja una duda/sugerencia para el equipo.
+  const sug = text.match(/^\/(?:sugerencia|comentario|feedback)\b\s*([\s\S]*)$/i);
+  if (sug) {
+    const linked = await resolveUserId(chatId);
+    const body = (sug[1] ?? "").trim();
+    if (!linked) {
+      await telegram.sendMessage(chatId, "Primero vincula tu cuenta para enviar tu mensaje 🙂");
+      return;
+    }
+    if (!body) {
+      await telegram.sendMessage(chatId, "✍️ Escríbeme tu duda o sugerencia así: <b>/sugerencia el saldo no me cuadra…</b>");
+      return;
+    }
+    const db = createAdminClient();
+    const { data: au } = await db.auth.admin.getUserById(linked);
+    await db.from("feedback").insert({ user_id: linked, email: au?.user?.email ?? null, source: "bot", message: body.slice(0, 2000) });
+    void logEvent({ source: "telegram", event: "feedback", detail: body.slice(0, 120), actor: msg.from?.username ?? chatId });
+    await telegram.sendMessage(chatId, "¡Gracias! 🙌 Recibimos tu mensaje y lo revisaremos. Si necesitas, escríbenos otro con /sugerencia.");
+    return;
+  }
+
   if (/^\/(ayuda|help)\b/i.test(text)) {
     await telegram.sendMessage(chatId, AYUDA_TEXT);
     return;

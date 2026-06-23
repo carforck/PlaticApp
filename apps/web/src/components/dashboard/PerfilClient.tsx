@@ -194,6 +194,8 @@ export function PerfilClient() {
         </div>
       </section>
 
+      <FeedbackBox />
+
       <button
         onClick={logout}
         className="rounded-[var(--radius-control)] border border-black/10 bg-white/60 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/90"
@@ -312,5 +314,58 @@ function ResetDataModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Buzón de mensajes: el usuario deja dudas, preguntas o sugerencias para el equipo. */
+function FeedbackBox() {
+  const [msg, setMsg] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
+
+  async function send() {
+    if (!msg.trim()) return;
+    setStatus("sending");
+    const res = await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: msg.trim() }),
+    });
+    if (res.ok) {
+      setStatus("sent");
+      setMsg("");
+    } else setStatus("idle");
+  }
+
+  return (
+    <section className="glass rounded-[var(--radius-card)] p-6">
+      <h2 className="text-[15px] font-semibold">💬 Dudas, preguntas o sugerencias</h2>
+      <p className="mt-1 text-[13px] text-[var(--color-ink-soft)]">
+        ¿Algo no te cuadra o se te ocurre cómo mejorar PlaticApp? Escríbenos y lo revisamos.
+      </p>
+      {status === "sent" ? (
+        <p className="mt-4 rounded-[10px] bg-[#30d158]/10 px-3 py-2.5 text-[13px] text-[#1d8a3a]">
+          ¡Gracias! Recibimos tu mensaje y lo revisaremos. 🙌
+          <button onClick={() => setStatus("idle")} className="ml-2 font-medium underline">Enviar otro</button>
+        </p>
+      ) : (
+        <div className="mt-3">
+          <textarea
+            value={msg}
+            onChange={(e) => setMsg(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="Cuéntanos tu duda o idea…"
+            className="w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[14px] outline-none ring-[var(--color-accent)] focus:ring-2"
+          />
+          <button
+            onClick={send}
+            disabled={status === "sending" || !msg.trim()}
+            className="btn-mac mt-2 px-4 py-2.5 text-[14px] font-medium disabled:opacity-60"
+          >
+            {status === "sending" ? "Enviando…" : "Enviar mensaje"}
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
