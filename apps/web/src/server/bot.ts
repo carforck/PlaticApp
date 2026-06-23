@@ -17,6 +17,7 @@ import { geminiText, geminiImage, chat } from "./ai/gemini";
 import { groqAudio } from "./ai/groq";
 import { ACCOUNT_EMOJI } from "@/lib/labels";
 import { logEvent } from "./logs";
+import { notifyAdmin } from "./notify";
 
 // ── Tipos mínimos del Update de Telegram ───────────────────────
 interface TgUser { id: number; username?: string; first_name?: string }
@@ -241,6 +242,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     const { data: au } = await db.auth.admin.getUserById(linked);
     await db.from("feedback").insert({ user_id: linked, email: au?.user?.email ?? null, source: "bot", message: body.slice(0, 2000) });
     void logEvent({ source: "telegram", event: "feedback", detail: body.slice(0, 120), actor: msg.from?.username ?? chatId });
+    void notifyAdmin(`💬 <b>Nuevo mensaje en PlaticApp</b> (Telegram)\nDe: ${au?.user?.email ?? msg.from?.username ?? chatId}\n\n${body.slice(0, 500)}`);
     await telegram.sendMessage(chatId, "¡Gracias! 🙌 Recibimos tu mensaje y lo revisaremos. Si necesitas, escríbenos otro con /sugerencia.");
     return;
   }

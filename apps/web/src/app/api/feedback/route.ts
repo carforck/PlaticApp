@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyAdmin } from "@/server/notify";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** El usuario envía una duda, pregunta o sugerencia desde la app. */
@@ -26,5 +28,6 @@ export async function POST(req: Request) {
     console.error("feedback insert:", error.message);
     return NextResponse.json({ error: "No se pudo enviar" }, { status: 500 });
   }
+  void notifyAdmin(`💬 <b>Nuevo mensaje en PlaticApp</b> (app)\nDe: ${user.email ?? "—"}\n\n${message.slice(0, 500)}`);
   return NextResponse.json({ ok: true });
 }
