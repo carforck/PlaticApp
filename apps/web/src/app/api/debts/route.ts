@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     if (!own) accountId = null;
   }
 
-  const { error } = await supabase.from("debts").insert({
+  const { data, error } = await supabase.from("debts").insert({
     user_id: user.id,
     counterparty,
     direction: b.direction,
@@ -46,8 +46,11 @@ export async function POST(req: Request) {
     description: b.description?.trim() || null,
     account_id: accountId,
     moves_at: b.movesAt && MOVES.includes(b.movesAt) ? b.movesAt : "settlement",
-  });
+  }).select("id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (data?.id) {
+    await supabase.from("debt_events").insert({ user_id: user.id, debt_id: data.id, event: "created", detail: `${counterparty} · ${Math.round(amount)}` });
+  }
   return NextResponse.json({ ok: true });
 }
 
@@ -89,6 +92,12 @@ export async function PATCH(req: Request) {
 
   const { error } = await supabase.from("debts").update(patch).eq("id", b.id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Historial de estado de la deuda.
+  const event = b.status === "settled" ? "settled" : b.status === "open" ? "reopened" : "edited";
+  const detail = b.status === "settled" ? "marcada como pagada" : b.status === "open" ? "reabierta" : "datos actualizados";
+  await supabase.from("debt_events").insert({ user_id: user.id, debt_id: b.id, event, detail });
+
   return NextResponse.json({ ok: true });
 }
 

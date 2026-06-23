@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
+import { createClient } from "@/lib/supabase/client";
 import { type DebtRow, type AccountRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { Paginator, usePagination } from "./Paginator";
@@ -13,6 +14,7 @@ export function DeudasClient() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<DebtRow | null>(null);
   const [settling, setSettling] = useState<DebtRow | null>(null);
+  const [history, setHistory] = useState<DebtRow | null>(null);
 
   const debts = data.debts;
   const accName = new Map(data.accounts.map((a) => [a.account_id, a.name]));
@@ -72,6 +74,7 @@ export function DeudasClient() {
                   d={d}
                   onToggleSettle={() => (d.status === "settled" ? setStatus(d.id, "open") : setSettling(d))}
                   onEdit={() => setEditing(d)}
+                  onHistory={() => setHistory(d)}
                   accountName={d.account_id ? accName.get(d.account_id) : undefined}
                 />
               ))}
@@ -100,6 +103,8 @@ export function DeudasClient() {
           onSaved={refresh}
         />
       )}
+
+      {history && <DebtEventsModal debt={history} onClose={() => setHistory(null)} />}
     </main>
   );
 }
@@ -238,11 +243,13 @@ function DebtRowItem({
   d,
   onToggleSettle,
   onEdit,
+  onHistory,
   accountName,
 }: {
   d: DebtRow;
   onToggleSettle: () => void;
   onEdit: () => void;
+  onHistory: () => void;
   accountName?: string;
 }) {
   const settled = d.status === "settled";
@@ -270,6 +277,9 @@ function DebtRowItem({
         <span className={`text-[14px] font-semibold ${d.direction === "they_owe" ? "text-[#30d158]" : "text-[#ff375f]"}`}>
           {fmtMoney(d.amount_minor, d.currency)}
         </span>
+        <button onClick={(e) => { e.stopPropagation(); onHistory(); }} className="rounded-[8px] px-2 py-1 text-[12px] hover:bg-black/5" title="Historial">
+          🕘
+        </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -412,6 +422,69 @@ function DebtModal({
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+interface DebtEvent {
+  id: string;
+  event: string;
+  detail: string | null;
+  created_at: string;
+}
+const DEBT_EVENT_LABEL: Record<string, string> = {
+  created: "📝 Creada",
+  settled: "✅ Saldada",
+  reopened: "↩️ Reabierta",
+  edited: "✏️ Editada",
+};
+
+/** Historial de estado de una deuda (creada, saldada, reabierta, editada). */
+function DebtEventsModal({ debt, onClose }: { debt: DebtRow; onClose: () => void }) {
+  const [rows, setRows] = useState<DebtEvent[] | null>(null);
+  useEffect(() => {
+    void (async () => {
+      const { data } = await createClient()
+        .from("debt_events")
+        .select("id, event, detail, created_at")
+        .eq("debt_id", debt.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      setRows((data as DebtEvent[]) ?? []);
+    })();
+  }, [debt.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass animate-float-in w-full max-w-sm overflow-hidden rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
+          <TrafficLights onClose={onClose} />
+          <span className="ml-3 truncate text-[13px] font-medium text-[var(--color-ink-soft)]">Historial · {debt.counterparty}</span>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto p-6">
+          {rows === null ? (
+            <p className="py-8 text-center text-[14px] text-[var(--color-ink-soft)]">Cargando…</p>
+          ) : rows.length === 0 ? (
+            <p className="py-8 text-center text-[14px] text-[var(--color-ink-soft)]">
+              Sin eventos registrados todavía. Los cambios (saldar, reabrir, editar) que hagas desde ahora aparecerán aquí.
+            </p>
+          ) : (
+            <ul className="divide-y divide-black/5">
+              {rows.map((e) => (
+                <li key={e.id} className="flex items-center justify-between py-2.5">
+                  <span>
+                    <span className="block text-[14px] font-medium">{DEBT_EVENT_LABEL[e.event] ?? e.event}</span>
+                    {e.detail && <span className="block text-[11px] text-[var(--color-ink-soft)]">{e.detail}</span>}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-ink-soft)]">
+                    {new Date(e.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "2-digit" })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );
