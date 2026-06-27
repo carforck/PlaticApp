@@ -17,11 +17,14 @@ export const metadata: Metadata = {
       "Registra tu plata hablando con un bot de Telegram y míralo en tiempo real: patrimonio, gráficos, presupuestos y más.",
     url: "https://platicapp-web.vercel.app",
     locale: "es_CO",
+    // Imagen estática (.png, URL limpia): WhatsApp y otros la digieren mejor que la ruta dinámica.
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "PlaticApp! — tu control financiero por Telegram" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "PlaticApp! — tu control financiero por Telegram",
     description: "Registra tu plata hablando con un bot de Telegram y míralo en tiempo real.",
+    images: ["/og.png"],
   },
 };
 
