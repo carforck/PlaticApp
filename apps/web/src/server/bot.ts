@@ -573,10 +573,30 @@ async function detectWarnings(
   userId: string,
   drafts: TransactionDraft[],
 ): Promise<string[]> {
-  const expenses = drafts.filter((d) => d.kind === "expense");
-  if (expenses.length === 0) return [];
+  // ── Aviso "cuenta nueva": si un movimiento menciona una cuenta que NO existe (ni por
+  //    nombre parecido), se creará una nueva. Lo avisamos ANTES de confirmar para que el
+  //    usuario lo valide y no terminemos con cuentas casi-duplicadas (ej. dos "Bancolombia").
+  const newAccountWarnings: string[] = [];
+  const existing = await accountRepo(db).listByUser(userId);
+  if (existing.length > 0) {
+    const seen = new Set<string>();
+    for (const d of drafts) {
+      const hint = d.accountHint?.trim();
+      if (!hint || seen.has(hint.toLowerCase())) continue;
+      seen.add(hint.toLowerCase());
+      const match = await accountRepo(db).findByNameHint(userId, hint);
+      if (!match) {
+        newAccountWarnings.push(
+          `📌 Crearé una cuenta nueva: «${titleCase(hint)}». Si ya la tienes con otro nombre, toca Cancelar y dímelo con ese nombre.`,
+        );
+      }
+    }
+  }
 
-  const warningsSavings: string[] = [];
+  const expenses = drafts.filter((d) => d.kind === "expense");
+  if (expenses.length === 0) return [...new Set(newAccountWarnings)];
+
+  const warningsSavings: string[] = [...newAccountWarnings];
   // Avisos por cuenta: sobregiro (queda en negativo) y gasto que toca el ahorro.
   const { data: balRows } = await db
     .from("account_balances")
