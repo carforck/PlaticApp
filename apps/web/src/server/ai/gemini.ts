@@ -37,7 +37,7 @@ const responseSchema = {
           isDebt: { type: "boolean", description: "true si es préstamo/deuda con una persona" },
           counterparty: { type: "string", description: "Persona involucrada en la deuda" },
           debtDirection: { type: "string", enum: ["i_owe", "they_owe"], description: "i_owe: me prestaron; they_owe: yo presté" },
-          isRecurring: { type: "boolean", description: "true si es un pago fijo que se repite (arriendo, suscripción, sueldo mensual)" },
+          isRecurring: { type: "boolean", description: "true SOLO si el usuario da de alta un pago fijo a futuro (no si registra un gasto ya ocurrido, aunque sea suscripción)" },
           frequency: { type: "string", enum: ["weekly", "biweekly", "monthly", "yearly"] },
           dayOfMonth: { type: "number", description: "Día del mes en que se paga (1-31), si aplica" },
           confidence: { type: "number" },
@@ -92,7 +92,8 @@ function buildPrompt(ctx: InterpretContext): string {
     "Marca isDebt=true (deuda) SOLO si queda claro que es un préstamo que esperan que les devuelvan (ej. «le presté 200 mil a Juan y me los paga el viernes», «préstamo a María que me debe»). Si la palabra «préstamo» aparece pero está mezclada con un consumo (cena, comida, regalo) o no se menciona devolución, trátalo como GASTO normal, no como deuda. Ante la duda, gasto.",
     "Asigna la categoría MÁS LÓGICA según el comercio o concepto. Reconoces marcas: Netflix/Spotify/Disney+/HBO/YouTube Premium → Entretenimiento; Uber/Didi/taxi/gasolina/bus/peaje → Transporte; Rappi/restaurante/almuerzo/mercado/café → Comida; arriendo/servicios/luz/agua/internet → Hogar; EPS/farmacia/médico → Salud; gimnasio → Salud; salario/nómina → Salario. Prefiere una categoría existente si encaja; si no, propón una nueva con nombre corto y su 'categoryEmoji'.",
     "Si alguien te prestó o tú prestaste plata, marca isDebt=true, pon 'counterparty' (la persona) y 'debtDirection' (i_owe si te prestaron, they_owe si tú prestaste).",
-    "Si es un pago FIJO que se repite (arriendo, Netflix/suscripción, sueldo mensual, 'todos los meses', 'cada mes', 'fijo'), marca isRecurring=true con su 'frequency' (monthly por defecto) y 'dayOfMonth' si lo mencionan ('el día 5' → 5).",
+    "Marca isRecurring=true SOLO cuando el usuario está DANDO DE ALTA o describiendo un pago fijo A FUTURO (ej. «agrégalo como pago fijo», «mi arriendo es 900 mil cada mes», «recuérdame pagar Netflix el 5», «todos los meses pago X»), con su 'frequency' (monthly por defecto) y 'dayOfMonth' si lo mencionan ('el día 5' → 5).",
+    "MUY IMPORTANTE: si el usuario está REGISTRANDO un gasto que YA ocurrió (habla en pasado, dice que el dinero «salió», «pagué», «gasté», o lista montos ya pagados para totalizar), regístralo como gasto normal (isRecurring=false) AUNQUE sea una suscripción o servicio conocido (Spotify, Netflix, arriendo, plan de datos): el dinero ya se movió y DEBE descontar del saldo. Ante la duda, isRecurring=false (gasto normal).",
     ctx.knownCategories.length ? `Categorías existentes (prefiere estas): ${ctx.knownCategories.join(", ")}.` : "",
     ctx.knownAccounts.length ? `Cuentas existentes: ${ctx.knownAccounts.join(", ")}.` : "",
     ctx.knownMerchants?.length
