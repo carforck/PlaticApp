@@ -290,6 +290,7 @@ async function handleMessage(msg: TgMessage): Promise<void> {
   await maybeSendOnboarding(chatId, msg.from?.first_name);
 
   try {
+    void telegram.typing(chatId); // "escribiendo…": la espera se siente natural, no un cuelgue
     const db = createAdminClient();
     const ctx = await buildContext(userId);
     const history = await loadHistory(db, chatId); // hilo reciente para dar contexto
@@ -379,8 +380,18 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     await remember(db, chatId, "model", "(te mostré un borrador y te pedí confirmar el registro)");
   } catch (err) {
     const m = (err as Error).message;
-    const friendly = m.includes("SATURADO")
-      ? "😵‍💫 El modelo de IA está saturado ahora mismo. Reintenta en unos segundos."
+    // Nunca hablamos de "IA / modelo / saturado / error": suena a que la app falló.
+    // Cuando la interpretación no salió (casi siempre saturación momentánea), damos un
+    // mensaje humano y cálido que invita a reintentar, como un desliz natural.
+    const hipHup = m.includes("SATURADO");
+    const warm = [
+      "Uy, se me enredaron los dedos un segundo 🙈 Mándamelo otra vez, ya te leo.",
+      "Perdón, se me fue el hilo un momentico 😅 ¿Me lo repites? Ya estoy listo.",
+      "Ups, me distraje un segundito 🌀 Vuélvemelo a mandar y lo anoto enseguida.",
+    ];
+    // Índice estable por el id del mensaje (sin Math.random) para variar la frase.
+    const friendly = hipHup
+      ? warm[((msg.message_id ?? chatId) % warm.length + warm.length) % warm.length]!
       : `⚠️ Algo falló procesando eso: ${m}`;
     void logEvent({ source: "telegram", event: "error", detail: m, actor: msg.from?.username ?? chatId, level: "error" });
     await telegram.sendMessage(chatId, friendly);

@@ -71,6 +71,15 @@ export const telegram = {
     return call("answerCallbackQuery", { callback_query_id: id, ...(text ? { text } : {}) });
   },
 
+  /** Muestra "escribiendo…" en el chat (dura ~5s o hasta el próximo mensaje). Silencioso: nunca lanza. */
+  async typing(chatId: number) {
+    try {
+      await call("sendChatAction", { chat_id: chatId, action: "typing" });
+    } catch {
+      /* el indicador es cosmético; si falla, seguimos */
+    }
+  },
+
   /** Descarga un archivo (audio/imagen) que envió el usuario. */
   async downloadFile(fileId: string): Promise<{ bytes: Uint8Array; mimeHint: string }> {
     const file = await call<{ file_path: string }>("getFile", { file_id: fileId });
