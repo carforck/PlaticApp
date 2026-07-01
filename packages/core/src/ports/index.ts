@@ -63,6 +63,13 @@ export interface BalanceIntent {
   amount: number; // unidad mayor (pesos): saldo actual que debe quedar en la cuenta
 }
 
+/** El usuario abona (paga parte/todo) de una deuda EXISTENTE con una persona. */
+export interface DebtPaymentIntent {
+  counterparty: string;
+  amount?: number; // unidad mayor (pesos); vacío = saldar el resto
+  accountHint?: string; // cuenta que recibe (me deben) o paga (yo debo)
+}
+
 /** Resultado de interpretar un mensaje: movimientos, deudas, recurrencias y/o una consulta. */
 export interface ExtractResult {
   transactions: TransactionDraft[];
@@ -73,6 +80,8 @@ export interface ExtractResult {
   savings: SavingsIntent | null;
   /** El usuario dice cuánto tiene ahora en una cuenta (para fijar su saldo real). */
   balance: BalanceIntent | null;
+  /** El usuario abona (paga parte/todo) de una deuda existente con una persona. */
+  debtPayment: DebtPaymentIntent | null;
   /** Respuesta conversacional cuando el usuario solo charla/saluda/pregunta qué puede hacer. */
   reply: string | null;
 }

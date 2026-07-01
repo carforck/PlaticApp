@@ -3,6 +3,7 @@ import type {
   AccountType,
   BalanceIntent,
   ConversationTurn,
+  DebtPaymentIntent,
   ExtractResult,
   Frequency,
   InterpretContext,
@@ -355,6 +356,13 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     if (result.balance) {
       await handleBalanceSet(chatId, userId, result.balance);
       await remember(db, chatId, "model", "(ajusté el saldo de una cuenta)");
+      return;
+    }
+
+    // El usuario abona a una deuda existente: la reducimos y movemos la cuenta.
+    if (result.debtPayment) {
+      await handleDebtPayment(chatId, userId, result.debtPayment);
+      await remember(db, chatId, "model", "(registré un abono a una deuda)");
       return;
     }
 
@@ -1253,6 +1261,72 @@ async function handleBalanceSet(chatId: number, userId: string, b: BalanceIntent
   const extra = deltas !== 0 ? ` (ya tenía movimientos por ${money.format(deltas)}, los conservé).` : "";
   await telegram.sendMessage(chatId, `✅ Listo. El saldo de <b>${acc.name}</b> quedó en <b>${money.format(targetMinor)}</b>.${extra}`);
   void logEvent({ source: "telegram", event: "saldo_ajustado", detail: `${acc.name} → ${targetMinor}`, actor: String(chatId) });
+}
+
+/**
+ * Abono a una deuda existente desde el bot (ej. «me abonó 50 mil de lo que me debe Amor»).
+ * Busca la deuda por la persona, registra el abono (mueve la cuenta, aparece en Movimientos) y avisa lo que falta.
+ */
+async function handleDebtPayment(chatId: number, userId: string, p: DebtPaymentIntent): Promise<void> {
+  const db = createAdminClient();
+  const money = (m: number) => new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(m);
+
+  // Deudas abiertas de esa persona.
+  const { data: debts } = await db
+    .from("debts")
+    .select("id, counterparty, direction, amount_minor, account_id, status")
+    .eq("user_id", userId)
+    .eq("status", "open")
+    .ilike("counterparty", `%${p.counterparty}%`);
+  if (!debts || debts.length === 0) {
+    await telegram.sendMessage(chatId, `🤔 No encontré una deuda abierta con <b>${p.counterparty}</b>. ¿La creamos? Dime «${p.counterparty} me debe 100 mil» o «le debo 100 mil a ${p.counterparty}».`);
+    return;
+  }
+
+  // Lo ya abonado por deuda, para elegir la que aún tiene saldo (la de mayor pendiente).
+  const ids = debts.map((d) => d.id);
+  const { data: pays } = await db.from("debt_payments").select("debt_id, amount_minor").in("debt_id", ids);
+  const paidBy = new Map<string, number>();
+  for (const x of pays ?? []) paidBy.set(x.debt_id, (paidBy.get(x.debt_id) ?? 0) + x.amount_minor);
+  const withOutstanding = debts
+    .map((d) => ({ d, outstanding: d.amount_minor - (paidBy.get(d.id) ?? 0) }))
+    .filter((x) => x.outstanding > 0)
+    .sort((a, b) => b.outstanding - a.outstanding);
+  if (withOutstanding.length === 0) {
+    await telegram.sendMessage(chatId, `✅ La deuda con <b>${p.counterparty}</b> ya está saldada, no queda nada por abonar.`);
+    return;
+  }
+  const { d: debt, outstanding } = withOutstanding[0]!;
+  const isTheyOwe = debt.direction === "they_owe";
+
+  // Monto del abono: lo dicho, o el resto si no lo especifica. Nunca más de lo que falta.
+  const requested = typeof p.amount === "number" && p.amount > 0 ? Math.round(p.amount) : outstanding;
+  const applied = Math.min(requested, outstanding);
+
+  // Cuenta que recibe/paga: la mencionada, o la de la deuda, o la primera.
+  const accounts = accountRepo(db);
+  let account = p.accountHint ? await accounts.findByNameHint(userId, p.accountHint) : null;
+  if (!account && debt.account_id) account = (await accounts.listByUser(userId)).find((a) => a.id === debt.account_id) ?? null;
+  account ??= (await accounts.listByUser(userId))[0] ?? null;
+
+  await db.from("debt_payments").insert({
+    user_id: userId,
+    debt_id: debt.id,
+    amount_minor: applied,
+    account_id: account?.id ?? null,
+  });
+
+  const newPaid = (paidBy.get(debt.id) ?? 0) + applied;
+  const settled = newPaid >= debt.amount_minor;
+  if (settled) await db.from("debts").update({ status: "settled" }).eq("id", debt.id).eq("user_id", userId);
+  await db.from("debt_events").insert({ user_id: userId, debt_id: debt.id, event: settled ? "settled" : "abono", detail: settled ? "abono final · saldada" : `abono de ${applied}` });
+
+  const left = debt.amount_minor - newPaid;
+  const acctNote = account ? (isTheyOwe ? ` Entró a ${account.name}.` : ` Salió de ${account.name}.`) : "";
+  const head = isTheyOwe ? `📥 ${debt.counterparty} te abonó ${money(applied)}.` : `📤 Le abonaste ${money(applied)} a ${debt.counterparty}.`;
+  const tail = settled ? "🎉 ¡Deuda saldada!" : `Queda pendiente <b>${money(left)}</b>.`;
+  await telegram.sendMessage(chatId, `${head}${acctNote}\n${tail}`);
+  void logEvent({ source: "telegram", event: "deuda_abono", detail: `${debt.counterparty} ${applied} · ${account?.name ?? "sin cuenta"}`, actor: String(chatId) });
 }
 
 /** Maneja acciones de ahorro desde el bot: apartar, abonar, fijar meta o consultar. */

@@ -79,6 +79,16 @@ const responseSchema = {
         amount: { type: "number", description: "Saldo actual que debe quedar en esa cuenta" },
       },
     },
+    debtPayment: {
+      type: "object",
+      description:
+        "Si el usuario ABONA o paga parte/todo de una DEUDA EXISTENTE con una persona (ej. «me abonó 50 mil de lo que me debe Juan», «le aboné 100 mil a mamá», «Ana ya me pagó lo que debía», «pagué la deuda de Pedro», «abónale 30 mil a la deuda de Andrés»). Es reducir una deuda YA registrada, NO un ingreso/gasto nuevo. NO uses 'items'. counterparty=persona; amount=abono (déjalo vacío si dice «todo/completo/lo que debía»); account=cuenta que recibe/paga si la menciona.",
+      properties: {
+        counterparty: { type: "string", description: "Persona de la deuda" },
+        amount: { type: "number", description: "Monto del abono; vacío si es total" },
+        account: { type: "string", description: "Cuenta que recibe (me deben) o paga (yo debo)" },
+      },
+    },
     reply: {
       type: "string",
       description:
@@ -113,6 +123,7 @@ function buildPrompt(ctx: InterpretContext): string {
     "Puede venir un «Contexto reciente» con los últimos turnos de la charla. Úsalo SOLO para entender referencias y seguimientos del «Mensaje actual» (ej. «y otros 20 en taxi», «no, eran 30 mil», «con Nequi», «¿y el mes pasado?»). Registra o consulta ÚNICAMENTE lo del mensaje actual; NO repitas lo que ya estaba en el contexto.",
     "Si el usuario habla de AHORRO (ej. «aparta 200 mil para la casa en Bancolombia», «guarda 100 mil para el celular», «mueve 50 mil al ahorro de ropa desde Nequi», «la meta del ahorro de viaje es 5 millones», «¿cuánto tengo ahorrado?»), llena 'savings' (action save/goal/query, name=título del ahorro si lo dice, account, fromAccount si lo dice, amount, goal) y NO uses items. 'save'=apartar/abonar o mover al ahorro; 'goal'=fijar meta; 'query'=consultar lo ahorrado.",
     "Si el usuario DECLARA cuánto tiene AHORA en una cuenta o pide fijar/ajustar su saldo (ej. «en Bancolombia tengo 500 mil», «mi saldo de Nequi es 200 mil», «ajusta efectivo a 1 millón», «tengo 300 mil en la cuenta»), llena 'balance' (account, amount=saldo actual) y NO uses items: es fijar el saldo REAL de la cuenta, NO un ingreso ni un ahorro.",
+    "Si el usuario ABONA/paga parte o todo de una DEUDA EXISTENTE con una persona (ej. «me abonó 50 mil de lo que me debe Juan», «le aboné 100 mil a mamá», «Ana ya me pagó lo que debía», «abónale 30 mil a la deuda de Pedro»), llena 'debtPayment' (counterparty, amount=abono o vacío si es total, account si la dice) y NO uses items: reduce una deuda ya registrada, no es un ingreso/gasto nuevo. Distíngalo de un ingreso/gasto normal por palabras como «abono/abonó/aboné», «lo que me/te debe», «la deuda de».",
     "Si el usuario SOLO conversa o saluda (ej. «hola», «gracias», «¿cómo estás?», «¿qué puedes hacer?», «buenos días») y NO hay nada que registrar ni consultar, deja items vacío y responde en 'reply' de forma humana y breve, recordándole con naturalidad que puede contarte un gasto/ingreso o preguntarte por sus finanzas, y que en la app web ve sus gráficos y métricas. No inventes cifras.",
   ]
     .filter(Boolean)
@@ -137,11 +148,18 @@ interface RawBalance {
   amount?: number;
 }
 
+interface RawDebtPayment {
+  counterparty?: string;
+  amount?: number;
+  account?: string;
+}
+
 interface GenResult {
   items: RawItem[];
   query: QueryIntent | null;
   savings: RawSavings | null;
   balance: RawBalance | null;
+  debtPayment: RawDebtPayment | null;
   reply: string | null;
 }
 
@@ -170,12 +188,13 @@ async function generate(body: Record<string, unknown>): Promise<GenResult> {
           const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
           const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
-            const parsed = JSON.parse(text) as { items?: RawItem[]; query?: QueryIntent; savings?: RawSavings; balance?: RawBalance; reply?: string };
+            const parsed = JSON.parse(text) as { items?: RawItem[]; query?: QueryIntent; savings?: RawSavings; balance?: RawBalance; debtPayment?: RawDebtPayment; reply?: string };
             const query = parsed.query && parsed.query.type ? parsed.query : null;
             const savings = parsed.savings && parsed.savings.action ? parsed.savings : null;
             const balance = parsed.balance && parsed.balance.account && typeof parsed.balance.amount === "number" ? parsed.balance : null;
+            const debtPayment = parsed.debtPayment && parsed.debtPayment.counterparty ? parsed.debtPayment : null;
             const reply = parsed.reply?.trim() ? parsed.reply.trim() : null;
-            return { items: parsed.items ?? [], query, savings, balance, reply };
+            return { items: parsed.items ?? [], query, savings, balance, debtPayment, reply };
           }
           lastErr = "vacío";
         } else {
@@ -215,6 +234,7 @@ function split(
   query: QueryIntent | null,
   savingsRaw: RawSavings | null,
   balanceRaw: RawBalance | null,
+  debtPaymentRaw: RawDebtPayment | null,
   reply: string | null,
   ctx: InterpretContext,
   source: TransactionDraft["source"],
@@ -282,10 +302,20 @@ function split(
       ? { accountHint: balanceRaw.account, amount: balanceRaw.amount }
       : null;
 
+  // Abono a una deuda existente (solo si no hay movimientos nuevos que registrar).
+  const debtPayment =
+    debtPaymentRaw && debtPaymentRaw.counterparty && transactions.length === 0
+      ? {
+          counterparty: debtPaymentRaw.counterparty,
+          amount: typeof debtPaymentRaw.amount === "number" ? debtPaymentRaw.amount : undefined,
+          accountHint: debtPaymentRaw.account || undefined,
+        }
+      : null;
+
   // Si hay algo que registrar/consultar/ahorrar/ajustar, ignoramos la charla.
   const finalReply =
-    transactions.length || debts.length || recurrences.length || query || savings || balance ? null : reply;
-  return { transactions, debts, recurrences, query, savings, balance, reply: finalReply };
+    transactions.length || debts.length || recurrences.length || query || savings || balance || debtPayment ? null : reply;
+  return { transactions, debts, recurrences, query, savings, balance, debtPayment, reply: finalReply };
 }
 
 /** Genera texto libre (sin esquema), con la misma cadena de modelos y reintentos. */
@@ -370,17 +400,17 @@ export const geminiText: TextInterpreter = {
       history && history.length
         ? `Contexto reciente:\n${history.map((h) => `${h.role === "user" ? "Usuario" : "PlaticApp"}: ${h.text}`).join("\n")}\n\n`
         : "";
-    const { items, query, savings, balance, reply } = await generate({
+    const { items, query, savings, balance, debtPayment, reply } = await generate({
       contents: [{ role: "user", parts: [{ text: `${buildPrompt(ctx)}\n\n${ctxBlock}Mensaje actual del usuario: ${text}` }] }],
     });
-    return split(items, query, savings, balance, reply, ctx, "telegram_text");
+    return split(items, query, savings, balance, debtPayment, reply, ctx, "telegram_text");
   },
 };
 
 export const geminiImage: ImageInterpreter = {
   async interpret(image, mimeType, ctx) {
     const base64 = Buffer.from(image).toString("base64");
-    const { items, query, savings, balance, reply } = await generate({
+    const { items, query, savings, balance, debtPayment, reply } = await generate({
       contents: [
         {
           role: "user",
@@ -391,6 +421,6 @@ export const geminiImage: ImageInterpreter = {
         },
       ],
     });
-    return split(items, query, savings, balance, reply, ctx, "telegram_image");
+    return split(items, query, savings, balance, debtPayment, reply, ctx, "telegram_image");
   },
 };
