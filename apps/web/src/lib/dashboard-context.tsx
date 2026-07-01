@@ -62,6 +62,7 @@ export function DashboardProvider({
       .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "accounts" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "debts" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "debt_payments" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "recurrences" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "receipts" }, refresh)

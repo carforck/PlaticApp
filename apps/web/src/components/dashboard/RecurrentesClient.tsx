@@ -24,6 +24,7 @@ export function RecurrentesClient() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<RecurrenceRow | null>(null);
   const [history, setHistory] = useState<RecurrenceRow | null>(null);
+  const [paying, setPaying] = useState<RecurrenceRow | null>(null);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [month, setMonth] = useState(() => {
     const n = new Date();
@@ -155,6 +156,14 @@ export function RecurrentesClient() {
                   <button onClick={(e) => { e.stopPropagation(); setHistory(r); }} className="grid h-7 w-7 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5" title="Historial de pagos">
                     <NavIcon name="history" size={16} />
                   </button>
+                  {r.active && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setPaying(r); }}
+                      className="rounded-[8px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-2.5 py-1 text-[12px] font-medium text-[var(--color-accent)] transition hover:bg-[var(--color-accent)]/20"
+                    >
+                      Pagar
+                    </button>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); toggle(r.id, !r.active); }}
                     className="rounded-[8px] border border-black/10 bg-white/60 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
@@ -185,7 +194,76 @@ export function RecurrentesClient() {
       )}
 
       {history && <RecPaymentsModal rec={history} onClose={() => setHistory(null)} />}
+
+      {paying && <PayRecurrenceModal rec={paying} onClose={() => setPaying(null)} onSaved={refresh} />}
     </main>
+  );
+}
+
+/** Registrar el pago (o abono) de un ciclo de un pago fijo: elige cuenta y mueve el dinero. */
+function PayRecurrenceModal({ rec, onClose, onSaved }: { rec: RecurrenceRow; onClose: () => void; onSaved: () => void }) {
+  const { data } = useDashboard();
+  const accName = new Map(data.accounts.map((a) => [a.account_id, a.name]));
+  const [accountId, setAccountId] = useState(rec.account_id ?? data.accounts[0]?.account_id ?? "");
+  const [amount, setAmount] = useState(String(rec.amount_minor));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const isIncome = rec.kind === "income";
+  const amountNum = Number(amount);
+
+  async function pay(skip: boolean) {
+    setSaving(true);
+    setError("");
+    const res = await fetch("/api/recurrences/pay", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(skip ? { id: rec.id, skip: true } : { id: rec.id, accountId: accountId || null, amount: amountNum }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      onSaved();
+      onClose();
+    } else setError((await res.json().catch(() => ({}))).error ?? "No se pudo registrar");
+  }
+
+  const field = "w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] outline-none ring-[var(--color-accent)] focus:ring-2";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass animate-float-in w-full max-w-sm overflow-hidden rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
+          <TrafficLights onClose={onClose} />
+          <span className="ml-3 truncate text-[13px] font-medium text-[var(--color-ink-soft)]">{isIncome ? "Registrar ingreso" : "Pagar"} · {rec.name}</span>
+        </div>
+        <div className="space-y-4 p-6">
+          <p className="text-[13px] text-[var(--color-ink-soft)]">
+            Ciclo <b>{rec.next_due}</b>. {isIncome ? "El dinero entrará a la cuenta y aparecerá en Movimientos." : "El dinero saldrá de la cuenta y aparecerá en Movimientos."}
+          </p>
+          <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+            Monto
+            <MoneyInput value={amount} onChange={setAmount} placeholder={String(rec.amount_minor)} className={`${field} mt-1.5 font-semibold`} />
+            {amountNum > 0 && amountNum < rec.amount_minor && (
+              <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">Es un abono parcial: no avanza al próximo ciclo.</span>
+            )}
+          </label>
+          <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+            {isIncome ? "¿A qué cuenta entra?" : "¿De qué cuenta sale?"}
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={`${field} mt-1.5`}>
+              {data.accounts.map((a) => (
+                <option key={a.account_id} value={a.account_id}>{accName.get(a.account_id)}</option>
+              ))}
+            </select>
+          </label>
+          {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
+          <button onClick={() => pay(false)} disabled={saving} className="btn-mac w-full py-2.5 text-[14px] font-medium disabled:opacity-70">
+            {saving ? "Guardando…" : isIncome ? "Registrar ingreso" : "Registrar pago"}
+          </button>
+          <button onClick={() => pay(true)} disabled={saving} className="w-full rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2 text-[13px] font-medium transition hover:bg-white/90 disabled:opacity-70">
+            Saltar este ciclo (no mover dinero)
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -224,7 +302,7 @@ function RecPaymentsModal({ rec, onClose }: { rec: RecurrenceRow; onClose: () =>
             <p className="py-8 text-center text-[14px] text-[var(--color-ink-soft)]">Cargando…</p>
           ) : rows.length === 0 ? (
             <p className="py-8 text-center text-[14px] text-[var(--color-ink-soft)]">
-              Aún no hay pagos registrados. Cuando pagues o saltes este pago fijo (desde el recordatorio del bot), aparecerá aquí.
+              Aún no hay pagos registrados. Cuando pagues o saltes este pago fijo (con el botón «Pagar» o desde el recordatorio del bot), aparecerá aquí.
             </p>
           ) : (
             <ul className="divide-y divide-black/5">

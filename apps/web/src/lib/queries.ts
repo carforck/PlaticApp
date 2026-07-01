@@ -53,6 +53,15 @@ export interface DebtRow {
   settle_account_id: string | null;
 }
 
+export interface DebtPaymentRow {
+  id: string;
+  debt_id: string;
+  amount_minor: number;
+  account_id: string | null;
+  note: string | null;
+  created_at: string;
+}
+
 export interface RecurrenceRow {
   id: string;
   name: string;
@@ -94,6 +103,7 @@ export interface DashboardData {
   transactions: TxRow[];
   categories: CategoryRow[];
   debts: DebtRow[];
+  debtPayments: DebtPaymentRow[];
   recurrences: RecurrenceRow[];
   receipts: ReceiptRow[];
   budgets: BudgetRow[];
@@ -103,7 +113,7 @@ export interface DashboardData {
 
 /** Trae todo lo que el dashboard necesita. Sirve para server y browser client. */
 export async function fetchDashboard(supabase: SupabaseClient): Promise<DashboardData> {
-  const [accounts, transactions, categories, debts, recurrences, receipts, budgets, announcements, savings] = await Promise.all([
+  const [accounts, transactions, categories, debts, debtPayments, recurrences, receipts, budgets, announcements, savings] = await Promise.all([
     supabase.from("account_balances").select("*"),
     supabase
       .from("transactions")
@@ -112,6 +122,7 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
       .limit(100),
     supabase.from("categories").select("*"),
     supabase.from("debts").select("*").order("created_at", { ascending: false }),
+    supabase.from("debt_payments").select("id, debt_id, amount_minor, account_id, note, created_at").order("created_at", { ascending: false }),
     supabase.from("recurrences").select("*").order("next_due", { ascending: true }),
     supabase.from("receipts").select("id, path, caption, created_at").order("created_at", { ascending: false }).limit(60),
     supabase.from("budgets").select("id, category_id, amount_minor"),
@@ -124,6 +135,7 @@ export async function fetchDashboard(supabase: SupabaseClient): Promise<Dashboar
     transactions: (transactions.data as TxRow[]) ?? [],
     categories: (categories.data as CategoryRow[]) ?? [],
     debts: (debts.data as DebtRow[]) ?? [],
+    debtPayments: (debtPayments.data as DebtPaymentRow[]) ?? [],
     recurrences: (recurrences.data as RecurrenceRow[]) ?? [],
     receipts: (receipts.data as ReceiptRow[]) ?? [],
     budgets: (budgets.data as BudgetRow[]) ?? [],

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDashboard } from "@/lib/dashboard-context";
 import { createClient } from "@/lib/supabase/client";
-import { type DebtRow, type AccountRow } from "@/lib/queries";
+import { type DebtRow, type AccountRow, type DebtPaymentRow } from "@/lib/queries";
 import { fmtMoney } from "@/lib/format";
 import { Paginator, usePagination } from "./Paginator";
 import { MoneyInput } from "./MoneyInput";
@@ -14,26 +14,23 @@ export function DeudasClient() {
   const { data, refresh } = useDashboard();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<DebtRow | null>(null);
-  const [settling, setSettling] = useState<DebtRow | null>(null);
+  const [abono, setAbono] = useState<DebtRow | null>(null);
   const [history, setHistory] = useState<DebtRow | null>(null);
 
   const debts = data.debts;
   const accName = new Map(data.accounts.map((a) => [a.account_id, a.name]));
+  // Lo abonado por deuda (para calcular lo que falta y la barra de progreso).
+  const paidByDebt = new Map<string, number>();
+  for (const p of data.debtPayments ?? []) paidByDebt.set(p.debt_id, (paidByDebt.get(p.debt_id) ?? 0) + p.amount_minor);
+  const outstandingOf = (d: DebtRow) => Math.max(0, d.amount_minor - (paidByDebt.get(d.id) ?? 0));
+
   const pg = usePagination(debts, 15);
   const open = debts.filter((d) => d.status === "open");
-  const theyOwe = open.filter((d) => d.direction === "they_owe").reduce((s, d) => s + d.amount_minor, 0);
-  const iOwe = open.filter((d) => d.direction === "i_owe").reduce((s, d) => s + d.amount_minor, 0);
+  // Los totales usan lo que FALTA (saldo pendiente), no el monto original.
+  const theyOwe = open.filter((d) => d.direction === "they_owe").reduce((s, d) => s + outstandingOf(d), 0);
+  const iOwe = open.filter((d) => d.direction === "i_owe").reduce((s, d) => s + outstandingOf(d), 0);
   // Préstamos abiertos que aún no salen/entran de ninguna cuenta (registrados antes de la mejora).
   const noAccountOpen = open.filter((d) => !d.account_id);
-
-  async function setStatus(id: string, status: "open" | "settled") {
-    await fetch("/api/debts", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id, status }),
-    });
-    refresh();
-  }
 
   return (
     <main className="flex-1 space-y-4">
@@ -73,7 +70,8 @@ export function DeudasClient() {
                 <DebtRowItem
                   key={d.id}
                   d={d}
-                  onToggleSettle={() => (d.status === "settled" ? setStatus(d.id, "open") : setSettling(d))}
+                  paid={paidByDebt.get(d.id) ?? 0}
+                  onAbonar={() => setAbono(d)}
                   onEdit={() => setEditing(d)}
                   onHistory={() => setHistory(d)}
                   accountName={d.account_id ? accName.get(d.account_id) : undefined}
@@ -96,11 +94,14 @@ export function DeudasClient() {
         />
       )}
 
-      {settling && (
-        <SettleModal
-          debt={settling}
+      {abono && (
+        <AbonoModal
+          debt={abono}
+          paid={paidByDebt.get(abono.id) ?? 0}
+          payments={(data.debtPayments ?? []).filter((p) => p.debt_id === abono.id)}
           accounts={data.accounts}
-          onClose={() => setSettling(null)}
+          accName={accName}
+          onClose={() => setAbono(null)}
           onSaved={refresh}
         />
       )}
@@ -110,63 +111,143 @@ export function DeudasClient() {
   );
 }
 
-/** Al marcar una deuda como pagada, pregunta a qué cuenta entró/salió el dinero. */
-function SettleModal({ debt, accounts, onClose, onSaved }: { debt: DebtRow; accounts: AccountRow[]; onClose: () => void; onSaved: () => void }) {
+/**
+ * Abonos de una deuda: registra pagos parciales o totales. Cada abono mueve la cuenta elegida
+ * (me deben → entra; yo debo → sale) y aparece en Movimientos. Muestra progreso y permite deshacer.
+ */
+function AbonoModal({
+  debt,
+  paid,
+  payments,
+  accounts,
+  accName,
+  onClose,
+  onSaved,
+}: {
+  debt: DebtRow;
+  paid: number;
+  payments: DebtPaymentRow[];
+  accounts: AccountRow[];
+  accName: Map<string, string | undefined>;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const isTheyOwe = debt.direction === "they_owe";
-  // Por defecto, la cuenta relacionada de la deuda (si tiene); si no, la primera.
+  const outstanding = Math.max(0, debt.amount_minor - paid);
+  const [amount, setAmount] = useState(String(outstanding));
   const [accountId, setAccountId] = useState(debt.account_id ?? accounts[0]?.account_id ?? "");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const amountNum = Number(amount);
+  const pct = debt.amount_minor > 0 ? Math.min(100, Math.round((paid / debt.amount_minor) * 100)) : 0;
 
   async function confirm() {
+    if (!Number.isFinite(amountNum) || amountNum <= 0) return setError("Escribe un monto válido");
     setSaving(true);
-    await fetch("/api/debts", {
-      method: "PATCH",
+    setError("");
+    const res = await fetch("/api/debts/pay", {
+      method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: debt.id, status: "settled", settleAccountId: accountId || null }),
+      body: JSON.stringify({ debtId: debt.id, amount: amountNum, accountId: accountId || null }),
     });
+    setSaving(false);
+    if (res.ok) {
+      onSaved();
+      onClose();
+    } else setError((await res.json().catch(() => ({}))).error ?? "No se pudo registrar el abono");
+  }
+
+  async function undo(paymentId: string) {
+    setSaving(true);
+    await fetch(`/api/debts/pay?id=${paymentId}`, { method: "DELETE" });
     setSaving(false);
     onSaved();
     onClose();
   }
+
+  const field = "w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] outline-none ring-[var(--color-accent)] focus:ring-2";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="glass animate-float-in w-full max-w-sm overflow-hidden rounded-[var(--radius-card)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-white/40 px-4 py-3">
           <TrafficLights onClose={onClose} />
-          <span className="ml-3 text-[13px] font-medium text-[var(--color-ink-soft)]">Marcar como pagada</span>
+          <span className="ml-3 truncate text-[13px] font-medium text-[var(--color-ink-soft)]">
+            {isTheyOwe ? `Cobrar a ${debt.counterparty}` : `Pagar a ${debt.counterparty}`}
+          </span>
         </div>
-        <div className="space-y-4 p-6">
-          <p className="text-[14px] leading-snug">
-            {isTheyOwe
-              ? `${debt.counterparty} te pagó ${fmtMoney(debt.amount_minor, debt.currency)}. ¿A qué cuenta entró el dinero?`
-              : `Pagaste ${fmtMoney(debt.amount_minor, debt.currency)} a ${debt.counterparty}. ¿De qué cuenta salió?`}
-          </p>
-          <select
-            value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-            className="w-full rounded-[var(--radius-control)] border border-black/10 bg-white/70 px-3.5 py-2.5 text-[15px] outline-none ring-[var(--color-accent)] focus:ring-2"
-          >
-            <option value="">— No mover ninguna cuenta —</option>
-            {accounts.map((a) => (
-              <option key={a.account_id} value={a.account_id}>{a.name}</option>
-            ))}
-          </select>
-          <p className="text-[11px] text-[var(--color-ink-soft)]">
-            {accountId
-              ? isTheyOwe
-                ? "Sumaremos ese dinero a la cuenta que elijas."
-                : "Restaremos ese dinero de la cuenta que elijas."
-              : "Quedará como pagada sin mover ningún saldo."}
-          </p>
-          <div className="flex gap-2 pt-1">
-            <button onClick={onClose} className="flex-1 rounded-[var(--radius-control)] border border-black/10 bg-white/60 py-2.5 text-[14px] font-medium transition hover:bg-white/90">
-              Cancelar
-            </button>
-            <button onClick={confirm} disabled={saving} className="btn-mac flex-1 py-2.5 text-[14px] font-medium disabled:opacity-70">
-              {saving ? "Guardando…" : "Marcar pagada"}
-            </button>
+        <div className="max-h-[75vh] space-y-4 overflow-y-auto p-6">
+          {/* Progreso */}
+          <div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-[13px] text-[var(--color-ink-soft)]">Abonado</span>
+              <span className="text-[13px] font-medium">{fmtMoney(paid, debt.currency)} de {fmtMoney(debt.amount_minor, debt.currency)}</span>
+            </div>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-black/[0.08]">
+              <div className={`h-full rounded-full ${isTheyOwe ? "bg-[#30d158]" : "bg-[#ff375f]"}`} style={{ width: `${pct}%` }} />
+            </div>
+            <p className="mt-1.5 text-[12px] font-medium">
+              {outstanding > 0 ? <>Falta <b>{fmtMoney(outstanding, debt.currency)}</b></> : "✅ Saldada por completo"}
+            </p>
           </div>
+
+          {outstanding > 0 && (
+            <>
+              <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+                Monto del abono
+                <MoneyInput value={amount} onChange={setAmount} placeholder={String(outstanding)} className={`${field} mt-1.5 font-semibold`} />
+                <span className="mt-1 flex gap-2">
+                  <button type="button" onClick={() => setAmount(String(outstanding))} className="text-[11px] font-medium text-[var(--color-accent)] hover:underline">
+                    Abonar todo ({fmtMoney(outstanding, debt.currency)})
+                  </button>
+                </span>
+              </label>
+              <label className="block text-[13px] font-medium text-[var(--color-ink-soft)]">
+                {isTheyOwe ? "¿A qué cuenta entra?" : "¿De qué cuenta sale?"}
+                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={`${field} mt-1.5`}>
+                  <option value="">— No mover ninguna cuenta —</option>
+                  {accounts.map((a) => (
+                    <option key={a.account_id} value={a.account_id}>{a.name}</option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[11px] text-[var(--color-ink-soft)]">
+                  {accountId
+                    ? isTheyOwe
+                      ? "Sumaremos el abono a esa cuenta y aparecerá en Movimientos."
+                      : "Restaremos el abono de esa cuenta y aparecerá en Movimientos."
+                    : "Sin cuenta el abono no mueve ningún saldo (solo lleva la cuenta de lo pagado)."}
+                </span>
+              </label>
+              {error && <p className="rounded-[10px] bg-[#ff375f]/10 px-3 py-2 text-[13px] text-[#ff375f]">{error}</p>}
+              <button onClick={confirm} disabled={saving} className="btn-mac w-full py-2.5 text-[14px] font-medium disabled:opacity-70">
+                {saving ? "Guardando…" : amountNum >= outstanding ? "Registrar y saldar" : "Registrar abono"}
+              </button>
+            </>
+          )}
+
+          {/* Historial de abonos con deshacer */}
+          {payments.length > 0 && (
+            <div className="border-t border-black/5 pt-3">
+              <p className="text-[12px] font-medium text-[var(--color-ink-soft)]">Abonos ({payments.length})</p>
+              <ul className="mt-1.5 divide-y divide-black/5">
+                {payments.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between py-2">
+                    <span>
+                      <span className="block text-[13px] font-medium">{fmtMoney(p.amount_minor, debt.currency)}</span>
+                      <span className="block text-[11px] text-[var(--color-ink-soft)]">
+                        {p.account_id ? accName.get(p.account_id) ?? "cuenta" : "sin cuenta"} ·{" "}
+                        {new Date(p.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })}
+                      </span>
+                    </span>
+                    <button onClick={() => undo(p.id)} disabled={saving} className="rounded-[8px] border border-black/10 bg-white/60 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white disabled:opacity-60">
+                      Deshacer
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -242,41 +323,57 @@ function DebtBackfillBanner({ debts, accounts, onDone }: { debts: DebtRow[]; acc
 
 function DebtRowItem({
   d,
-  onToggleSettle,
+  paid,
+  onAbonar,
   onEdit,
   onHistory,
   accountName,
 }: {
   d: DebtRow;
-  onToggleSettle: () => void;
+  paid: number;
+  onAbonar: () => void;
   onEdit: () => void;
   onHistory: () => void;
   accountName?: string;
 }) {
   const settled = d.status === "settled";
+  const outstanding = Math.max(0, d.amount_minor - paid);
+  const partial = paid > 0 && !settled;
+  const pct = d.amount_minor > 0 ? Math.min(100, Math.round((paid / d.amount_minor) * 100)) : 0;
   return (
     <li
       onClick={onEdit}
       className={`flex cursor-pointer items-center justify-between px-5 py-3 hover:bg-black/[0.03] ${settled ? "opacity-50" : ""}`}
     >
-      <span className="flex items-center gap-3">
-        <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-black/[0.05] text-[16px]">
           {d.direction === "they_owe" ? "📥" : "📤"}
         </span>
-        <span>
+        <span className="min-w-0">
           <span className="block text-[14px] font-medium">
             {d.direction === "they_owe" ? `${d.counterparty} te debe` : `Le debes a ${d.counterparty}`}
             {settled && " · saldada"}
           </span>
-          <span className="block text-[12px] text-[var(--color-ink-soft)]">
+          <span className="block truncate text-[12px] text-[var(--color-ink-soft)]">
             {d.description ? `${d.description} · ` : ""}
-            {accountName ? (d.direction === "they_owe" ? `salió de ${accountName}` : `entró a ${accountName}`) : "sin cuenta"}
+            {accountName ?? "sin cuenta"}
           </span>
+          {partial && (
+            <span className="mt-1 flex w-40 max-w-[45vw] items-center gap-2">
+              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.08]">
+                <span className={`block h-full rounded-full ${d.direction === "they_owe" ? "bg-[#30d158]" : "bg-[#ff375f]"}`} style={{ width: `${pct}%` }} />
+              </span>
+              <span className="text-[10px] text-[var(--color-ink-soft)]">{pct}%</span>
+            </span>
+          )}
         </span>
       </span>
-      <span className="flex items-center gap-3">
-        <span className={`text-[14px] font-semibold ${d.direction === "they_owe" ? "text-[#30d158]" : "text-[#ff375f]"}`}>
-          {fmtMoney(d.amount_minor, d.currency)}
+      <span className="flex shrink-0 items-center gap-3">
+        <span className="text-right">
+          <span className={`block text-[14px] font-semibold ${d.direction === "they_owe" ? "text-[#30d158]" : "text-[#ff375f]"}`}>
+            {fmtMoney(outstanding, d.currency)}
+          </span>
+          {partial && <span className="block text-[10px] text-[var(--color-ink-soft)]">de {fmtMoney(d.amount_minor, d.currency)}</span>}
         </span>
         <button onClick={(e) => { e.stopPropagation(); onHistory(); }} className="grid h-7 w-7 place-items-center rounded-[8px] text-[var(--color-ink-soft)] hover:bg-black/5" title="Historial">
           <NavIcon name="history" size={16} />
@@ -284,11 +381,11 @@ function DebtRowItem({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onToggleSettle();
+            onAbonar();
           }}
           className="rounded-[8px] border border-black/10 bg-white/60 px-2.5 py-1 text-[12px] font-medium transition hover:bg-white"
         >
-          {settled ? "Reabrir" : "Saldar"}
+          {settled ? "Ver" : "Abonar"}
         </button>
       </span>
     </li>
@@ -436,6 +533,7 @@ interface DebtEvent {
 }
 const DEBT_EVENT_LABEL: Record<string, string> = {
   created: "📝 Creada",
+  abono: "💵 Abono",
   settled: "✅ Saldada",
   reopened: "↩️ Reabierta",
   edited: "✏️ Editada",
