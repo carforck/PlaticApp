@@ -70,6 +70,15 @@ const responseSchema = {
         goal: { type: "number", description: "Monto objetivo de la meta" },
       },
     },
+    balance: {
+      type: "object",
+      description:
+        "Si el usuario DECLARA cuánto tiene AHORA en una cuenta o pide fijar/ajustar su saldo (ej. «en Bancolombia tengo 500 mil», «mi saldo de Nequi es 200 mil», «ajusta efectivo a 1 millón», «tengo 300 mil en la cuenta de ahorros»). Es fijar el saldo REAL, NO un ingreso ni un ahorro. NO uses 'items' en ese caso.",
+      properties: {
+        account: { type: "string", description: "Cuenta cuyo saldo se fija (ej. Bancolombia, Nequi, efectivo)" },
+        amount: { type: "number", description: "Saldo actual que debe quedar en esa cuenta" },
+      },
+    },
     reply: {
       type: "string",
       description:
@@ -103,6 +112,7 @@ function buildPrompt(ctx: InterpretContext): string {
     "Si el usuario PREGUNTA por sus finanzas (ej. «¿cuánto debo?», «¿cuánto gasté en comida este mes?», «¿cuánto tengo?», «¿en qué gasto más?», «mis últimos movimientos»), NO registres nada: llena 'query' con type (balance=cuánto tengo, expenses=gastos, income=ingresos, debts=deudas, top_categories=en qué gasto más, recent=últimos), 'category' si menciona una, y 'period' (this_month por defecto, last_month, all).",
     "Puede venir un «Contexto reciente» con los últimos turnos de la charla. Úsalo SOLO para entender referencias y seguimientos del «Mensaje actual» (ej. «y otros 20 en taxi», «no, eran 30 mil», «con Nequi», «¿y el mes pasado?»). Registra o consulta ÚNICAMENTE lo del mensaje actual; NO repitas lo que ya estaba en el contexto.",
     "Si el usuario habla de AHORRO (ej. «aparta 200 mil para la casa en Bancolombia», «guarda 100 mil para el celular», «mueve 50 mil al ahorro de ropa desde Nequi», «la meta del ahorro de viaje es 5 millones», «¿cuánto tengo ahorrado?»), llena 'savings' (action save/goal/query, name=título del ahorro si lo dice, account, fromAccount si lo dice, amount, goal) y NO uses items. 'save'=apartar/abonar o mover al ahorro; 'goal'=fijar meta; 'query'=consultar lo ahorrado.",
+    "Si el usuario DECLARA cuánto tiene AHORA en una cuenta o pide fijar/ajustar su saldo (ej. «en Bancolombia tengo 500 mil», «mi saldo de Nequi es 200 mil», «ajusta efectivo a 1 millón», «tengo 300 mil en la cuenta»), llena 'balance' (account, amount=saldo actual) y NO uses items: es fijar el saldo REAL de la cuenta, NO un ingreso ni un ahorro.",
     "Si el usuario SOLO conversa o saluda (ej. «hola», «gracias», «¿cómo estás?», «¿qué puedes hacer?», «buenos días») y NO hay nada que registrar ni consultar, deja items vacío y responde en 'reply' de forma humana y breve, recordándole con naturalidad que puede contarte un gasto/ingreso o preguntarte por sus finanzas, y que en la app web ve sus gráficos y métricas. No inventes cifras.",
   ]
     .filter(Boolean)
@@ -122,10 +132,16 @@ interface RawSavings {
   goal?: number;
 }
 
+interface RawBalance {
+  account?: string;
+  amount?: number;
+}
+
 interface GenResult {
   items: RawItem[];
   query: QueryIntent | null;
   savings: RawSavings | null;
+  balance: RawBalance | null;
   reply: string | null;
 }
 
@@ -154,11 +170,12 @@ async function generate(body: Record<string, unknown>): Promise<GenResult> {
           const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
           const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
-            const parsed = JSON.parse(text) as { items?: RawItem[]; query?: QueryIntent; savings?: RawSavings; reply?: string };
+            const parsed = JSON.parse(text) as { items?: RawItem[]; query?: QueryIntent; savings?: RawSavings; balance?: RawBalance; reply?: string };
             const query = parsed.query && parsed.query.type ? parsed.query : null;
             const savings = parsed.savings && parsed.savings.action ? parsed.savings : null;
+            const balance = parsed.balance && parsed.balance.account && typeof parsed.balance.amount === "number" ? parsed.balance : null;
             const reply = parsed.reply?.trim() ? parsed.reply.trim() : null;
-            return { items: parsed.items ?? [], query, savings, reply };
+            return { items: parsed.items ?? [], query, savings, balance, reply };
           }
           lastErr = "vacío";
         } else {
@@ -197,6 +214,7 @@ function split(
   raws: RawItem[],
   query: QueryIntent | null,
   savingsRaw: RawSavings | null,
+  balanceRaw: RawBalance | null,
   reply: string | null,
   ctx: InterpretContext,
   source: TransactionDraft["source"],
@@ -258,10 +276,16 @@ function split(
         }
       : null;
 
-  // Si hay algo que registrar/consultar/ahorrar, ignoramos la charla.
+  // Fijar saldo solo si no hay movimientos que registrar (evita doble interpretación).
+  const balance =
+    balanceRaw && balanceRaw.account && typeof balanceRaw.amount === "number" && transactions.length === 0
+      ? { accountHint: balanceRaw.account, amount: balanceRaw.amount }
+      : null;
+
+  // Si hay algo que registrar/consultar/ahorrar/ajustar, ignoramos la charla.
   const finalReply =
-    transactions.length || debts.length || recurrences.length || query || savings ? null : reply;
-  return { transactions, debts, recurrences, query, savings, reply: finalReply };
+    transactions.length || debts.length || recurrences.length || query || savings || balance ? null : reply;
+  return { transactions, debts, recurrences, query, savings, balance, reply: finalReply };
 }
 
 /** Genera texto libre (sin esquema), con la misma cadena de modelos y reintentos. */
@@ -346,17 +370,17 @@ export const geminiText: TextInterpreter = {
       history && history.length
         ? `Contexto reciente:\n${history.map((h) => `${h.role === "user" ? "Usuario" : "PlaticApp"}: ${h.text}`).join("\n")}\n\n`
         : "";
-    const { items, query, savings, reply } = await generate({
+    const { items, query, savings, balance, reply } = await generate({
       contents: [{ role: "user", parts: [{ text: `${buildPrompt(ctx)}\n\n${ctxBlock}Mensaje actual del usuario: ${text}` }] }],
     });
-    return split(items, query, savings, reply, ctx, "telegram_text");
+    return split(items, query, savings, balance, reply, ctx, "telegram_text");
   },
 };
 
 export const geminiImage: ImageInterpreter = {
   async interpret(image, mimeType, ctx) {
     const base64 = Buffer.from(image).toString("base64");
-    const { items, query, savings, reply } = await generate({
+    const { items, query, savings, balance, reply } = await generate({
       contents: [
         {
           role: "user",
@@ -367,6 +391,6 @@ export const geminiImage: ImageInterpreter = {
         },
       ],
     });
-    return split(items, query, savings, reply, ctx, "telegram_image");
+    return split(items, query, savings, balance, reply, ctx, "telegram_image");
   },
 };

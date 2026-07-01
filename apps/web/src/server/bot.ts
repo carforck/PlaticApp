@@ -1,6 +1,7 @@
 import { Money, RegisterTransaction, firstDueDate, nextOccurrence } from "@platica/core";
 import type {
   AccountType,
+  BalanceIntent,
   ConversationTurn,
   ExtractResult,
   Frequency,
@@ -347,6 +348,13 @@ async function handleMessage(msg: TgMessage): Promise<void> {
     if (result.savings) {
       await handleSavings(chatId, userId, result.savings);
       await remember(db, chatId, "model", "(gestioné una acción de ahorro)");
+      return;
+    }
+
+    // El usuario declara cuánto tiene en una cuenta: fijamos su saldo real.
+    if (result.balance) {
+      await handleBalanceSet(chatId, userId, result.balance);
+      await remember(db, chatId, "model", "(ajusté el saldo de una cuenta)");
       return;
     }
 
@@ -1187,6 +1195,44 @@ async function remember(db: ReturnType<typeof createAdminClient>, chatId: number
   await db.from("bot_messages").insert({ chat_id: chatId, role, content: content.slice(0, 500) });
   // Purga global de lo viejo (fuera de la ventana), no solo de este chat, para no acumular.
   await db.from("bot_messages").delete().lt("created_at", new Date(Date.now() - MEMORY_WINDOW_MS).toISOString());
+}
+
+/**
+ * El usuario dice cuánto tiene AHORA en una cuenta (ej. «en Bancolombia tengo 500 mil»).
+ * Ajustamos el SALDO INICIAL para que el saldo actual quede en la cifra dicha, sin tocar sus movimientos.
+ */
+async function handleBalanceSet(chatId: number, userId: string, b: BalanceIntent): Promise<void> {
+  const db = createAdminClient();
+  const accounts = accountRepo(db);
+  const acc = await accounts.findByNameHint(userId, b.accountHint);
+  if (!acc) {
+    const list = (await accounts.listByUser(userId)).map((a) => a.name).join(", ") || "(ninguna aún)";
+    await telegram.sendMessage(
+      chatId,
+      `🤔 No encontré la cuenta «${b.accountHint}». Tus cuentas son: ${list}.\nDime el saldo usando el nombre de una, ej. «en ${(await accounts.listByUser(userId))[0]?.name ?? "Bancolombia"} tengo 500 mil».`,
+    );
+    return;
+  }
+
+  const targetMinor = Math.round(b.amount); // COP: pesos == unidad menor
+  const [{ data: bal }, { data: accRow }] = await Promise.all([
+    db.from("account_balances").select("balance_minor").eq("account_id", acc.id).maybeSingle(),
+    db.from("accounts").select("opening_balance_minor, currency").eq("id", acc.id).maybeSingle(),
+  ]);
+  const currentBalance = bal?.balance_minor ?? 0;
+  const currentOpening = accRow?.opening_balance_minor ?? 0;
+  const deltas = currentBalance - currentOpening; // suma de movimientos ya registrados
+  const newOpening = targetMinor - deltas; // así el saldo actual queda EXACTO en lo dicho
+
+  const { error } = await db.from("accounts").update({ opening_balance_minor: newOpening }).eq("id", acc.id).eq("user_id", userId);
+  if (error) {
+    await telegram.sendMessage(chatId, "😅 No pude ajustar el saldo ahí. Inténtalo de nuevo en un momento.");
+    return;
+  }
+  const money = new Intl.NumberFormat("es-CO", { style: "currency", currency: accRow?.currency ?? "COP", maximumFractionDigits: 0 });
+  const extra = deltas !== 0 ? ` (ya tenía movimientos por ${money.format(deltas)}, los conservé).` : "";
+  await telegram.sendMessage(chatId, `✅ Listo. El saldo de <b>${acc.name}</b> quedó en <b>${money.format(targetMinor)}</b>.${extra}`);
+  void logEvent({ source: "telegram", event: "saldo_ajustado", detail: `${acc.name} → ${targetMinor}`, actor: String(chatId) });
 }
 
 /** Maneja acciones de ahorro desde el bot: apartar, abonar, fijar meta o consultar. */

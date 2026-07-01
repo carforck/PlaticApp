@@ -73,6 +73,53 @@ export function transactionRepo(db: SupabaseClient): TransactionRepository {
   };
 }
 
+// Normaliza para comparar nombres de cuenta: minúsculas y sin acentos.
+const normName = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+// Palabras genéricas que NO distinguen una cuenta de otra (para el match por token).
+const ACCOUNT_STOPWORDS = new Set([
+  "cuenta", "cuentas", "cta", "de", "del", "la", "el", "mi", "mis", "banco", "bancaria",
+  "ahorro", "ahorros", "debito", "credito", "corriente", "tarjeta", "plata", "dinero",
+]);
+
+const significantTokens = (s: string): string[] =>
+  normName(s).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !ACCOUNT_STOPWORDS.has(w));
+
+/**
+ * Empareja un hint de cuenta con las cuentas del usuario, tolerando variaciones:
+ * 1) contención en cualquier dirección (nombre⊇hint o hint⊇nombre);
+ * 2) solapamiento de tokens fuertes (ej. «bancolombia ahorros» ~ «Bancolombia debito»).
+ * Evita crear cuentas casi-duplicadas cuando ya existe una del mismo banco.
+ */
+function matchAccountByHint(accounts: Account[], hint: string): Account | null {
+  const h = normName(hint || "");
+  if (!h || !accounts.length) return null;
+
+  const contains = accounts
+    .filter((a) => {
+      const n = normName(a.name);
+      return n.includes(h) || h.includes(n);
+    })
+    .sort((a, b) => b.name.length - a.name.length);
+  if (contains.length) return contains[0]!;
+
+  const hintTokens = new Set(significantTokens(hint));
+  if (hintTokens.size) {
+    let best: Account | null = null;
+    let bestScore = 0;
+    for (const a of accounts) {
+      const score = significantTokens(a.name).filter((t) => hintTokens.has(t)).length;
+      if (score > bestScore) {
+        best = a;
+        bestScore = score;
+      }
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
 export function accountRepo(db: SupabaseClient): AccountRepository {
   const map = (d: Record<string, unknown>): Account => ({
     id: d.id as string,
@@ -95,14 +142,11 @@ export function accountRepo(db: SupabaseClient): AccountRepository {
       return (data ?? []).map(map);
     },
     async findByNameHint(userId, hint) {
-      const { data } = await db
-        .from("accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .ilike("name", `%${hint}%`)
-        .limit(1)
-        .maybeSingle();
-      return data ? map(data) : null;
+      // Traemos todas las cuentas y hacemos un match tolerante: así «bancolombia ahorros»
+      // reconoce una «Bancolombia debito» existente (por el token fuerte) en vez de crear un duplicado.
+      const { data } = await db.from("accounts").select("*").eq("user_id", userId).eq("archived", false);
+      const accounts = (data ?? []).map(map);
+      return matchAccountByHint(accounts, hint);
     },
     async create(userId, name, type: AccountType) {
       const { data, error } = await db

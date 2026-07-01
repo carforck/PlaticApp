@@ -57,6 +57,12 @@ export interface SavingsIntent {
   goal?: number; // unidad mayor (pesos)
 }
 
+/** El usuario declara/ajusta cuánto tiene AHORA en una cuenta (fija el saldo real). */
+export interface BalanceIntent {
+  accountHint: string;
+  amount: number; // unidad mayor (pesos): saldo actual que debe quedar en la cuenta
+}
+
 /** Resultado de interpretar un mensaje: movimientos, deudas, recurrencias y/o una consulta. */
 export interface ExtractResult {
   transactions: TransactionDraft[];
@@ -65,6 +71,8 @@ export interface ExtractResult {
   query: QueryIntent | null;
   /** Acción de ahorro (apartar/meta/consulta). */
   savings: SavingsIntent | null;
+  /** El usuario dice cuánto tiene ahora en una cuenta (para fijar su saldo real). */
+  balance: BalanceIntent | null;
   /** Respuesta conversacional cuando el usuario solo charla/saluda/pregunta qué puede hacer. */
   reply: string | null;
 }
